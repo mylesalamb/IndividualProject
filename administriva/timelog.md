@@ -26,7 +26,7 @@
 * *1.5 hours* git setup + population
 * *1 hour* meeting preparation, mindmap 
 * *0.5 hours* Initial project meeting
-
+* *2 hours* Reading ECN RFC and is ECN usable with UDP
 
 <!---
 ### 19 Oct 2019
