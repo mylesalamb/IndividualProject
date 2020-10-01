@@ -1,9 +1,9 @@
 # Timelog
 
-* PROJECT NAME
-* YOUR NAME
-* STUDENT_ID
-* SUPERVISOR NAME
+* Where is ECN Stripped On The Network?
+* Myles Lamb
+* 2325727L
+* Dr Colin Perkins
 
 ## Guidance
 
@@ -14,6 +14,21 @@
 
 ## Week 1
 
+### 30 Sep 2020
+
+* *2 hours* Reading hall of fame projects
+* *1 hour* Reading project guidance documents
+* *1 hour* Preliminary background reading (Is ECN usable with UDP, Revision on ECN)
+* *1 hour* Evaluation of packet sniffers / manglers (libpcap, Scapy)
+
+### 1 Oct 2020
+
+* *1.5 hours* git setup + population
+* *1 hour* meeting preparation, mindmap 
+* *0.5 hours* Initial project meeting
+
+
+<!---
 ### 19 Oct 2019
 
 * *4 hours* Read the project guidance notes
@@ -24,3 +39,4 @@
 
 * *1 hour* meeting with supervisor
 * *2 hours* writing initial version of test harness
+--->
