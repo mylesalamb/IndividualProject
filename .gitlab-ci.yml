@@ -1,0 +1,9 @@
+image: blang/latex
+build:
+  tags:
+    - docker
+  script:
+    - cd dissertation && latexmk -pdf l4proj.tex
+  artifacts:
+    paths:
+      - "dissertation/*.pdf"
