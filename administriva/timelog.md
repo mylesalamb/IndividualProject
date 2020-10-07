@@ -32,6 +32,9 @@
 
 * *4 hours* reading cited papers from "is ECN usable with UDP"
 
+### 7 Oct 2020
+
+* *1.5 hours* Agenda plan for meeting 8-10-2020 and preliminary timing plan for project
 <!---
 ### 19 Oct 2019
 
