@@ -28,6 +28,10 @@
 * *0.5 hours* Initial project meeting
 * *2 hours* Reading ECN RFC and is ECN usable with UDP
 
+### 2 Oct 2020
+
+* *3 hours* reading cited papers from "is ECN usable with UDP"
+
 <!---
 ### 19 Oct 2019
 
