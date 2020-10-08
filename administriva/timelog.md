@@ -32,9 +32,18 @@
 
 * *4 hours* reading cited papers from "is ECN usable with UDP"
 
+## Week 2
+
 ### 7 Oct 2020
 
 * *1.5 hours* Agenda plan for meeting 8-10-2020 and preliminary timing plan for project
+
+### 8 Oct 2020
+
+* *1.5 hours* Meeting + preparation
+* *4 hours* Various readings + technology evaluation (PATHSpider, tracebox, Openssl, libressl, quic implementations) investigating ICMP probes suitability for differing transport layer technologies, Investigations on proposed expanded scope DSCP stripping on the network, ECT(0) or ECT(1)
+* *1 hour* Looking at packet interception with libpcap -> can strip most of the data we dont need before analysis
+* *0.5 hours* Draft basic requirements
 <!---
 ### 19 Oct 2019
 
