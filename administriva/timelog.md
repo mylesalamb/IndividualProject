@@ -44,7 +44,14 @@
 * *4 hours* Various readings + technology evaluation (PATHSpider, tracebox, Openssl, libressl, quic implementations) investigating ICMP probes suitability for differing transport layer technologies, Investigations on proposed expanded scope DSCP stripping on the network, ECT(0) or ECT(1)
 * *1 hour* Looking at packet interception with libpcap -> can strip most of the data we dont need before analysis
 * *0.5 hours* Draft basic requirements
-<!---
+
+### 9 Oct 2020
+
+* *1 hour* Reading DSCP modification paper "Towards a Middlebox Policy Taxonomy:Path Impairments"
+* *1 hour* Reading Enabling Internet wide deployment of explicit congestion notification
+* *0.5 hours* Revision of network programming in C "UNIX® Network Programming Volume 1, Third Edition: The Sockets Networking API"
+* *1 hour* Reading "Measuring Interactions Between Transport Protocols and Middleboxes"
+<!--- 
 ### 19 Oct 2019
 
 * *4 hours* Read the project guidance notes
