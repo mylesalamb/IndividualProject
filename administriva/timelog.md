@@ -51,6 +51,12 @@
 * *1 hour* Reading Enabling Internet wide deployment of explicit congestion notification
 * *0.5 hours* Revision of network programming in C "UNIX® Network Programming Volume 1, Third Edition: The Sockets Networking API"
 * *1 hour* Reading "Measuring Interactions Between Transport Protocols and Middleboxes"
+
+## Week 3
+
+### 12 Oct 2020
+* *1.5 hours* Work on prototype HTTP
+* *1 hour* Resolving issue with ECN enablement
 <!--- 
 ### 19 Oct 2019
 
