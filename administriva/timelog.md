@@ -57,6 +57,10 @@
 ### 12 Oct 2020
 * *1.5 hours* Work on prototype HTTP
 * *1 hour* Resolving issue with ECN enablement
+
+### 13 Oct 2020
+* *0.5 hours* Refine requirements towards user stories
+
 <!--- 
 ### 19 Oct 2019
 
@@ -68,4 +72,5 @@
 
 * *1 hour* meeting with supervisor
 * *2 hours* writing initial version of test harness
+
 --->

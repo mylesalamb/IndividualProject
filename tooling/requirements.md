@@ -5,11 +5,12 @@
 * Should take an input file of client IP Addrs, no jit resolution because
   we want to avoid DNS load balancers to start connections with
 * Should output data relating to the characteristics discovered of the connection
-	- Outputting to a text file amenable to further analysis
+	- Outputing a file in PCAP format so that it is ammenable to further analysis
 
 * Supports different operating modes
 	- TCP vs Quic
-	- NTP vs HTTP
+	- TLS vs HTTP
+	- IPv6 vs IPv4
 	- DSCP test
 	- ECT(0) / ECT(1)
 
