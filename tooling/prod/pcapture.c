@@ -64,6 +64,9 @@ void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header) {
 
 void pcap_log_conn(char *host, int port)
 {
+    char outfile[32];
+    sprintf(outfile, "%s-%d.pcap", host, port);
+    pcap_dumper_t *pd;
     char dev[] = "enp3s0";
     char filter_exp[32];
     sprintf(filter_exp, "port %d or dst port %d", port, port);
@@ -98,6 +101,17 @@ void pcap_log_conn(char *host, int port)
         printf("No packet found.\n");
         return;
     }
+
+    // should be replaced with pcap dispatch ordeal
+    pd = pcap_dump_open(handle, outfile);
+    pcap_dump(pd, &packet_header,packet);
+    pcap_dump_close(pd);
+
+    // until connection signalled over
+    // connector has read responses
+    // spin
+
+    //then return
 
     /* Our function to output some info */
     print_packet_info(packet, packet_header);
