@@ -61,6 +61,8 @@
 ### 13 Oct 2020
 * *0.5 hours* Refine requirements towards user stories
 
+### 14 Oct 2020
+* *1.5 hours* writing tcp dump clone + refactor proto + ipv6 support
 <!--- 
 ### 19 Oct 2019
 
