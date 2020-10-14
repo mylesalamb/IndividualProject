@@ -1,5 +1,14 @@
-image: blang/latex
-build:
+before_script:
+  - apt-get update && apt install --yes make libpcap-dev libnetfilter-queue-dev
+
+build:tool:
+  image: gcc
+  script:
+    - cd tooling/prod
+    - make
+
+build:dissertation:
+  image: blang/latex
   tags:
     - docker
   script:

@@ -1,0 +1,6 @@
+To detect that a host is ECN capable, at least with TCP
+the syn packet will negotiate this through bits present in the header (pg 15)
+previous pages deal with the placement of these bits
+can be empirically tested for in wireshark
+
+
