@@ -63,6 +63,10 @@
 
 ### 14 Oct 2020
 * *1.5 hours* writing tcp dump clone + refactor proto + ipv6 support
+
+### 15 Oct 2020
+* *1 hour* meeting with advisor
+* *5 hours* threading tcp dump clone + writing component api, debugging ipv6 support
 <!--- 
 ### 19 Oct 2019
 
