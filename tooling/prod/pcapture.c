@@ -10,9 +10,20 @@
 #include "context.h"
 #include "pcapture.h"
 
-
-static void * pcap_controller(void *arg);
+static void *pcap_controller(void *arg);
 static void pcap_log_conn(struct pcap_controller_t *pc);
+
+void pcap_push_context(struct pcap_controller_t *pc, struct connection_context_t *ctx)
+{
+        pthread_mutex_lock(&pc->mtx);
+        while (pc->ctx)
+                pthread_cond_wait(&pc->cv, &pc->mtx);
+
+        pc->ctx = ctx;
+
+        pthread_mutex_unlock(&pc->mtx);
+        pthread_cond_signal(&pc->cv);
+}
 
 /**
  * Sanity checks for pcap
@@ -73,17 +84,11 @@ int pcap_debug()
         return 0;
 }
 
-void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header)
-{
-        printf("Packet capture length: %d\n", packet_header.caplen);
-        printf("Packet total length %d\n", packet_header.len);
-}
-
 struct pcap_controller_t *pcap_init()
 {
         pthread_t th;
         struct pcap_controller_t *pc = calloc(sizeof(struct pcap_controller_t), 1);
-        
+
         pthread_mutex_init(&pc->mtx, NULL);
         pthread_cond_init(&pc->cv, NULL);
         pthread_cond_init(&pc->cap_rdy, NULL);
@@ -100,10 +105,36 @@ struct pcap_controller_t *pcap_init()
         return pc;
 }
 
-static
-bool get_connection_status(struct pcap_controller_t *pc)
+void pcap_free(struct pcap_controller_t *pc)
 {
-        printf("check connection status\n");
+        pthread_mutex_lock(&pc->mtx);
+        pc->connection_exit = true;
+        pc->controller_exit = true;
+        pthread_mutex_unlock(&pc->mtx);
+        pthread_join(pc->thread, NULL);
+
+        pthread_mutex_destroy(&pc->mtx);
+        pthread_cond_destroy(&pc->cap_rdy);
+        pthread_cond_destroy(&pc->cv);
+
+        free(pc);
+}
+/**
+ * Client threads to wait until the pcap controller in ready
+ */
+void pcap_wait_until_rdy(struct pcap_controller_t *pc)
+{
+        pthread_mutex_lock(&pc->mtx);
+        while (!pc->cap_rdy_flag)
+                pthread_cond_wait(&pc->cap_rdy, &pc->mtx);
+
+        pc->cap_rdy_flag = false;
+        pthread_mutex_unlock(&pc->mtx);
+}
+
+static bool get_connection_exit(struct pcap_controller_t *pc)
+{
+
         pthread_mutex_lock(&pc->mtx);
         bool ret = pc->connection_exit;
         pthread_mutex_unlock(&pc->mtx);
@@ -111,8 +142,7 @@ bool get_connection_status(struct pcap_controller_t *pc)
         return ret;
 }
 
-static
-void pcap_log_conn(struct pcap_controller_t *pc)
+static void pcap_log_conn(struct pcap_controller_t *pc)
 {
 
         char outfile[32];
@@ -121,8 +151,6 @@ void pcap_log_conn(struct pcap_controller_t *pc)
         char dev[] = "wlp3s0";
         char filter_exp[32];
         sprintf(filter_exp, "port %d or dst port %d", pc->ctx->port, pc->ctx->port);
-        const u_char *packet;
-        struct pcap_pkthdr packet_header;
         pcap_t *handle;
         char error_buffer[PCAP_ERRBUF_SIZE];
         struct bpf_program filter;
@@ -157,59 +185,49 @@ void pcap_log_conn(struct pcap_controller_t *pc)
         pc->cap_rdy_flag = true;
         pthread_mutex_unlock(&pc->mtx);
         pthread_cond_signal(&pc->cap_rdy);
-       
 
         pd = pcap_dump_open(handle, outfile);
         do
         {
-                pcap_dispatch(handle, 1, &pcap_dump, (u_char *)pd);
-                printf("Buff exhuasted\n");
-        }while(!get_connection_status(pc));
-
-        printf("pcap:set outways cap\n");
-        // pthread_mutex_lock(&pc->mtx);
-        // pc->cap_rdy_flag = false;
-        // pthread_mutex_unlock(&pc->mtx);
-
-
+                pcap_dispatch(handle, -1, &pcap_dump, (u_char *)pd);
+        } while (!get_connection_exit(pc));
 
         // close dump file handle
         pcap_dump_close(pd);
         // close network interface handle
         pcap_close(handle);
-}
 
+        pthread_mutex_lock(&pc->mtx);
+        pc->ctx = NULL;
+        pthread_mutex_unlock(&pc->mtx);
+}
 
 /**
  * Thread entrypoint for handling
  * pcap connections
  */
-static
-void * pcap_controller(void *arg)
+static void *pcap_controller(void *arg)
 {
         // capture state from init function -> wait until
         struct pcap_controller_t *pc = (struct pcap_controller_t *)arg;
 
-        while(1){
+        while (1)
+        {
 
-                // wait until something changes
-                printf("pcap:controller waiting for action\n");
+                // wait until exit or context pushed
                 pthread_mutex_lock(&pc->mtx);
-                while(!pc->controller_exit && !pc->ctx)
+                while (!pc->controller_exit && !pc->ctx)
                         pthread_cond_wait(&pc->cv, &pc->mtx);
-                
-                
-                if(pc->controller_exit){
+
+                if (pc->controller_exit)
+                {
                         pthread_mutex_unlock(&pc->mtx);
                         break;
                 }
 
                 pthread_mutex_unlock(&pc->mtx);
                 pcap_log_conn(pc);
-
         }
-
-        printf("pcap:controller_exit -> true\n");
 
         return NULL;
 }

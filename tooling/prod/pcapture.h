@@ -9,10 +9,11 @@
 struct pcap_controller_t 
 {
     pthread_t thread;
-    // synchronise with the other parts of the program
+    // synchronise work context with program
     pthread_mutex_t mtx;
     pthread_cond_t cv;
     
+    // synchronise whether pcap is ready to recieve traffic
     pthread_cond_t cap_rdy;
     bool cap_rdy_flag;
 
@@ -26,6 +27,9 @@ struct pcap_controller_t
 };
 
 int pcap_debug();
+void pcap_free(struct pcap_controller_t *pc);
+void pcap_wait_until_rdy(struct pcap_controller_t *pc);
+void pcap_push_context(struct pcap_controller_t *pc, struct connection_context_t *ctx);
 struct pcap_controller_t * pcap_init();
 
 
