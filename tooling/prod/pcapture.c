@@ -3,6 +3,10 @@
 #include <arpa/inet.h>
 #include <linux/types.h>
 #include <string.h>
+#include <pthread.h>
+#include <stdlib.h>
+
+#include "pcapture.h"
 
 int pcap_debug()
 {
@@ -60,6 +64,19 @@ int pcap_debug()
 void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header) {
     printf("Packet capture length: %d\n", packet_header.caplen);
     printf("Packet total length %d\n", packet_header.len);
+}
+
+struct pcap_controller_t * pcap_init()
+{
+    pthread_t th;
+    struct pcap_controller_t *pc = malloc(sizeof(struct pcap_controller_t));
+
+    if(pthread_create(&th, NULL, pcap_log_conn, NULL))
+    {
+        perror("pcap:thread creation");
+        return NULL;
+    }
+
 }
 
 void pcap_log_conn(char *host, int port)
