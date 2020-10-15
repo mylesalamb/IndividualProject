@@ -61,6 +61,8 @@ int send_tcp_http_request(char *request, char *host, int locport)
                 //no op
         }
 
+        sleep(3);
+
         close(fd);
         return 0;
 fail:
