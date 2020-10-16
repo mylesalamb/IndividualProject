@@ -6,7 +6,8 @@ struct connection_context_t
     char *host;
     int proto;
     int port;
-    int flags;
+    // tos mask for net inject
+    unsigned char flags;
 };
 
 

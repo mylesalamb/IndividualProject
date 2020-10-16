@@ -138,7 +138,6 @@ static bool get_connection_exit(struct pcap_controller_t *pc)
         pthread_mutex_lock(&pc->mtx);
         bool ret = pc->connection_exit;
         pthread_mutex_unlock(&pc->mtx);
-        printf("finish check\n");
         return ret;
 }
 
@@ -148,7 +147,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         char outfile[32];
         sprintf(outfile, "%s-%d.pcap", pc->ctx->host, pc->ctx->port);
         pcap_dumper_t *pd;
-        char dev[] = "wlp3s0";
+        char dev[] = "enp3s0";
         char filter_exp[32];
         sprintf(filter_exp, "port %d or dst port %d", pc->ctx->port, pc->ctx->port);
         pcap_t *handle;
@@ -180,7 +179,6 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         }
 
         // buffer is open -> we are capturing but not using packets
-        printf("pcap:capture_ready");
         pthread_mutex_lock(&pc->mtx);
         pc->cap_rdy_flag = true;
         pthread_mutex_unlock(&pc->mtx);

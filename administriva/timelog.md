@@ -67,6 +67,9 @@
 ### 15 Oct 2020
 * *1 hour* meeting with advisor
 * *5 hours* threading tcp dump clone + writing component api, debugging ipv6 support
+
+### 16 Oct 2020
+* *5 hours* Threaded libnetfilter component
 <!--- 
 ### 19 Oct 2019
 
