@@ -12,9 +12,9 @@ int send_tcp_http_request(char *request, char *host, int locport)
         int fd;
         struct sockaddr_in addr;
         int addr_type;
-        
+
         //ipv6 or ipv4
-        if(strlen(host) == INET6_ADDRSTRLEN)
+        if (strlen(host) == INET6_ADDRSTRLEN)
         {
                 addr_type = AF_INET6;
         }
@@ -22,15 +22,13 @@ int send_tcp_http_request(char *request, char *host, int locport)
         {
                 addr_type = AF_INET;
         }
-        
 
         fd = socket(addr_type, SOCK_STREAM, 0);
-        if(fd < 0)
+        if (fd < 0)
         {
                 perror("tcp-http socket");
                 goto fail;
         }
-
 
         // bind to local known port
         addr.sin_addr.s_addr = INADDR_ANY;
@@ -56,14 +54,19 @@ int send_tcp_http_request(char *request, char *host, int locport)
 
         ssize_t request_len = strlen(request);
 
-        if (send(fd, request, request_len, 0) != request_len)
+        if (write(fd, request, request_len) >= 0)
         {
-                //no op
+                while (read(fd, NULL, 10000) > 0)
+                {
+                        
+                }
         }
 
+        
         sleep(3);
-
         close(fd);
+        
+        
         return 0;
 fail:
         close(fd);

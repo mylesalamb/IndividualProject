@@ -1,14 +1,13 @@
 #include <stdio.h>
 #include <pcap.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <linux/types.h>
 #include <string.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdbool.h>
-
-#include "context.h"
 #include "pcapture.h"
+#include "context.h"
 
 static void *pcap_controller(void *arg);
 static void pcap_log_conn(struct pcap_controller_t *pc);
@@ -105,12 +104,27 @@ struct pcap_controller_t *pcap_init()
         return pc;
 }
 
+/**
+ * tell component that the connection has ended
+ */
+void pcap_close_context(struct pcap_controller_t *pc)
+{
+        pthread_mutex_lock(&pc->mtx);
+        pc->connection_exit = true;
+        pc->ctx = NULL;
+        printf("break loop called\n");
+        pcap_breakloop(pc->handle);
+        pthread_mutex_unlock(&pc->mtx);
+}
+
 void pcap_free(struct pcap_controller_t *pc)
 {
         pthread_mutex_lock(&pc->mtx);
         pc->connection_exit = true;
         pc->controller_exit = true;
+        pc->ctx = NULL;
         pthread_mutex_unlock(&pc->mtx);
+        pthread_cond_signal(&pc->cv);
         pthread_join(pc->thread, NULL);
 
         pthread_mutex_destroy(&pc->mtx);
@@ -138,16 +152,17 @@ static bool get_connection_exit(struct pcap_controller_t *pc)
         pthread_mutex_lock(&pc->mtx);
         bool ret = pc->connection_exit;
         pthread_mutex_unlock(&pc->mtx);
+        printf("get connection exit returned: %s", ret ? "true" : "false");
         return ret;
 }
 
 static void pcap_log_conn(struct pcap_controller_t *pc)
 {
-
+        printf("pcap:log_conn\n");
         char outfile[32];
         sprintf(outfile, "%s-%d.pcap", pc->ctx->host, pc->ctx->port);
         pcap_dumper_t *pd;
-        char dev[] = "enp3s0";
+        char dev[] = "wlp3s0";
         char filter_exp[32];
         sprintf(filter_exp, "port %d or dst port %d", pc->ctx->port, pc->ctx->port);
         pcap_t *handle;
@@ -157,24 +172,30 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         if (pcap_lookupnet(dev, &ip, &subnet_mask, error_buffer) == -1)
         {
-                printf("Could not get information for device: %s\n", dev);
+                perror("pcap:device lookup");
                 ip = 0;
                 subnet_mask = 0;
         }
-        handle = pcap_open_live(dev, BUFSIZ, 1, 1000, error_buffer);
-        if (handle == NULL)
+        pc->handle = pcap_open_live(dev, BUFSIZ, 1, 1000, error_buffer);
+        if (pc->handle == NULL)
         {
-                printf("Could not open %s - %s\n", dev, error_buffer);
+                perror("pcap:open wireless");
                 return;
         }
-        if (pcap_compile(handle, &filter, filter_exp, 0, ip) == -1)
+        if (pcap_compile(pc->handle, &filter, filter_exp, 0, ip) == -1)
         {
-                printf("Bad filter - %s\n", pcap_geterr(handle));
+                perror("pcap:compile filter");
                 return;
         }
-        if (pcap_setfilter(handle, &filter) == -1)
+        if (pcap_setfilter(pc->handle, &filter) == -1)
         {
-                printf("Error setting filter - %s\n", pcap_geterr(handle));
+                perror("pcap:set filter");
+                return;
+        }
+
+        if (pcap_setnonblock(pc->handle, 1, error_buffer) == -1)
+        {
+                perror("pcap:set non block");
                 return;
         }
 
@@ -184,20 +205,19 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         pthread_mutex_unlock(&pc->mtx);
         pthread_cond_signal(&pc->cap_rdy);
 
-        pd = pcap_dump_open(handle, outfile);
+        printf("Start dumping packets\n");
+        pd = pcap_dump_open(pc->handle, outfile);
         do
         {
-                pcap_dispatch(handle, -1, &pcap_dump, (u_char *)pd);
+                pcap_dispatch(pc->handle, 1, &pcap_dump, (u_char *)pd);
         } while (!get_connection_exit(pc));
 
         // close dump file handle
         pcap_dump_close(pd);
         // close network interface handle
-        pcap_close(handle);
+        pcap_close(pc->handle);
 
-        pthread_mutex_lock(&pc->mtx);
-        pc->ctx = NULL;
-        pthread_mutex_unlock(&pc->mtx);
+        printf("pcap:return_to_controller\n");
 }
 
 /**
@@ -214,6 +234,7 @@ static void *pcap_controller(void *arg)
 
                 // wait until exit or context pushed
                 pthread_mutex_lock(&pc->mtx);
+                pc->connection_exit = false;
                 while (!pc->controller_exit && !pc->ctx)
                         pthread_cond_wait(&pc->cv, &pc->mtx);
 

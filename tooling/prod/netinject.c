@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <linux/netfilter.h>
+#include <stdint.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -10,11 +11,11 @@
 #include "netinject.h"
 
 static void *nf_controller(void *arg);
+static void nf_handle_conn(struct nf_controller_t *nfc);
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data);
 
 struct nf_controller_t *nf_init()
 {
-        pthread_t th;
         struct nf_controller_t *nfc;
 
         nfc = malloc(sizeof(struct nf_controller_t));
@@ -68,11 +69,19 @@ struct nf_controller_t *nf_init()
         return nfc;
 }
 
+bool nf_get_connection_exit(struct nf_controller_t *nfc)
+{
+        bool ret;
+        pthread_mutex_lock(&nfc->mtx);
+        ret = nfc->connection_exit;
+        pthread_mutex_unlock(&nfc->mtx);
+        return ret;
+}
+
 static void *nf_controller(void *arg)
 {
         struct nf_controller_t *nfc = (struct nf_controller_t *)arg;
-        int res;
-        char buf[4096];
+        
 
         pthread_mutex_lock(&nfc->mtx);
         nfc->rdy_flag = true;
@@ -85,24 +94,53 @@ static void *nf_controller(void *arg)
                 while (!nfc->controller_exit && !nfc->ctx)
                 {
                         pthread_cond_wait(&nfc->cv, &nfc->mtx);
-                }
+                } 
 
                 if (nfc->controller_exit)
                 {
                         pthread_mutex_unlock(&nfc->mtx);
                         break;
                 }
+                else if (nfc->ctx){
+                        nfc->rdy_flag = true;
+                        nfc->connection_exit = false;
+                }
                 pthread_mutex_unlock(&nfc->mtx);
+                pthread_cond_signal(&nfc->cv);
 
                 // connection_exit false -> we definitely know that the conneciton
                 // is done because requests have been sent/modified
-                while ((res = recv(nfc->fd, buf, sizeof(buf), 0)) && res > 0)
-                        nfq_handle_packet(nfc->nfq_handle, buf, res);
+                
+                nf_handle_conn(nfc);
+                
 
                 
         }
 
         return NULL;
+}
+
+static void nf_handle_conn(struct nf_controller_t *nfc)
+{
+        int res;
+        char buf[4096];
+
+        while(!nf_get_connection_exit(nfc)){
+                while ((res = recv(nfc->fd, buf, sizeof(buf), 0)) && res > 0)
+                        nfq_handle_packet(nfc->nfq_handle, buf, res);
+        }
+
+        pthread_mutex_lock(&nfc->mtx);
+        nfc->ctx = NULL;
+        pthread_mutex_unlock(&nfc->mtx);
+}
+void nf_close_context(struct nf_controller_t *nfc)
+{
+        pthread_mutex_lock(&nfc->mtx);
+        nfc->connection_exit = true;
+        nfc->ctx = NULL;
+        pthread_mutex_unlock(&nfc->mtx);
+        pthread_cond_signal(&nfc->cv);
 }
 
 void nf_push_context(struct nf_controller_t *nfc, struct connection_context_t *ctx)
@@ -114,6 +152,7 @@ void nf_push_context(struct nf_controller_t *nfc, struct connection_context_t *c
         nfc->ctx = ctx;
         pthread_mutex_unlock(&nfc->mtx);
         pthread_cond_signal(&nfc->cv);
+        printf("push nf context\n");
 }
 
 void nf_wait_until_rdy(struct nf_controller_t *nfc)
@@ -164,4 +203,4 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         printf("\n");
 
         return nfq_set_verdict(queue, id, NF_ACCEPT, len, pktData);
-}
+}  

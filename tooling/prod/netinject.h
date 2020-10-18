@@ -3,7 +3,7 @@
 
 #include <pthread.h>
 #include <stdbool.h>
-#include <linux/netfilter.h>
+
 #include <stdint.h> // lib net filter has an undocumented dependency on stdint?
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include "context.h"
@@ -35,6 +35,7 @@ struct nf_controller_t *nf_init();
 void nf_push_context(struct nf_controller_t *nfc, struct connection_context_t *ctx);
 void nf_wait_until_rdy(struct nf_controller_t *nfc);
 void nf_free(struct nf_controller_t *nfc);
+void nf_close_context(struct nf_controller_t *nfc);
 
 
 #endif
