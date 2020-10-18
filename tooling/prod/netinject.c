@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <linux/netfilter.h>
-#include <stdint.h>
+#include <linux/types.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -13,6 +13,15 @@
 static void *nf_controller(void *arg);
 static void nf_handle_conn(struct nf_controller_t *nfc);
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data);
+
+static void nf_handle_ipv6();
+static void nf_handle_ipv4();
+
+/**
+ * return whether ecn should be applied to ip
+ */
+static int nf_handle_tcp();
+
 
 struct nf_controller_t *nf_init()
 {
@@ -184,23 +193,44 @@ void nf_free(struct nf_controller_t *nfc)
 
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data)
 {
-        int id = 0;
-        struct nfqnl_msg_packet_hdr *header;
+        int id = 0, len = 0;
+        struct nfqnl_msg_packet_hdr *ph;
+        uint8_t *payload=NULL, *proto_payload, *pos;
 
-        if (header = nfq_get_msg_packet_hdr(pkt))
-                id = ntohl(header->packet_id);
+        
+        unsigned char *raw_data = NULL;
 
-        unsigned char *pktData;
+        ph = nfq_get_msg_packet_hdr(pkt);
+        if(!ph)
+        {
+                perror("nf:packet_header");
+                goto fail_no_pkt;
+        }
 
-        int len = nfq_get_payload(pkt, &pktData);
+        // id used by kernel
+        id = ntohl(ph->packet_id);
+        len = nfq_get_payload(pkt, &payload);
 
-        printf("data[ %d ]:\n", len);
+        if(!len){
+                perror("nf:packet_len");
+                goto fail;
+        }
 
-        int i;
-        for (i = 0; i < len; i++)
-                printf("%2d 0x%02x %3d %c\n", i, pktData[i], pktData[i], pktData[i]);
+        // this works :)
+        // although something on the network seems to reject this
+        uint8_t *tos = payload + 1;
+        *tos = 0x02;
 
-        printf("\n");
+        printf("Packet mod\n");
 
-        return nfq_set_verdict(queue, id, NF_ACCEPT, len, pktData);
-}  
+
+        return nfq_set_verdict(queue, id, NF_ACCEPT, len, payload);
+
+
+
+fail_no_pkt:
+        return 0;
+fail:
+        return nfq_set_verdict(queue, id, NF_ACCEPT, 0, NULL);
+
+}

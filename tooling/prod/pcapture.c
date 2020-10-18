@@ -152,7 +152,6 @@ static bool get_connection_exit(struct pcap_controller_t *pc)
         pthread_mutex_lock(&pc->mtx);
         bool ret = pc->connection_exit;
         pthread_mutex_unlock(&pc->mtx);
-        printf("get connection exit returned: %s", ret ? "true" : "false");
         return ret;
 }
 

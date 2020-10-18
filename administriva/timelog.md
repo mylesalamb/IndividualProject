@@ -70,6 +70,11 @@
 
 ### 16 Oct 2020
 * *5 hours* Threaded libnetfilter component
+
+### 18 Oct 2020
+* *2 hours* Debugging pcap context switch
+* *1 hours* writing in partial application of altering TOS bits of ipv4 header
+
 <!--- 
 ### 19 Oct 2019
 
