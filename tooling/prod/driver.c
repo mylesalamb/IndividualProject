@@ -56,7 +56,7 @@ int main(int argc, char **argv)
                 return EXIT_FAILURE;
         }
 
-        struct pcap_controller_t *pc = pcap_init();
+        struct pcap_controller_t *pc = pcap_init(alias);
         struct nf_controller_t *nf = nf_init();
 
         struct transaction_node_t *cursor = transactions->head;

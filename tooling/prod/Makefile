@@ -1,7 +1,7 @@
 EXEC=ecnDetector
 EXECSOURCES= netinject.o connector.o pcapture.o driver.o parser.o
 CC=gcc
-CFLAGS=-O2 -g -Wall
+CFLAGS=-O2 -Wall
 LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink
 
 $(EXEC): $(EXECSOURCES)

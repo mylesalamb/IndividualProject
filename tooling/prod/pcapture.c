@@ -24,27 +24,27 @@ void pcap_push_context(struct pcap_controller_t *pc, struct connection_context_t
         pthread_cond_signal(&pc->cv);
 }
 
-struct pcap_controller_t *pcap_init()
+struct pcap_controller_t *pcap_init(char *alias)
 {
         pthread_t th;
-        //pcap_if_t *devs;
+        pcap_if_t *devs;
 
-        // char errbuff[PCAP_ERRBUF_SIZE];
+        char errbuff[PCAP_ERRBUF_SIZE];
 
-        //pcap_findalldevs(&devs, errbuff);
-        // if(!devs){
-        //         perror("pcap_init:no devices");
-        //         return NULL;
-        // }
+        pcap_findalldevs(&devs, errbuff);
+        if(!devs){
+                perror("pcap_init:no devices");
+                return NULL;
+        }
 
-        // char * dev = malloc(sizeof(char) * strlen(devs->name) + 1);
-        // if(!dev){
-        //         perror("pcap_init:malloc");
-        //         return NULL;
-        // }
-        // //strcpy(dev, devs->name);
-        //printf("dev to use: \"%s\"\n", dev);
-        //pcap_freealldevs(devs);
+        char * dev = malloc(sizeof(char) * strlen(devs->name) + 1);
+        if(!dev){
+                perror("pcap_init:malloc");
+                return NULL;
+        }
+        strcpy(dev, devs->name);
+        
+        pcap_freealldevs(devs);
 
 
 
@@ -62,7 +62,8 @@ struct pcap_controller_t *pcap_init()
         }
 
         pc->thread = th;
-
+        pc->pcap_dev = dev;
+        pc->alias = alias;
         return pc;
 }
 
@@ -91,6 +92,7 @@ void pcap_free(struct pcap_controller_t *pc)
         pthread_cond_destroy(&pc->cap_rdy);
         pthread_cond_destroy(&pc->cv);
 
+        free(pc->pcap_dev);
         free(pc);
 }
 /**
@@ -118,24 +120,29 @@ static bool get_connection_exit(struct pcap_controller_t *pc)
 static void pcap_log_conn(struct pcap_controller_t *pc)
 {
 
-        char outfile[32];
-        sprintf(outfile, "%s-%02X-%d.pcap", pc->ctx->host, pc->ctx->flags, pc->ctx->port);
+        char outfile[64];
+        sprintf(outfile,
+                "%s%s%s-%02X-%d.pcap",
+                (pc->alias) ? pc->alias : "",
+                (pc->alias) ? "-" : "",
+                pc->ctx->host,
+                pc->ctx->flags,
+                pc->ctx->port
+        );
         pcap_dumper_t *pd;
-        char dev[] = "enp3s0";
-        char filter_exp[32];
+        char filter_exp[64];
         sprintf(filter_exp, "port %d or dst port %d", pc->ctx->port, pc->ctx->port);
-        pcap_t *handle;
         char error_buffer[PCAP_ERRBUF_SIZE];
         struct bpf_program filter;
         bpf_u_int32 subnet_mask, ip;
 
-        if (pcap_lookupnet(dev, &ip, &subnet_mask, error_buffer) == -1)
+        if (pcap_lookupnet(pc->pcap_dev, &ip, &subnet_mask, error_buffer) == -1)
         {
                 perror("pcap:device lookup");
                 ip = 0;
                 subnet_mask = 0;
         }
-        pc->handle = pcap_open_live(dev, BUFSIZ, 1, 1000, error_buffer);
+        pc->handle = pcap_open_live(pc->pcap_dev, BUFSIZ, 1, 1000, error_buffer);
         if (pc->handle == NULL)
         {
                 perror("pcap:open wireless");

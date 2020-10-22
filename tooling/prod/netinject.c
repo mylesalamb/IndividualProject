@@ -160,7 +160,6 @@ void nf_push_context(struct nf_controller_t *nfc, struct connection_context_t *c
         nfc->ctx = ctx;
         pthread_mutex_unlock(&nfc->mtx);
         pthread_cond_signal(&nfc->cv);
-        printf("push nf context\n");
 }
 
 void nf_wait_until_rdy(struct nf_controller_t *nfc)
@@ -195,7 +194,6 @@ void nf_free(struct nf_controller_t *nfc)
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data)
 {
         struct connection_context_t *ctx = *(struct connection_context_t **)data;
-        printf("nf:packet cb\n");
         int id = 0, len = 0;
         struct nfqnl_msg_packet_hdr *ph;
         uint8_t *payload;
