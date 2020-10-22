@@ -4,7 +4,7 @@
 struct connection_context_t
 {
     char *host;
-    int proto;
+    char *proto;
     int port;
     // tos mask for net inject
     unsigned char flags;
