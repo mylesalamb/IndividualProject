@@ -64,6 +64,7 @@ int main(int argc, char **argv)
         pcap_free(pc);
         nf_free(nf);
 
+        printf("Complete\n");
         return EXIT_SUCCESS;
 }
 
@@ -80,11 +81,8 @@ static void dispatch_req(struct transaction_node_t *transac,
         nf_push_context(nfc, transac->ctx);
         nf_wait_until_rdy(nfc);
        
-        
-
         if (!strcmp(transac->ctx->proto, "TCP"))
         {
-
                 printf("dispatch:tcp\n"
                        "with args:\n%s\n%s\n",transac->ctx->host,transac->request);
                 send_tcp_http_request(transac->request, transac->ctx->host, 6000);
@@ -94,13 +92,8 @@ static void dispatch_req(struct transaction_node_t *transac,
                 perror("dispatch:unrecognised protocol");
         }
 
-        // something seems to get stuck otherwise
-        if(transac->next){
-        printf("close pcap context\n");
         pcap_close_context(pc);
-        printf("close nf context\n");
         nf_close_context(nfc);
-        }
 }
 
 static void print_usage()

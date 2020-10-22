@@ -112,8 +112,6 @@ void pcap_close_context(struct pcap_controller_t *pc)
         pthread_mutex_lock(&pc->mtx);
         pc->connection_exit = true;
         pc->ctx = NULL;
-        printf("break loop called\n");
-        pcap_breakloop(pc->handle);
         pthread_mutex_unlock(&pc->mtx);
 }
 
@@ -157,9 +155,9 @@ static bool get_connection_exit(struct pcap_controller_t *pc)
 
 static void pcap_log_conn(struct pcap_controller_t *pc)
 {
-        printf("pcap:log_conn\n");
+
         char outfile[32];
-        sprintf(outfile, "%s-%d.pcap", pc->ctx->host, pc->ctx->port);
+        sprintf(outfile, "%s-%x-%d.pcap", pc->ctx->host, pc->ctx->flags, pc->ctx->port);
         pcap_dumper_t *pd;
         char dev[] = "wlp3s0";
         char filter_exp[32];
@@ -246,6 +244,6 @@ static void *pcap_controller(void *arg)
                 pthread_mutex_unlock(&pc->mtx);
                 pcap_log_conn(pc);
         }
-
+        printf("pcap:thread leaving;\n");
         return NULL;
 }

@@ -180,7 +180,9 @@ void nf_free(struct nf_controller_t *nfc)
         pthread_mutex_lock(&nfc->mtx);
         nfc->connection_exit = true;
         nfc->controller_exit = true;
+        nfc->ctx = NULL;
         pthread_mutex_unlock(&nfc->mtx);
+        pthread_cond_signal(&nfc->cv);
     
         pthread_join(nfc->th, NULL);
 
@@ -195,6 +197,11 @@ void nf_free(struct nf_controller_t *nfc)
 
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data)
 {
+        struct connection_context_t *ctx = *(struct connection_context_t **)data;
+
+        printf("ctx from queue is\nhost: %s\nproto: %s\n", ctx->host, ctx->proto);
+        
+        
         int id = 0, len = 0;
         struct nfqnl_msg_packet_hdr *ph;
         uint8_t *payload=NULL, *proto_payload, *pos;
@@ -224,7 +231,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         // although something on the network seems to reject this
         uint8_t ver = *payload >> 4;
         uint8_t *tos = payload + 1;
-        *tos = 0x01;
+        *tos = ctx->flags;
 
         nfq_ip_set_checksum(payload);
 

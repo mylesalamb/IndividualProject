@@ -80,8 +80,6 @@ static struct transaction_node_t *parse_transaction(char *buff)
         strncpy(host, lptr, len - 1);
         host[len - 1] = '\0';
 
-        transac->ctx->host = host;
-
         // skip spaces
         lptr = rptr;
         while (isspace(*lptr))
@@ -116,6 +114,7 @@ static struct transaction_node_t *parse_transaction(char *buff)
         transac->ctx->host = host;
         transac->ctx->proto = proto;
         transac->ctx->port = 6000;
+        transac->ctx->flags = tos;
 
         // handle different request types
         if (!strcmp(proto, "TCP"))
