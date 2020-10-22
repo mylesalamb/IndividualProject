@@ -69,7 +69,7 @@ static struct transaction_node_t *parse_transaction(char *buff)
         while (!isspace(*rptr))
                 rptr++;
 
-        len = rptr - lptr + 2; // length + null char
+        len = rptr - lptr + 1; // length + null char
         host = malloc(len * sizeof(char));
         if (!host)
         {

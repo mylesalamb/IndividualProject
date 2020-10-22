@@ -1,29 +1,30 @@
 #include <stdlib.h>
 #include <netinet/in.h>
-#include <linux/netfilter.h>
-#include <linux/types.h>
-#include <libnetfilter_queue/libnetfilter_queue.h>
-#include <libnetfilter_queue/libnetfilter_queue_tcp.h>
-#include <libnetfilter_queue/libnetfilter_queue_ipv4.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <fcntl.h>
+#include <string.h>
+
+#include <linux/netfilter.h>
+#include <linux/types.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+
+#include <libnetfilter_queue/pktbuff.h>
+#include <libnetfilter_queue/libnetfilter_queue.h>
+#include <libnetfilter_queue/libnetfilter_queue_tcp.h>
+#include <libnetfilter_queue/libnetfilter_queue_ipv4.h>
 
 #include "netinject.h"
+
+#define IS_ECN(x) (x & 0x02)
 
 static void *nf_controller(void *arg);
 static void nf_handle_conn(struct nf_controller_t *nfc);
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data);
 
-static void nf_handle_ipv6();
-static void nf_handle_ipv4();
-
-/**
- * return whether ecn should be applied to ip
- */
-static int nf_handle_tcp();
-
+static void nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 
 struct nf_controller_t *nf_init()
 {
@@ -92,7 +93,6 @@ bool nf_get_connection_exit(struct nf_controller_t *nfc)
 static void *nf_controller(void *arg)
 {
         struct nf_controller_t *nfc = (struct nf_controller_t *)arg;
-        
 
         pthread_mutex_lock(&nfc->mtx);
         nfc->rdy_flag = true;
@@ -105,14 +105,15 @@ static void *nf_controller(void *arg)
                 while (!nfc->controller_exit && !nfc->ctx)
                 {
                         pthread_cond_wait(&nfc->cv, &nfc->mtx);
-                } 
+                }
 
                 if (nfc->controller_exit)
                 {
                         pthread_mutex_unlock(&nfc->mtx);
                         break;
                 }
-                else if (nfc->ctx){
+                else if (nfc->ctx)
+                {
                         nfc->rdy_flag = true;
                         nfc->connection_exit = false;
                 }
@@ -121,11 +122,8 @@ static void *nf_controller(void *arg)
 
                 // connection_exit false -> we definitely know that the conneciton
                 // is done because requests have been sent/modified
-                
-                nf_handle_conn(nfc);
-                
 
-                
+                nf_handle_conn(nfc);
         }
 
         return NULL;
@@ -136,7 +134,8 @@ static void nf_handle_conn(struct nf_controller_t *nfc)
         int res;
         char buf[4096];
 
-        while(!nf_get_connection_exit(nfc)){
+        while (!nf_get_connection_exit(nfc))
+        {
                 while ((res = recv(nfc->fd, buf, sizeof(buf), 0)) && res > 0)
                         nfq_handle_packet(nfc->nfq_handle, buf, res);
         }
@@ -183,7 +182,7 @@ void nf_free(struct nf_controller_t *nfc)
         nfc->ctx = NULL;
         pthread_mutex_unlock(&nfc->mtx);
         pthread_cond_signal(&nfc->cv);
-    
+
         pthread_join(nfc->th, NULL);
 
         pthread_mutex_destroy(&nfc->mtx);
@@ -199,18 +198,13 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
 {
         struct connection_context_t *ctx = *(struct connection_context_t **)data;
 
-        printf("ctx from queue is\nhost: %s\nproto: %s\n", ctx->host, ctx->proto);
-        
-        
         int id = 0, len = 0;
         struct nfqnl_msg_packet_hdr *ph;
-        uint8_t *payload=NULL, *proto_payload, *pos;
-
-        
+        uint8_t *payload = NULL, *proto_payload, *pos;
         unsigned char *raw_data = NULL;
 
         ph = nfq_get_msg_packet_hdr(pkt);
-        if(!ph)
+        if (!ph)
         {
                 perror("nf:packet_header");
                 goto fail_no_pkt;
@@ -220,41 +214,63 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         id = ntohl(ph->packet_id);
         len = nfq_get_payload(pkt, &payload);
 
-
-
-        if(!len){
-                perror("nf:packet_len");
+        if (!len)
+        {
+                perror("netinject:pkt len");
                 goto fail;
         }
 
-        // this works :)
-        // although something on the network seems to reject this
-        uint8_t ver = *payload >> 4;
-        uint8_t *tos = payload + 1;
-        *tos = ctx->flags;
 
-        nfq_ip_set_checksum(payload);
-
-        printf("Packet mod\n");
-
+        if (!strcmp(ctx->proto, "TCP"))
+        {
+                nf_handle_tcp(ctx, payload, len);
+        }
+        else
+        {
+                perror("netinject:proto not recognised -> nop");
+                printf("proto was: %s", ctx->proto);
+        }
 
         return nfq_set_verdict(queue, id, NF_ACCEPT, len, payload);
-
-
 
 fail_no_pkt:
         return 0;
 fail:
         return nfq_set_verdict(queue, id, NF_ACCEPT, 0, NULL);
-
 }
 
-static void nf_handle_ipv6()
+static void nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len)
 {
 
-}
+        struct pkt_buff *pkt;
+        struct tcphdr *tcp;
+        struct iphdr *ip;
 
-static void nf_handle_ipv4()
-{
+        pkt = pktb_alloc(AF_INET, payload, len, 0);
+        ip = nfq_ip_get_hdr(pkt);
+        nfq_ip_set_transport_header(pkt, ip);
+        tcp = nfq_tcp_get_hdr(pkt);
 
+        if (!tcp)
+        {
+                perror("netinject:non tcp in tcp flow");
+                pktb_free(pkt);
+                return;
+        }
+
+        if (tcp->syn && IS_ECN(ctx->flags))
+        {
+                tcp->cwr = 1;
+                tcp->ece = 1;
+        }
+        else if(IS_ECN(ctx->flags)) {
+                ip->tos = ctx->flags;
+        }
+
+        
+
+        nfq_ip_set_checksum(ip);
+        nfq_tcp_compute_checksum_ipv4(tcp, ip);
+
+        memcpy(payload, pktb_data(pkt), len);
 }

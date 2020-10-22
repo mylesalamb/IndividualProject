@@ -157,7 +157,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 {
 
         char outfile[32];
-        sprintf(outfile, "%s-%x-%d.pcap", pc->ctx->host, pc->ctx->flags, pc->ctx->port);
+        sprintf(outfile, "%s-%02X-%d.pcap", pc->ctx->host, pc->ctx->flags, pc->ctx->port);
         pcap_dumper_t *pd;
         char dev[] = "wlp3s0";
         char filter_exp[32];

@@ -7,7 +7,11 @@ LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink
 $(EXEC): $(EXECSOURCES)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
-.PHONY: clean
+.PHONY: clean rmd cleanall
 
 clean:
 	rm $(EXECSOURCES) $(EXEC)
+rmd:
+	rm *.pcap
+
+cleanall: clean rmd
