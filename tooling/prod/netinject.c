@@ -38,15 +38,13 @@ struct nf_controller_t *nf_init()
         pthread_cond_init(&nfc->cv, NULL);
         pthread_cond_init(&nfc->rdy, NULL);
 
+        nfc->ctx = NULL;
+        nfc->connection_exit = false;
+        nfc->controller_exit = false;
+
         if (!(nfc->nfq_handle = nfq_open()))
         {
                 perror("nf:nf_open_fail");
-                return NULL;
-        }
-
-        if (nfq_bind_pf(nfc->nfq_handle, AF_INET) < 0)
-        {
-                perror("nf:nf_bind_fail");
                 return NULL;
         }
 
@@ -197,11 +195,10 @@ void nf_free(struct nf_controller_t *nfc)
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data)
 {
         struct connection_context_t *ctx = *(struct connection_context_t **)data;
-
+        printf("nf:packet cb\n");
         int id = 0, len = 0;
         struct nfqnl_msg_packet_hdr *ph;
-        uint8_t *payload = NULL, *proto_payload, *pos;
-        unsigned char *raw_data = NULL;
+        uint8_t *payload;
 
         ph = nfq_get_msg_packet_hdr(pkt);
         if (!ph)
@@ -273,4 +270,5 @@ static void nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, si
         nfq_tcp_compute_checksum_ipv4(tcp, ip);
 
         memcpy(payload, pktb_data(pkt), len);
+        pktb_free(pkt);
 }

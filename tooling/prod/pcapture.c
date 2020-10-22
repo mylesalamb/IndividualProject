@@ -24,68 +24,30 @@ void pcap_push_context(struct pcap_controller_t *pc, struct connection_context_t
         pthread_cond_signal(&pc->cv);
 }
 
-/**
- * Sanity checks for pcap
- */
-int pcap_debug()
-{
-        char *device;
-        char ip[13];
-        char subnet_mask[13];
-        bpf_u_int32 ip_raw;
-        bpf_u_int32 subnet_mask_raw;
-        int lookup_return_code;
-        char error_buffer[PCAP_ERRBUF_SIZE];
-        struct in_addr address;
-
-        /* Find a device */
-        device = pcap_lookupdev(error_buffer);
-        if (device == NULL)
-        {
-                printf("%s\n", error_buffer);
-                return 1;
-        }
-
-        /* Get device info */
-        lookup_return_code = pcap_lookupnet(
-            device,
-            &ip_raw,
-            &subnet_mask_raw,
-            error_buffer);
-        if (lookup_return_code == -1)
-        {
-                printf("%s\n", error_buffer);
-                return 1;
-        }
-
-        /* Get ip in human readable form */
-        address.s_addr = ip_raw;
-        strcpy(ip, inet_ntoa(address));
-        if (ip == NULL)
-        {
-                perror("inet_ntoa"); /* print error */
-                return 1;
-        }
-
-        /* Get subnet mask in human readable form */
-        address.s_addr = subnet_mask_raw;
-        strcpy(subnet_mask, inet_ntoa(address));
-        if (subnet_mask == NULL)
-        {
-                perror("inet_ntoa");
-                return 1;
-        }
-
-        printf("Device: %s\n", device);
-        printf("IP address: %s\n", ip);
-        printf("Subnet mask: %s\n", subnet_mask);
-
-        return 0;
-}
-
 struct pcap_controller_t *pcap_init()
 {
         pthread_t th;
+        //pcap_if_t *devs;
+
+        // char errbuff[PCAP_ERRBUF_SIZE];
+
+        //pcap_findalldevs(&devs, errbuff);
+        // if(!devs){
+        //         perror("pcap_init:no devices");
+        //         return NULL;
+        // }
+
+        // char * dev = malloc(sizeof(char) * strlen(devs->name) + 1);
+        // if(!dev){
+        //         perror("pcap_init:malloc");
+        //         return NULL;
+        // }
+        // //strcpy(dev, devs->name);
+        //printf("dev to use: \"%s\"\n", dev);
+        //pcap_freealldevs(devs);
+
+
+
         struct pcap_controller_t *pc = calloc(sizeof(struct pcap_controller_t), 1);
 
         pthread_mutex_init(&pc->mtx, NULL);
@@ -159,7 +121,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         char outfile[32];
         sprintf(outfile, "%s-%02X-%d.pcap", pc->ctx->host, pc->ctx->flags, pc->ctx->port);
         pcap_dumper_t *pd;
-        char dev[] = "wlp3s0";
+        char dev[] = "enp3s0";
         char filter_exp[32];
         sprintf(filter_exp, "port %d or dst port %d", pc->ctx->port, pc->ctx->port);
         pcap_t *handle;
@@ -211,6 +173,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         // close dump file handle
         pcap_dump_close(pd);
+        pcap_freecode(&filter);
         // close network interface handle
         pcap_close(pc->handle);
 

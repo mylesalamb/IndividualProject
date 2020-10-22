@@ -14,7 +14,6 @@ static void dispatch_req(struct transaction_node_t *transac,
                          struct nf_controller_t *nfc,
                          struct pcap_controller_t *pc);
 
-
 int main(int argc, char **argv)
 {
 
@@ -51,6 +50,12 @@ int main(int argc, char **argv)
         }
 
         struct transaction_list_t *transactions = fget_transactions(infile);
+        if (!transactions)
+        {
+                perror("infile parse error");
+                return EXIT_FAILURE;
+        }
+
         struct pcap_controller_t *pc = pcap_init();
         struct nf_controller_t *nf = nf_init();
 
@@ -63,6 +68,8 @@ int main(int argc, char **argv)
 
         pcap_free(pc);
         nf_free(nf);
+
+        transaction_list_free(transactions);
 
         printf("Complete\n");
         return EXIT_SUCCESS;
@@ -77,14 +84,15 @@ static void dispatch_req(struct transaction_node_t *transac,
 
         pcap_push_context(pc, transac->ctx);
         pcap_wait_until_rdy(pc);
-        
+
         nf_push_context(nfc, transac->ctx);
         nf_wait_until_rdy(nfc);
-       
+
         if (!strcmp(transac->ctx->proto, "TCP"))
         {
                 printf("dispatch:tcp\n"
-                       "with args:\n%s\n%s\n",transac->ctx->host,transac->request);
+                       "with args:\n%s\n%s\n",
+                       transac->ctx->host, transac->request);
                 send_tcp_http_request(transac->request, transac->ctx->host, 6000);
         }
         else

@@ -52,11 +52,12 @@ int send_tcp_http_request(char *request, char *host, int locport)
                 goto fail;
         }
 
+        char buff[1024];
         ssize_t request_len = strlen(request);
 
         if (write(fd, request, request_len) >= 0)
         {
-                while (read(fd, NULL, 10000) > 0)
+                while (read(fd, buff, sizeof(buff)) > 0)
                 {
                         
                 }

@@ -18,6 +18,6 @@ struct transaction_list_t
 
 
 struct transaction_list_t *fget_transactions(char *filename);
-void transaciton_list_free(struct transaction_list_t *arg);
+void transaction_list_free(struct transaction_list_t *arg);
 
 #endif

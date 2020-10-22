@@ -12,6 +12,7 @@ static struct transaction_list_t *transaction_list_init();
 static void transaction_list_insert(struct transaction_list_t *lst, struct transaction_node_t *node);
 static void transaction_node_free(struct transaction_node_t *arg);
 
+
 #define HTTP_REQ "GET /index.html HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n"
 const size_t req_len = strlen(HTTP_REQ);
 
@@ -40,6 +41,8 @@ struct transaction_list_t *fget_transactions(char *filename)
                         fprintf(stderr, "failed to parse transaction with line \"%s\"", buff);
                 }
         }
+
+        fclose(fhandle);
 
         return tlist;
 }
@@ -231,6 +234,8 @@ void transaction_node_free(struct transaction_node_t *arg)
                 return;
 
         free(arg->ctx->host);
+        free(arg->ctx->proto);
+        free(arg->ctx);
         free(arg->request);
         free(arg);
 }
