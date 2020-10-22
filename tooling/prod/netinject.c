@@ -3,6 +3,8 @@
 #include <linux/netfilter.h>
 #include <linux/types.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
+#include <libnetfilter_queue/libnetfilter_queue_tcp.h>
+#include <libnetfilter_queue/libnetfilter_queue_ipv4.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -47,7 +49,7 @@ struct nf_controller_t *nf_init()
                 return NULL;
         }
 
-        if (!(nfc->queue = nfq_create_queue(nfc->nfq_handle, 0, &packet_callback, NULL)))
+        if (!(nfc->queue = nfq_create_queue(nfc->nfq_handle, 0, &packet_callback, &nfc->ctx)))
         {
                 perror("Error in nfq_create_queue()");
                 return NULL;
@@ -211,6 +213,8 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         id = ntohl(ph->packet_id);
         len = nfq_get_payload(pkt, &payload);
 
+
+
         if(!len){
                 perror("nf:packet_len");
                 goto fail;
@@ -218,8 +222,11 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
 
         // this works :)
         // although something on the network seems to reject this
+        uint8_t ver = *payload >> 4;
         uint8_t *tos = payload + 1;
-        *tos = 0x02;
+        *tos = 0x01;
+
+        nfq_ip_set_checksum(payload);
 
         printf("Packet mod\n");
 
@@ -232,5 +239,15 @@ fail_no_pkt:
         return 0;
 fail:
         return nfq_set_verdict(queue, id, NF_ACCEPT, 0, NULL);
+
+}
+
+static void nf_handle_ipv6()
+{
+
+}
+
+static void nf_handle_ipv4()
+{
 
 }

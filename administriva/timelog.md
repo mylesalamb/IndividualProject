@@ -75,6 +75,8 @@
 * *2 hours* Debugging pcap context switch
 * *1 hours* writing in partial application of altering TOS bits of ipv4 header
 
+### 21 Oct 2020
+* *3 hours* Rough file parser and tweaks to alteration of TOS bits
 <!--- 
 ### 19 Oct 2019
 
