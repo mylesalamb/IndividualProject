@@ -12,5 +12,4 @@ struct connection_context_t
     uint8_t flags;
 };
 
-
 #endif

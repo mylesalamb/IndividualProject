@@ -18,7 +18,7 @@
 
 #include "netinject.h"
 
-#define IS_ECN(x) (x & 0x02)
+#define IS_ECN(x) (x & 0x03)
 
 static void *nf_controller(void *arg);
 static void nf_handle_conn(struct nf_controller_t *nfc);
@@ -197,7 +197,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         int id = 0, len = 0;
         struct nfqnl_msg_packet_hdr *ph;
         uint8_t *payload;
-
+        printf("packet cb\n");
         ph = nfq_get_msg_packet_hdr(pkt);
         if (!ph)
         {
@@ -252,9 +252,11 @@ static void nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, si
                 pktb_free(pkt);
                 return;
         }
+        printf("in tcp callback\n");
 
         if (tcp->syn && IS_ECN(ctx->flags))
         {
+                printf("seen syn");
                 tcp->cwr = 1;
                 tcp->ece = 1;
         }
