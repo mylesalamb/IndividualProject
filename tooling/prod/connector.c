@@ -16,9 +16,83 @@
 #define HALF_S \
         (struct timespec) { 1, 500000000 }
 #define MAX_TTL 50
+#define MAX_NTP 5
 
 static int contruct_ip4_sock(char *host, int locport);
 static int contruct_ip6_sock(char *host, int locport);
+
+int send_udp_ntp_request(char *host, int locport)
+{
+        uint8_t request[] = {
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+        };
+        // bare min to get a response
+        *request = 0x1b; 
+        uint8_t response[48];
+        
+        memset(request, 0, sizeof(request));
+        int fd;
+        struct sockaddr_in addr;
+        socklen_t addrlen = sizeof(addr);
+        struct timespec rst = HALF_S;
+
+        fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if(fd < 0)
+        {
+                perror("send_ntp:socket creation");
+                return -1;
+        }
+
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(locport);
+        addr.sin_addr.s_addr = INADDR_ANY;
+
+        if(bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+        {
+                perror("send_ntp:socket creation");
+                close(fd);
+                return -1;
+        }
+
+        addr.sin_port = htons(123);
+        addr.sin_addr.s_addr = inet_addr(host);
+
+        printf("enter send loop\n");
+        for(int i = 0; i < MAX_NTP; i++)
+        {
+                printf("loop\n");
+                if(sendto(fd, request, sizeof(request), 0, (struct sockaddr *)&addr, sizeof(addr)) == -1){
+                        perror("Failed ot send");
+                        close(fd);
+                        return -1;
+                }
+                
+                //nanosleep(&rst, &rst);
+                if(recvfrom(fd, response, sizeof(response), 0, (struct sockaddr *)&addr, &addrlen) == -1){
+                        perror("Failed to recieve response");
+                        close(fd);
+                        continue;
+                }
+
+                break;
+        }
+
+        printf("Got some response\n");
+        return 0;
+
+}
+
 
 /**
  * Send a tcp http request over tcp

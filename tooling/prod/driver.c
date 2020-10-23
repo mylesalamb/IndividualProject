@@ -102,6 +102,11 @@ static void dispatch_req(struct transaction_node_t *transac,
                        transac->ctx->host);
                 send_tcp_syn_probe(transac->ctx->host, transac->ctx->port);
         }
+        else if(!strcmp(transac->ctx->proto, "NTP")){
+                printf("dispatch:ntp\n"
+                       "with args:\n%s\n", transac->ctx->host);
+                send_udp_ntp_request(transac->ctx->host, transac->ctx->port);
+        }
         else{
                 perror("dispatch:unrecognised protocol");
         }
