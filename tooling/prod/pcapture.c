@@ -122,10 +122,11 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         char outfile[64];
         sprintf(outfile,
-                "%s%s%s-%02X-%d.pcap",
+                "%s%s%s-%s-%02X-%d.pcap",
                 (pc->alias) ? pc->alias : "",
                 (pc->alias) ? "-" : "",
                 pc->ctx->host,
+                pc->ctx->proto,
                 pc->ctx->flags,
                 pc->ctx->port
         );

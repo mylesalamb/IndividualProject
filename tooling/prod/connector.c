@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <time.h>
+#include <fcntl.h>
 
 #define HALF_S \
         (struct timespec) { 0, 500000000 }
@@ -79,7 +80,11 @@ fail:
         return -1;
 }
 
-static int send_ind_tcp_probe(int fd, struct sockaddr_in *addr, char *host, int locport, int ttl)
+/**
+ * Send an individual tcp segement
+ * flags denotes whether a syn or fin segment should be sent
+ */
+static int send_ind_tcp_probe(int fd, struct sockaddr_in *addr, char *host, int locport, int ttl, uint8_t flags)
 {
         struct iphdr *ip;
         struct tcphdr *tcp;
@@ -102,11 +107,11 @@ static int send_ind_tcp_probe(int fd, struct sockaddr_in *addr, char *host, int 
 
         tcp->source = htons(locport);
         tcp->dest = htons(80);
-        tcp->seq = 0;
+        tcp->seq = 123123;
         tcp->ack_seq = 0;
         tcp->doff = 5;
-        tcp->fin = 0;
-        tcp->syn = 1;
+        tcp->fin = flags & 0x02;
+        tcp->syn = flags & 0x01;
         tcp->rst = 0;
         tcp->psh = 0;
         tcp->ack = 0;
@@ -127,6 +132,7 @@ static int send_ind_tcp_probe(int fd, struct sockaddr_in *addr, char *host, int 
 
 /**
  * check from the socket if we get a response from the host
+ * this is really crude
  */
 static int check_tcp_response(int fd, char *host)
 {
@@ -134,16 +140,18 @@ static int check_tcp_response(int fd, char *host)
         struct iphdr *ip;
         uint8_t buff[65536];
         struct sockaddr_in addr;
-        //size_t pkt_len;
-
+        int i = 0;
+        while(i++ < 100){
         if ((recvfrom(fd, buff, sizeof(buff), 0, NULL, NULL)) == -1)
                 return -1;
+        
 
         ip = (struct iphdr *)buff;
         addr.sin_addr.s_addr = ip->saddr;
         if (!strcmp(inet_ntoa(addr.sin_addr), host))
                 return 0;
         
+        }
         return -1;
 }
 
@@ -166,6 +174,8 @@ int send_tcp_syn_probe(char *host, int locport)
                 return -1;
         }
 
+        int status = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+
         addr.sin_family = AF_INET;
         addr.sin_port = htons(locport);
         addr.sin_addr.s_addr = inet_addr(host);
@@ -176,20 +186,26 @@ int send_tcp_syn_probe(char *host, int locport)
         if (setsockopt(fd, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0)
         {
                 printf("Error setting IP_HDRINCL. Error number : %d . Error message : %s \n", errno, strerror(errno));
-                exit(0);
+                return -1;
         }
 
         for (int ttl = 1; ttl < MAX_TTL; ttl++)
         {
                 for (int i = 0; i < 2; i++)
                 {
-                        send_ind_tcp_probe(fd, &addr, host, locport, ttl);
+                        send_ind_tcp_probe(fd, &addr, host, locport, ttl, 0x01);
                         nanosleep(&rst, &rst);
+                        // read to see if we get an ack
+                        // send a fin if we do, everything gets a bit confused if we dont
+                        if (check_tcp_response(fd, host) == 0)
+                        {
+                                printf("seen response :)\n");
+                                send_ind_tcp_probe(fd, &addr, host, locport, MAX_TTL, 0x02);
+                                goto loop_break;
+                        }
                 }
-                // read to see if we get an ack
-                if (check_tcp_response(fd, host) == 0)
-                        break;
         }
-
+loop_break:
+        sleep(3);
         return 0;
 }

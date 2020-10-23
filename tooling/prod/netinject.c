@@ -24,7 +24,7 @@ static void *nf_controller(void *arg);
 static void nf_handle_conn(struct nf_controller_t *nfc);
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data);
 
-static void nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
+static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 
 struct nf_controller_t *nf_init()
 {
@@ -216,9 +216,10 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         }
 
 
-        if (!strcmp(ctx->proto, "TCP"))
+        if (!strncmp(ctx->proto, "TCP", 3))
         {
-                nf_handle_tcp(ctx, payload, len);
+                 if(nf_handle_tcp(ctx, payload, len))
+                        return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
         }
         else
         {
@@ -234,7 +235,7 @@ fail:
         return nfq_set_verdict(queue, id, NF_ACCEPT, 0, NULL);
 }
 
-static void nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len)
+static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len)
 {
 
         struct pkt_buff *pkt;
@@ -251,9 +252,14 @@ static void nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, si
         {
                 perror("netinject:non tcp in tcp flow");
                 pktb_free(pkt);
-                return;
+                return 0;
         }
         printf("in tcp callback\n");
+
+        // we use raw sockets, and the kernel gets confused
+        if(tcp->rst){
+                return -1;
+        }
 
         if (tcp->syn && IS_ECN(ctx->flags))
         {
@@ -270,4 +276,6 @@ static void nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, si
 
         memcpy(payload, pktb_data(pkt), len);
         pktb_free(pkt);
+
+        return 0;
 }

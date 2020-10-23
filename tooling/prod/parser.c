@@ -142,11 +142,11 @@ static struct transaction_node_t *parse_transaction(char *buff)
 
                 transac->request = request;
         }
-        else
-        {
-                perror("parse_transac:proto not supported");
-                goto fail;
-        }
+        // else
+        // {
+        //         perror("parse_transac:proto not supported");
+        //         goto fail;
+        // }
 
         printf("parsed vals ->\n\thost = %s\n\tproto = %s\n\ttos = %x\n", host, proto, tos);
 

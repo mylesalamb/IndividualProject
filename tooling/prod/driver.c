@@ -95,8 +95,14 @@ static void dispatch_req(struct transaction_node_t *transac,
                        transac->ctx->host, transac->request);
                 send_tcp_http_request(transac->request, transac->ctx->host, 6000);
         }
-        else
+        else if(!strcmp(transac->ctx->proto, "TCPPROBE"))
         {
+                printf("Probe network path\n"
+                       "with args:\n%s\n",
+                       transac->ctx->host);
+                send_tcp_syn_probe(transac->ctx->host, transac->ctx->port);
+        }
+        else{
                 perror("dispatch:unrecognised protocol");
         }
 
