@@ -77,6 +77,21 @@
 
 ### 21 Oct 2020
 * *3 hours* Rough file parser and tweaks to alteration of TOS bits
+
+### 22 Oct 2020
+
+* *0.5 hours* Meeting with advisor
+* *2 hours* Various refactorings, fixing memory leaks and invalid memory accesses
+* *2 hours* fixing synchronisation issue with jit packet modifier
+* *1 hour* implement proper ECN negotiation with jit packet modifier
+* *0.5 hours* refactoring output file structure
+* *0.5 hours* fixing ECT(0) bug
+
+### 23 Oct 2020
+
+* *4 hours* raw sockets traceroute implementation TCP
+* *2 hours* initial work on ntp client
+
 <!--- 
 ### 19 Oct 2019
 
