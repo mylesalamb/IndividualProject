@@ -131,7 +131,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         );
         pcap_dumper_t *pd;
         char filter_exp[64];
-        sprintf(filter_exp, "port %d or dst port %d", pc->ctx->port, pc->ctx->port);
+        sprintf(filter_exp, "port %d or dst port %d or icmp", pc->ctx->port, pc->ctx->port);
         char error_buffer[PCAP_ERRBUF_SIZE];
         struct bpf_program filter;
         bpf_u_int32 subnet_mask, ip;

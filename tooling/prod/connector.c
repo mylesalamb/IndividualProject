@@ -2,10 +2,18 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <time.h>
+
+#define HALF_S \
+        (struct timespec) { 0, 500000000 }
+#define MAX_TTL 50
 
 int send_tcp_http_request(char *request, char *host, int locport)
 {
@@ -59,17 +67,129 @@ int send_tcp_http_request(char *request, char *host, int locport)
         {
                 while (read(fd, buff, sizeof(buff)) > 0)
                 {
-                        
                 }
         }
 
-        
         sleep(3);
         close(fd);
-        
-        
+
         return 0;
 fail:
         close(fd);
         return -1;
+}
+
+static int send_ind_tcp_probe(int fd, struct sockaddr_in *addr, char *host, int locport, int ttl)
+{
+        struct iphdr *ip;
+        struct tcphdr *tcp;
+        uint8_t buff[4096];
+
+        memset(buff, 0, sizeof(buff));
+
+        ip = (struct iphdr *)buff;
+        tcp = (struct tcphdr *)(buff + sizeof(struct iphdr));
+
+        ip->ihl = 5;
+        ip->version = 4;
+        ip->tot_len = sizeof(struct iphdr) + sizeof(struct tcphdr);
+        ip->id = htons(54321);
+        ip->ttl = ttl;
+        ip->protocol = IPPROTO_TCP;
+        ip->check = 0;
+        ip->saddr = inet_addr("0.0.0.0");
+        ip->daddr = (*addr).sin_addr.s_addr;
+
+        tcp->source = htons(locport);
+        tcp->dest = htons(80);
+        tcp->seq = 0;
+        tcp->ack_seq = 0;
+        tcp->doff = 5;
+        tcp->fin = 0;
+        tcp->syn = 1;
+        tcp->rst = 0;
+        tcp->psh = 0;
+        tcp->ack = 0;
+        tcp->urg = 0;
+        tcp->window = htons(1000);
+        tcp->check = 0;
+        tcp->urg_ptr = 0;
+
+        if (sendto(fd, buff, ip->tot_len, 0, (struct sockaddr *)addr, sizeof(struct sockaddr_in)) < 0)
+        {
+                perror("tcp_probe:send\n");
+                fprintf(stderr, "send returned: %s\n", strerror(errno));
+                return -1;
+        }
+
+        return 0;
+}
+
+/**
+ * check from the socket if we get a response from the host
+ */
+static int check_tcp_response(int fd, char *host)
+{
+
+        struct iphdr *ip;
+        uint8_t buff[65536];
+        struct sockaddr_in addr;
+        //size_t pkt_len;
+
+        if ((recvfrom(fd, buff, sizeof(buff), 0, NULL, NULL)) == -1)
+                return -1;
+
+        ip = (struct iphdr *)buff;
+        addr.sin_addr.s_addr = ip->saddr;
+        if (!strcmp(inet_ntoa(addr.sin_addr), host))
+                return 0;
+        
+        return -1;
+}
+
+/**
+ * Simple traceroute implementation for sniffing when packets are lost on the network
+ * 
+ * We use a raw socket syn over icmp as it will get round some simple firewalls
+ * Note that we do not set ECN or calc checksum, connector.c is responsible for sending
+ * requests, and is agnostic of application context, see netinject.c for context aware modifications
+ */
+int send_tcp_syn_probe(char *host, int locport)
+{
+
+        struct sockaddr_in addr;
+        struct timespec rst = HALF_S;
+        int fd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+        if (fd < 0)
+        {
+                perror("tcp_probe:sock creation");
+                return -1;
+        }
+
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(locport);
+        addr.sin_addr.s_addr = inet_addr(host);
+
+        //IP_HDRINCL to tell the kernel that headers are included in the packet
+        int one = 1;
+        const int *val = &one;
+        if (setsockopt(fd, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0)
+        {
+                printf("Error setting IP_HDRINCL. Error number : %d . Error message : %s \n", errno, strerror(errno));
+                exit(0);
+        }
+
+        for (int ttl = 1; ttl < MAX_TTL; ttl++)
+        {
+                for (int i = 0; i < 2; i++)
+                {
+                        send_ind_tcp_probe(fd, &addr, host, locport, ttl);
+                        nanosleep(&rst, &rst);
+                }
+                // read to see if we get an ack
+                if (check_tcp_response(fd, host) == 0)
+                        break;
+        }
+
+        return 0;
 }

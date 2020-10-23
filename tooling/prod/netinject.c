@@ -242,6 +242,7 @@ static void nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, si
         struct iphdr *ip;
 
         pkt = pktb_alloc(AF_INET, payload, len, 0);
+        
         ip = nfq_ip_get_hdr(pkt);
         nfq_ip_set_transport_header(pkt, ip);
         tcp = nfq_tcp_get_hdr(pkt);
@@ -263,8 +264,6 @@ static void nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, si
         else if(IS_ECN(ctx->flags)) {
                 ip->tos = ctx->flags;
         }
-
-        
 
         nfq_ip_set_checksum(ip);
         nfq_tcp_compute_checksum_ipv4(tcp, ip);
