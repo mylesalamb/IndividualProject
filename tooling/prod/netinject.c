@@ -196,7 +196,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         struct connection_context_t *ctx = *(struct connection_context_t **)data;
         int id = 0, len = 0;
         struct nfqnl_msg_packet_hdr *ph;
-        uint8_t *payload;
+        uint8_t *payload, ipver;
         printf("packet cb\n");
         ph = nfq_get_msg_packet_hdr(pkt);
         if (!ph)
@@ -208,6 +208,12 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         // id used by kernel
         id = ntohl(ph->packet_id);
         len = nfq_get_payload(pkt, &payload);
+
+        // do dispatch for ipv6 or ipv4
+        ipver = (*payload & 0xf0) >> 4;
+
+
+        printf("ip version is %d", ipver); 
 
         if (!len)
         {
@@ -252,7 +258,7 @@ static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, siz
         {
                 perror("netinject:non tcp in tcp flow");
                 pktb_free(pkt);
-                return 0;
+                return -1;
         }
         printf("in tcp callback\n");
 
@@ -277,5 +283,6 @@ static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, siz
         memcpy(payload, pktb_data(pkt), len);
         pktb_free(pkt);
 
+        printf("packet modification done");
         return 0;
 }

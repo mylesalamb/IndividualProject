@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <netinet/ip.h>
+#include <netinet/ip_icmp.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <errno.h>
@@ -13,53 +14,36 @@
 #include <fcntl.h>
 
 #define HALF_S \
-        (struct timespec) { 0, 500000000 }
+        (struct timespec) { 1, 500000000 }
 #define MAX_TTL 50
 
+static int contruct_ip4_sock(char *host, int locport);
+static int contruct_ip6_sock(char *host, int locport);
+
+/**
+ * Send a tcp http request over tcp
+ * ipv6 or ipv4 aware
+ */
 int send_tcp_http_request(char *request, char *host, int locport)
 {
         int fd;
-        struct sockaddr_in addr;
-        int addr_type;
 
         //ipv6 or ipv4
         if (strlen(host) == INET6_ADDRSTRLEN)
         {
-                addr_type = AF_INET6;
+                fd = contruct_ip6_sock(host, locport);
         }
         else
         {
-                addr_type = AF_INET;
+                fd = contruct_ip4_sock(host, locport);
         }
-
-        fd = socket(addr_type, SOCK_STREAM, 0);
         if (fd < 0)
         {
                 perror("tcp-http socket");
                 goto fail;
         }
 
-        // bind to local known port
-        addr.sin_addr.s_addr = INADDR_ANY;
-        addr.sin_family = addr_type;
-        addr.sin_port = htons(locport);
-        if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0)
-        {
-                perror("error binding\n");
-                goto fail;
-        }
-
         // set outbound connection
-
-        addr.sin_family = addr_type;
-        addr.sin_addr.s_addr = inet_addr(host);
-        addr.sin_port = htons(80);
-
-        if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
-        {
-                perror("error connecting to server\n");
-                goto fail;
-        }
 
         char buff[1024];
         ssize_t request_len = strlen(request);
@@ -78,6 +62,106 @@ int send_tcp_http_request(char *request, char *host, int locport)
 fail:
         close(fd);
         return -1;
+}
+
+static int contruct_ip4_sock(char *host, int locport)
+{
+        int fd;
+        int opt = 1;
+        struct sockaddr_in addr;
+
+
+        fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (fd < 0)
+        {
+                perror("ipv4_socket:create");
+                return fd;
+        }
+
+        if(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
+        {
+                perror("ipv4_sock: reuse port");
+                close(fd);
+                return -1;
+        }
+
+        // bind to local known port
+        addr.sin_addr.s_addr = INADDR_ANY;
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(locport);
+        if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0)
+        {
+                perror("error binding\n");
+                close(fd);
+                return -1;
+        }
+
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = inet_addr(host);
+        addr.sin_port = htons(80);
+
+         if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+        {
+                perror("error connecting to server\n");
+                close(fd);
+                return -1;
+        }
+
+
+
+        return fd;
+}
+static int contruct_ip6_sock(char *host, int locport)
+{
+        int fd;
+        int opt = 1;
+        struct sockaddr_in6 addr;
+        fd = socket(AF_INET6, SOCK_STREAM, 0);
+        if (fd < 0)
+        {
+                perror("ipv6_socket:create");
+                return fd;
+        }
+
+        if(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
+        {
+                perror("ipv4_sock: reuse port");
+                close(fd);
+                return -1;
+        }
+
+        addr.sin6_family = AF_INET6;
+        addr.sin6_port = htons(locport);
+        addr.sin6_addr = in6addr_any;
+
+
+
+        if(bind(fd, (struct sockaddr *)&addr, sizeof(addr)))
+        {
+                perror("ipv6_create:bind error");
+                close(fd);
+                return -1;
+        }
+
+        memset(&addr, 0,sizeof(addr));
+
+        addr.sin6_family = AF_INET6;
+        addr.sin6_port = htons(80);
+        if(inet_pton(AF_INET6, host, &addr.sin6_addr) != 1)
+        {
+                perror("Could not convert addr\n");
+                close(fd);
+                return -1;
+        }
+
+        if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+        {
+                perror("error connecting to server\n");
+                close(fd);
+                return -1;
+        }
+
+        return fd;
 }
 
 /**
@@ -110,7 +194,7 @@ static int send_ind_tcp_probe(int fd, struct sockaddr_in *addr, char *host, int 
         tcp->seq = 123123;
         tcp->ack_seq = 0;
         tcp->doff = 5;
-        tcp->fin = flags & 0x02;
+        tcp->fin = (flags & 0x02) ? 1:0;
         tcp->syn = flags & 0x01;
         tcp->rst = 0;
         tcp->psh = 0;
@@ -134,23 +218,38 @@ static int send_ind_tcp_probe(int fd, struct sockaddr_in *addr, char *host, int 
  * check from the socket if we get a response from the host
  * this is really crude
  */
-static int check_tcp_response(int fd, char *host)
+static int check_tcp_response(int fd, int ttlfd, char *host)
 {
 
         struct iphdr *ip;
-        uint8_t buff[65536];
+        struct icmphdr *icmp;
+        uint8_t buff[4096];
         struct sockaddr_in addr;
         int i = 0;
-        while(i++ < 100){
-        if ((recvfrom(fd, buff, sizeof(buff), 0, NULL, NULL)) == -1)
-                return -1;
-        
+        while (i++ < 100)
+        {
+                if(recvfrom(ttlfd, buff, sizeof(buff), 0, NULL, NULL) > 0)
+                {
+                        // we have some icmp packet
+                        // check to see if its a ttl exceeded
+                        ip = (struct iphdr *)buff;
+                        icmp = (struct icmphdr *)(buff + sizeof(struct iphdr));
 
-        ip = (struct iphdr *)buff;
-        addr.sin_addr.s_addr = ip->saddr;
-        if (!strcmp(inet_ntoa(addr.sin_addr), host))
-                return 0;
-        
+                        if(icmp->code == ICMP_EXC_TTL){
+
+                                printf("is ttl exceed\n");
+                                return -1;
+                        }
+                }
+                
+                // otherwise check that we have a response from the host
+                if ((recvfrom(fd, buff, sizeof(buff), 0, NULL, NULL)) < 0)
+                        return -1;
+
+                ip = (struct iphdr *)buff;
+                addr.sin_addr.s_addr = ip->saddr;
+                if (!strcmp(inet_ntoa(addr.sin_addr), host))
+                        return 0;                
         }
         return -1;
 }
@@ -168,13 +267,23 @@ int send_tcp_syn_probe(char *host, int locport)
         struct sockaddr_in addr;
         struct timespec rst = HALF_S;
         int fd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
-        if (fd < 0)
+        int ttlfd  = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+        if (fd < 0 || ttlfd < 0)
         {
                 perror("tcp_probe:sock creation");
                 return -1;
         }
 
-        int status = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+        int err = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+        err |= fcntl(ttlfd, F_SETFL, fcntl(ttlfd, F_GETFL, 0) | O_NONBLOCK);
+
+        if(err)
+        {
+                perror("tcp_probe:socket non block set\n");
+                close(fd);
+                close(ttlfd);
+                return -1;
+        }
 
         addr.sin_family = AF_INET;
         addr.sin_port = htons(locport);
@@ -197,7 +306,7 @@ int send_tcp_syn_probe(char *host, int locport)
                         nanosleep(&rst, &rst);
                         // read to see if we get an ack
                         // send a fin if we do, everything gets a bit confused if we dont
-                        if (check_tcp_response(fd, host) == 0)
+                        if (check_tcp_response(fd, ttlfd, host) == 0)
                         {
                                 printf("seen response :)\n");
                                 send_ind_tcp_probe(fd, &addr, host, locport, MAX_TTL, 0x02);
