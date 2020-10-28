@@ -10,8 +10,8 @@ $(EXEC): $(EXECSOURCES)
 .PHONY: clean rmd cleanall
 
 clean:
-	rm $(EXECSOURCES) $(EXEC)
+	-rm $(EXECSOURCES) $(EXEC)
 rmd:
-	rm *.pcap
+	-rm *.pcap
 
 cleanall: clean rmd
