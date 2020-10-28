@@ -75,8 +75,12 @@
 * *2 hours* Debugging pcap context switch
 * *1 hours* writing in partial application of altering TOS bits of ipv4 header
 
+## Week 4
+
 ### 21 Oct 2020
 * *3 hours* Rough file parser and tweaks to alteration of TOS bits
+
+
 
 ### 22 Oct 2020
 
@@ -91,6 +95,12 @@
 
 * *4 hours* raw sockets traceroute implementation TCP
 * *2 hours* initial work on ntp client
+
+# Week 5
+
+### 28 Oct 2020
+
+* *0.5 hours* Administriva shuffle
 
 <!--- 
 ### 19 Oct 2019
