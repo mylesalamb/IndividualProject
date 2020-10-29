@@ -42,7 +42,16 @@ int send_udp_ntp_request(char *host, int locport)
                 0, 0, 0, 0,
         };
         // bare min to get a response
-        *request = 0x1b; 
+        //*request = 0x1b;
+
+        request[0] = 0x23; 
+        request[1] = 0x00;
+        request[2] = 0x06;
+        request[3] = 0x20;
+        
+        uint64_t dummy_payload = 0x35eda5acd5c3ec15;
+        memcpy(&request[40], &dummy_payload, sizeof(dummy_payload));
+
         uint8_t response[48];
         int fd;
         struct sockaddr_in addr;
@@ -243,30 +252,35 @@ static int check_ntp_probe_response(int fd, int ttlfd, char *host, int locport)
 
 static int send_ind_ntp_probe(int fd, struct sockaddr_in *addr, int locport, int ttl)
 {
+        
         struct iphdr *ip;
         struct udphdr *udp;
         uint8_t request[4096], *payload;
+        memset(request, 0, sizeof(request));
 
         ip = (struct iphdr*) request;
         udp = (struct udphdr*) (request + sizeof(struct iphdr));
-        payload = (uint8_t *)(udp + sizeof(struct udphdr));
-        *payload = 0x1b;
+        payload = (uint8_t*) ( request + sizeof(struct udphdr) + sizeof(struct iphdr));
+        *payload = 0x23;
 
         ip->ihl = 5;
+        ip->tos = 0;
         ip->version = 4;
-        ip->id = htons(54321);
+        ip->id = htonl(54321);
         ip->ttl = ttl;
         ip->protocol = IPPROTO_UDP;
         ip->saddr = inet_addr("0.0.0.0");
         ip->daddr = (*addr).sin_addr.s_addr;
 
-        udp->source = htons(locport);
-        udp->dest = htons(123);
-        udp->len = 48;
+        udp->uh_sport = htons(locport);
+        udp->uh_dport = htons(123);
+        udp->uh_ulen = htons(sizeof(struct udphdr) + 48);
+        //udp->check = 0;
         
-        ip->tot_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + udp->len;
+        ip->tot_len = sizeof(struct iphdr) + sizeof(struct udphdr) + 48;
 
-        if(send(fd, request, ip->tot_len, 0) == -1){
+
+        if(sendto(fd, request, ip->tot_len, 0, (struct sockaddr *)addr, sizeof(struct sockaddr_in)) < 0){
                 perror("ntpprobe: failed to send\n");
                 return -1;
         }
@@ -294,27 +308,9 @@ int send_udp_ntp_probe(char* host, int locport)
                 return -1;
         }
 
-
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(locport);
-        addr.sin_addr.s_addr = INADDR_ANY;
-        if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0)
-        {
-                perror("error binding\n");
-                close(fd);
-                return -1;
-        }
-
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = inet_addr(host);
         addr.sin_port = htons(123);
-
-         if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
-        {
-                perror("error connecting to server\n");
-                close(fd);
-                return -1;
-        }
 
         /* IP_HDRINCL to tell the kernel that headers are included in the packet */
         int one = 1;
@@ -328,10 +324,14 @@ int send_udp_ntp_probe(char* host, int locport)
 
         for(int i = 1; i < MAX_TTL; i++){
                 for(int j = 0; j < 5; j++){
+                        printf("loop\n");
                         nanosleep(&rst, &rst);
                         send_ind_ntp_probe(fd, &addr, locport, i);
                         if(check_tcp_response(fd, ttlfd, host)==0)
-                        goto exit;
+                        {
+                                printf("exit condition reached\n");
+                                goto exit;
+                        }
                 }
         }
 exit:
@@ -411,18 +411,22 @@ static int check_tcp_response(int fd, int ttlfd, char *host)
                         icmp = (struct icmphdr *)(buff + sizeof(struct iphdr));
 
                         if(icmp->code == ICMP_EXC_TTL){
+                                printf("got ttl exceed\n");
                                 return -1;
                         }
                 }
                 
                 // otherwise check that we have a response from the host
-                if ((recvfrom(fd, buff, sizeof(buff), 0, NULL, NULL)) < 0)
+                if ((recvfrom(fd, buff, sizeof(buff), 0, NULL, NULL)) < 0){
+                        printf("failed to read\n");
                         return -1;
+                }
 
                 ip = (struct iphdr *)buff;
                 addr.sin_addr.s_addr = ip->saddr;
                 if (!strcmp(inet_ntoa(addr.sin_addr), host))
                         return 0;                
+                printf("was not host was %s\n", inet_ntoa(addr.sin_addr));
         }
         return -1;
 }

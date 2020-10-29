@@ -8,9 +8,10 @@
 
 #include <linux/netfilter.h>
 #include <linux/types.h>
-#include <linux/ip.h>
-#include <linux/tcp.h>
-#include <linux/udp.h>
+#include <netinet/ip.h>
+
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
 
 #include <libnetfilter_queue/pktbuff.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
@@ -231,6 +232,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
                         return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
         }
         else if (!strncmp(ctx->proto, "NTP", 3)){
+                printf("Picked up ntp flow\n");
                 if(nf_handle_ntp(ctx, payload, len))
                         return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
         }
@@ -268,7 +270,18 @@ static int nf_handle_ntp(struct connection_context_t *ctx, uint8_t *payload, siz
         printf("in udp callback\n");
 
         ip->tos = ctx->flags;
+        
+        
         nfq_ip_set_checksum(ip);
+        nfq_udp_compute_checksum_ipv4(udp,ip);
+        //udp->check =0;
+        /* some erronous behaviour that results in checksum being over by 11 */
+
+        udp->check = htons(ntohs(udp->check) - 11); 
+        
+
+        //udp->check = 0xae49;
+        
 
         memcpy(payload, pktb_data(pkt), len);
         pktb_free(pkt);
@@ -302,8 +315,9 @@ static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, siz
         if (tcp->syn && IS_ECN(ctx->flags))
         {
                 printf("seen syn");
-                tcp->cwr = 1;
-                tcp->ece = 1;
+                tcp->res1 = 1;
+                tcp->res2 = 1;
+                
         }
         else if(IS_ECN(ctx->flags)) {
                 //ip->tos = ctx->flags;
