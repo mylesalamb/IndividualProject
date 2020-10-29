@@ -52,7 +52,7 @@ int main(int argc, char **argv)
         struct transaction_list_t *transactions = fget_transactions(infile);
         if (!transactions)
         {
-                perror("infile parse error");
+                perror("infile parse error\n");
                 return EXIT_FAILURE;
         }
 
@@ -106,6 +106,11 @@ static void dispatch_req(struct transaction_node_t *transac,
                 printf("dispatch:ntp\n"
                        "with args:\n%s\n", transac->ctx->host);
                 send_udp_ntp_request(transac->ctx->host, transac->ctx->port);
+        }
+        else if(!strcmp(transac->ctx->proto, "NTPPROBE")){
+                printf("dispatch:ntpprobe\n"
+                       "with args:\n%s\n", transac->ctx->host);
+                send_udp_ntp_probe(transac->ctx->host, transac->ctx->port);
         }
         else{
                 perror("dispatch:unrecognised protocol");

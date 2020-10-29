@@ -10,10 +10,12 @@
 #include <linux/types.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
+#include <linux/udp.h>
 
 #include <libnetfilter_queue/pktbuff.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <libnetfilter_queue/libnetfilter_queue_tcp.h>
+#include <libnetfilter_queue/libnetfilter_queue_udp.h>
 #include <libnetfilter_queue/libnetfilter_queue_ipv4.h>
 
 #include "netinject.h"
@@ -25,6 +27,7 @@ static void nf_handle_conn(struct nf_controller_t *nfc);
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data);
 
 static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
+static int nf_handle_ntp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 
 struct nf_controller_t *nf_init()
 {
@@ -197,7 +200,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         int id = 0, len = 0;
         struct nfqnl_msg_packet_hdr *ph;
         uint8_t *payload, ipver;
-        printf("packet cb\n");
+        
         ph = nfq_get_msg_packet_hdr(pkt);
         if (!ph)
         {
@@ -227,6 +230,10 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
                  if(nf_handle_tcp(ctx, payload, len))
                         return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
         }
+        else if (!strncmp(ctx->proto, "NTP", 3)){
+                if(nf_handle_ntp(ctx, payload, len))
+                        return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
+        }
         else
         {
                 perror("netinject:proto not recognised -> nop");
@@ -239,6 +246,36 @@ fail_no_pkt:
         return 0;
 fail:
         return nfq_set_verdict(queue, id, NF_ACCEPT, 0, NULL);
+}
+
+static int nf_handle_ntp(struct connection_context_t *ctx, uint8_t *payload, size_t len)
+{
+        struct pkt_buff *pkt;
+        struct udphdr *udp;
+        struct iphdr *ip;
+
+        pkt = pktb_alloc(AF_INET, payload, len, 0);
+
+        ip = nfq_ip_get_hdr(pkt);
+        nfq_ip_set_transport_header(pkt, ip);
+        udp = nfq_udp_get_hdr(pkt);
+
+        if(!udp){
+                perror("netinjection:could not get udp packet");
+                pktb_free(pkt);
+                return -1;
+        }
+        printf("in udp callback\n");
+
+        ip->tos = ctx->flags;
+        nfq_ip_set_checksum(ip);
+
+        memcpy(payload, pktb_data(pkt), len);
+        pktb_free(pkt);
+
+        printf("Packet modification done\n");
+        return 0;
+
 }
 
 static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len)
@@ -262,11 +299,6 @@ static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, siz
         }
         printf("in tcp callback\n");
 
-        // we use raw sockets, and the kernel gets confused
-        if(tcp->rst){
-                return -1;
-        }
-
         if (tcp->syn && IS_ECN(ctx->flags))
         {
                 printf("seen syn");
@@ -274,9 +306,10 @@ static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, siz
                 tcp->ece = 1;
         }
         else if(IS_ECN(ctx->flags)) {
-                ip->tos = ctx->flags;
+                //ip->tos = ctx->flags;
         }
 
+        ip->tos = ctx->flags;
         nfq_ip_set_checksum(ip);
         nfq_tcp_compute_checksum_ipv4(tcp, ip);
 
