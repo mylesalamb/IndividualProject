@@ -1,4 +1,4 @@
-# If using rhel, please install libnetfilter from SOURCE
+# If using rhel, please install libnetfilter from SOURCE (ver > 1.0.5)
 # the package fedora 32 ships with is from 2012 and contains a bug
 # where checksums assume IPPOROTO_TCP
 # UDP checksums are slightly out if you use the repo variant
@@ -8,7 +8,7 @@ EXEC=ecnDetector
 EXECSOURCES= netinject.o connector.o pcapture.o driver.o parser.o
 CC=gcc
 CFLAGS=-O2 -g -Wall
-LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink
+LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink -lresolv
 LDPATH=-L/usr/local/lib
 
 $(EXEC): $(EXECSOURCES)
@@ -19,6 +19,6 @@ $(EXEC): $(EXECSOURCES)
 clean:
 	-rm $(EXECSOURCES) $(EXEC)
 rmd:
-	-rm *.pcap
+	-rm -f *.pcap
 
 cleanall: clean rmd

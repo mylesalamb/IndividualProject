@@ -142,6 +142,27 @@ static struct transaction_node_t *parse_transaction(char *buff)
 
                 transac->request = request;
         }
+
+        if(!strcmp(proto, "DNS")){
+
+                // get the record that we want to retrieve from the
+                // dns infra
+
+
+                lptr = rptr;
+                while (isspace(*lptr))
+                        lptr++;
+                rptr = lptr;
+                while (!isspace(*rptr))
+                        rptr++;
+
+                char *req = malloc(sizeof(char) * ((rptr - lptr) + 1));
+                strncpy(req, lptr, rptr - lptr);
+                req[rptr - lptr + 1] = '\0';
+                transac->request = req;
+                
+        }
+
         // else
         // {
         //         perror("parse_transac:proto not supported");

@@ -6,6 +6,11 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <limits.h>
+
 #include "pcapture.h"
 #include "context.h"
 
@@ -29,24 +34,39 @@ struct pcap_controller_t *pcap_init(char *alias)
         pthread_t th;
         pcap_if_t *devs;
 
+        /* setup output data directory */
+        struct stat st = {0};
+        char cwd[PATH_MAX];
+        char *outdir = malloc(PATH_MAX);
+        if(getcwd(cwd, sizeof(cwd)) == NULL){
+                perror("pcap:cwd error");
+                return NULL;
+        }
+        sprintf(outdir, "%s/%s", cwd, "data");
+
+        if (stat(outdir, &st) == -1)
+        {
+                mkdir(outdir, 0777);
+        }
+
         char errbuff[PCAP_ERRBUF_SIZE];
 
         pcap_findalldevs(&devs, errbuff);
-        if(!devs){
+        if (!devs)
+        {
                 perror("pcap_init:no devices");
                 return NULL;
         }
 
-        char * dev = malloc(sizeof(char) * strlen(devs->name) + 1);
-        if(!dev){
+        char *dev = malloc(sizeof(char) * strlen(devs->name) + 1);
+        if (!dev)
+        {
                 perror("pcap_init:malloc");
                 return NULL;
         }
         strcpy(dev, devs->name);
-        
+
         pcap_freealldevs(devs);
-
-
 
         struct pcap_controller_t *pc = calloc(sizeof(struct pcap_controller_t), 1);
 
@@ -64,6 +84,7 @@ struct pcap_controller_t *pcap_init(char *alias)
         pc->thread = th;
         pc->pcap_dev = dev;
         pc->alias = alias;
+        pc->outdir = outdir;
         return pc;
 }
 
@@ -119,17 +140,18 @@ static bool get_connection_exit(struct pcap_controller_t *pc)
 
 static void pcap_log_conn(struct pcap_controller_t *pc)
 {
-
-        char outfile[64];
+        printf("outdir is %s\n", pc->outdir);
+        char outfile[256];
         sprintf(outfile,
-                "%s%s%s-%s-%02X-%d.pcap",
+                "%s/%s%s%s-%s-%02X-%d.pcap",
+                pc->outdir,
                 (pc->alias) ? pc->alias : "",
                 (pc->alias) ? "-" : "",
                 pc->ctx->host,
                 pc->ctx->proto,
                 pc->ctx->flags,
-                pc->ctx->port
-        );
+                pc->ctx->port);
+        printf("outfile is %s", outfile);
         pcap_dumper_t *pd;
         char filter_exp[64];
         sprintf(filter_exp, "port %d or dst port %d or icmp", pc->ctx->port, pc->ctx->port);
@@ -174,6 +196,11 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         printf("Start dumping packets\n");
         pd = pcap_dump_open(pc->handle, outfile);
+
+        if(pd == NULL){
+                printf("call to open failed\n");
+        }
+
         do
         {
                 pcap_dispatch(pc->handle, 1, &pcap_dump, (u_char *)pd);

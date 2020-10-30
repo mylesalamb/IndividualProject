@@ -95,24 +95,36 @@ static void dispatch_req(struct transaction_node_t *transac,
                        transac->ctx->host, transac->request);
                 send_tcp_http_request(transac->request, transac->ctx->host, 6000);
         }
-        else if(!strcmp(transac->ctx->proto, "TCPPROBE"))
+        else if (!strcmp(transac->ctx->proto, "TCPPROBE"))
         {
                 printf("Probe network path\n"
                        "with args:\n%s\n",
                        transac->ctx->host);
                 send_tcp_syn_probe(transac->ctx->host, transac->ctx->port);
         }
-        else if(!strcmp(transac->ctx->proto, "NTP")){
+        else if (!strcmp(transac->ctx->proto, "NTP"))
+        {
                 printf("dispatch:ntp\n"
-                       "with args:\n%s\n", transac->ctx->host);
+                       "with args:\n%s\n",
+                       transac->ctx->host);
                 send_udp_ntp_request(transac->ctx->host, transac->ctx->port);
         }
-        else if(!strcmp(transac->ctx->proto, "NTPPROBE")){
+        else if (!strcmp(transac->ctx->proto, "NTPPROBE"))
+        {
                 printf("dispatch:ntpprobe\n"
-                       "with args:\n%s\n", transac->ctx->host);
+                       "with args:\n%s\n",
+                       transac->ctx->host);
                 send_udp_ntp_probe(transac->ctx->host, transac->ctx->port);
         }
-        else{
+        else if (!strcmp(transac->ctx->proto, "DNS"))
+        {
+                printf("dispatch:dns\n"
+                       "with args:\n%s\n%s",
+                       transac->ctx->host, transac->request);
+                send_udp_dns_request(transac->ctx->host, transac->request);
+        }
+        else
+        {
                 perror("dispatch:unrecognised protocol");
         }
 
