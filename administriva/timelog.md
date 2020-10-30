@@ -102,6 +102,17 @@
 
 * *0.5 hours* Administriva shuffle
 
+### 29 Oct 2020
+
+* *1 hour*  meeting with advisor
+* *4 hours* debugging ntp/udp checksum issue
+* *2 hours* Work on ntp traceroute implementation
+
+### 30 Oct 2020
+
+* *0.5 hours* implement solution to ntp/udp checksum issue
+* *4 hours* working on iterative dns
+
 <!--- 
 ### 19 Oct 2019
 

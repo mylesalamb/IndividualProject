@@ -119,7 +119,7 @@ int send_udp_dns_request(char *resolver, char *host)
         req->opcode = 0;
         req->aa = 0;
         req->tc = 0;
-        req->rd = 1;
+        req->rd = 0;
         req->ra = 0;
         req->z = 0;
         req->ad = 0;

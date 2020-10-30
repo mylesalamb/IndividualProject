@@ -19,6 +19,6 @@ $(EXEC): $(EXECSOURCES)
 clean:
 	-rm $(EXECSOURCES) $(EXEC)
 rmd:
-	-rm -f *.pcap
+	-rm -f data/*.pcap
 
 cleanall: clean rmd
