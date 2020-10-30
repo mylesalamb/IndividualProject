@@ -327,10 +327,14 @@ int send_udp_ntp_probe(char* host, int locport)
                         printf("loop\n");
                         nanosleep(&rst, &rst);
                         send_ind_ntp_probe(fd, &addr, locport, i);
-                        if(check_tcp_response(fd, ttlfd, host)==0)
+                        int resp = check_tcp_response(fd, ttlfd, host);
+                        if(resp==0)
                         {
                                 printf("exit condition reached\n");
                                 goto exit;
+                        }
+                        if(resp==1){
+                                break;
                         }
                 }
         }
@@ -412,7 +416,7 @@ static int check_tcp_response(int fd, int ttlfd, char *host)
 
                         if(icmp->code == ICMP_EXC_TTL){
                                 printf("got ttl exceed\n");
-                                return -1;
+                                return 1;
                         }
                 }
                 

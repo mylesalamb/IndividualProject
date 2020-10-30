@@ -269,7 +269,7 @@ static int nf_handle_ntp(struct connection_context_t *ctx, uint8_t *payload, siz
         }
         printf("in udp callback\n");
 
-        ip->tos = ctx->flags;
+        //ip->tos = ctx->flags;
         
         
         nfq_ip_set_checksum(ip);
@@ -277,7 +277,7 @@ static int nf_handle_ntp(struct connection_context_t *ctx, uint8_t *payload, siz
         //udp->check =0;
         /* some erronous behaviour that results in checksum being over by 11 */
 
-        udp->check = htons(ntohs(udp->check) - 11); 
+        // udp->check = htons(ntohs(udp->check) - 11); 
         
 
         //udp->check = 0xae49;
