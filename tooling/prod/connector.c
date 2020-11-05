@@ -14,7 +14,6 @@
 #include <stdint.h>
 #include <time.h>
 #include <fcntl.h>
-#include <resolv.h>
 
 #define HALF_S \
         (struct timespec) { 1, 500000000 }
@@ -28,6 +27,7 @@ static int contruct_ip6_sock(char *host, int locport);
 static int check_raw_response(int fd, int ttlfd, char *host);
 
 static void dns_name_fmt(char *dst, char *src);
+static char *dns_fmt_name(unsigned char *reader, unsigned char *buffer, int *count);
 char *dns_read_name(char *, char *, int *);
 
 struct dns_hdr
@@ -46,10 +46,10 @@ struct dns_hdr
         uint8_t z : 1;
         uint8_t ra : 1;
 
-        unsigned short q_count;
-        unsigned short ans_count;
-        unsigned short auth_count;
-        unsigned short add_count;
+        uint16_t q_count;
+        uint16_t ans_count;
+        uint16_t auth_count;
+        uint16_t add_count;
 };
 
 struct dns_q
@@ -60,10 +60,10 @@ struct dns_q
 
 struct dns_rec_data
 {
-        uint16_t type;
-        uint16_t class;
-        uint16_t ttl;
-        uint16_t len;
+        unsigned short type;
+        unsigned short class;
+        unsigned int ttl;
+        unsigned short len;
 };
 
 struct dns_res_record
@@ -82,11 +82,10 @@ struct dns_query
 int send_udp_dns_request(char *resolver, char *host)
 {
 
-        printf("host is \"%s\"", host);
-
         struct dns_hdr *req;
         struct dns_q *qinfo;
         uint8_t buff[65536], *qname, *reader;
+        memset(buff, 0, sizeof(buff));
 
         struct sockaddr_in addr;
         int fd;
@@ -119,7 +118,7 @@ int send_udp_dns_request(char *resolver, char *host)
         req->opcode = 0;
         req->aa = 0;
         req->tc = 0;
-        req->rd = 0;
+        req->rd = 1;
         req->ra = 0;
         req->z = 0;
         req->ad = 0;
@@ -133,14 +132,13 @@ int send_udp_dns_request(char *resolver, char *host)
         /* fill in question doing name compression */
         qname = buff + sizeof(struct dns_hdr);
         dns_name_fmt(qname, host);
-        qinfo =(struct dns_q*) &(buff[sizeof(struct dns_hdr) + (strlen((const char*)qname) + 1)]); //fill it
+        qinfo = (struct dns_q *)&(buff[sizeof(struct dns_hdr) + (strlen((const char *)qname) + 1)]); //fill it
         qinfo->qtype = htons(A);
         qinfo->qclass = htons(1);
 
-
         printf("sending\n");
 
-        size_t len = sizeof(struct dns_hdr) + (strlen((const char*)qname)+1) + sizeof(struct dns_q);
+        size_t len = sizeof(struct dns_hdr) + (strlen((const char *)qname) + 1) + sizeof(struct dns_q);
 
         if (sendto(fd, buff, len, 0, (struct sockaddr *)&addr, sizeof(addr)) < 0)
         {
@@ -148,6 +146,67 @@ int send_udp_dns_request(char *resolver, char *host)
         }
         printf("Done\n");
         sleep(3);
+
+        memset(buff, 0,sizeof buff);
+
+        socklen_t plen = sizeof(struct sockaddr_in);
+        if (recvfrom(fd, buff, sizeof(buff), 0, (struct sockaddr *)&addr, &plen) < 0)
+        {
+                perror("dns:recv_failed");
+        }
+
+        printf("Recieved response in buff");
+        printf("addcount: %d\nauth count:%d\n", ntohs(req->add_count), ntohs(req->ans_count));
+
+        if (ntohs(req->ans_count))
+        {
+                printf("Got dns answer stop iter query\n");
+                // return 0;
+        }
+
+        int stop = 0;
+        char *name;
+        struct dns_rec_data *data;
+        struct dns_res_record response;
+
+        req = (struct dns_hdr *)buff;
+
+        reader = &buff[sizeof(struct dns_hdr) + (strlen((const char *)qname)+1) + sizeof(struct dns_q)];
+
+        // copypasta, needs to be versioned into this code
+        for (int i = 0; i < ntohs(req->ans_count); i++)
+        {
+                response.name = dns_fmt_name(reader, buff, &stop);
+                reader = reader + stop;
+
+                response.resource = (struct dns_rec_data *)(reader);
+                reader = reader + sizeof(struct dns_rec_data);
+
+                if (ntohs(response.resource->type) == 1) //if its an ipv4 address
+                {
+
+                        response.rdata = (unsigned char*)malloc(ntohs(response.resource->len));
+
+                        for (int j = 0; j < ntohs(response.resource->len); j++)
+                        {
+                                response.rdata[j] = reader[j];
+                        }
+
+                        response.rdata[ntohs(response.resource->len)] = '\0';
+                        reader = reader + ntohs(response.resource->len);
+                }
+                else
+                {
+                        printf("else case\n");
+                        response.rdata = dns_fmt_name(reader, buff, &stop);
+                        reader = reader + stop;
+                }
+
+                long *p;
+            p=(long*)response.rdata;
+            addr.sin_addr.s_addr=(*p); //working without ntohl
+            printf("has IPv4 address : %s",inet_ntoa(addr.sin_addr));
+        }
 
         return 0;
 }
@@ -616,22 +675,76 @@ loop_break:
         return 0;
 }
 
-static void dns_name_fmt(char* dns, char* host) 
+static char *dns_fmt_name(unsigned char *reader, unsigned char *buffer, int *count)
 {
-    int lock = 0 , i;
-    strcat((char*)host,".");
-     
-    for(i = 0 ; i < strlen((char*)host) ; i++) 
+        unsigned char *name;
+    unsigned int p=0,jumped=0,offset;
+    int i , j;
+ 
+    *count = 1;
+    name = (unsigned char*)malloc(256);
+ 
+    name[0]='\0';
+ 
+    //read the names in 3www6google3com format
+    while(*reader!=0)
     {
-        if(host[i]=='.') 
+        if(*reader>=192)
         {
-            *dns++ = i-lock;
-            for(;lock<i;lock++) 
-            {
-                *dns++=host[lock];
-            }
-            lock++; //or lock=i+1;
+            offset = (*reader)*256 + *(reader+1) - 49152; //49152 = 11000000 00000000 ;)
+            reader = buffer + offset - 1;
+            jumped = 1; //we have jumped to another location so counting wont go up!
+        }
+        else
+        {
+            name[p++]=*reader;
+        }
+ 
+        reader = reader+1;
+ 
+        if(jumped==0)
+        {
+            *count = *count + 1; //if we havent jumped to another location then we can count up
         }
     }
-    *dns++='\0';
+ 
+    name[p]='\0'; //string complete
+    if(jumped==1)
+    {
+        *count = *count + 1; //number of steps we actually moved forward in the packet
+    }
+ 
+    //now convert 3www6google3com0 to www.google.com
+    for(i=0;i<(int)strlen((const char*)name);i++) 
+    {
+        p=name[i];
+        for(j=0;j<(int)p;j++) 
+        {
+            name[i]=name[i+1];
+            i=i+1;
+        }
+        name[i]='.';
+    }
+    name[i-1]='\0'; //remove the last dot
+    return name;
+}
+
+static void dns_name_fmt(char *dns, char *host)
+{
+        int lock = 0, i;
+        strcat((char *)host, ".");
+
+        for (i = 0; i < strlen((char *)host); i++)
+        {
+                if (host[i] == '.')
+                {
+                        *dns++ = i - lock;
+                        for (; lock < i; lock++)
+                        {
+                                *dns++ = host[lock];
+                        }
+                        lock++; //or lock=i+1;
+                }
+        }
+        *dns++ = '\0';
 }
