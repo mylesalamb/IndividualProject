@@ -20,7 +20,12 @@
 #define MAX_TTL 50
 #define MAX_NTP 60
 
-#define A 1 /* A records */
+
+/* DNS FLAGS -> support for minimal iterative dns */
+#define AAAA 28
+#define A 1
+#define RECURSE 1
+#define ITER 0
 
 static int contruct_ip4_sock(char *host, int locport, int extport, int socktype);
 static int contruct_ip6_sock(char *host, int locport);
@@ -73,6 +78,7 @@ struct dns_res_record
         char *name;
         struct dns_rec_data *resource;
         char *rdata;
+        struct dnf_res_record *nxt;
 };
 
 struct dns_query
@@ -81,13 +87,267 @@ struct dns_query
         struct dns_q *ques;
 };
 
+struct dns_response
+{
+        struct dns_res_record *answer, *auth, *additional;
+};
+
+/**
+ * Get intermediate namerservers normally
+ * using resolver in /etc/resolv.conf
+ * 
+ * This is how dig +trace works
+ * so we dont iteratively have to resolve nameservers
+ * as well 
+ * 
+ * As long as we test 'on path' stuff we should be ok
+ */
+static char *get_dns_resolver()
+{
+        FILE *handle;
+        int len;
+        char buff[256], *ptr, *ret;
+
+        if ((handle = fopen("/etc/resolv.conf", "r")) == NULL)
+        {
+                perror("dns:get resolv conf handle");
+                return NULL;
+        }
+
+        ptr = NULL;
+
+        while (fgets(buff, sizeof(buff), handle))
+        {
+                if (*buff == '#')
+                {
+                        continue;
+                }
+
+                printf("buff is: \"%s\"", buff);
+
+                // the rest of the line is the ip of the namserver
+                ptr = strtok(buff, " ");
+                ptr = strtok(NULL, " ");
+
+                if (!ptr)
+                        continue;
+
+                // remove newline
+                len = strlen(ptr) - 1;
+                ptr[len] = '\0';
+
+                break;
+        }
+
+        if (!ptr)
+                return NULL;
+
+        ret = malloc((len + 1) * sizeof(char));
+
+        if (!ret)
+                return NULL;
+
+        strcpy(ret, ptr);
+        fclose(handle);
+
+        return ret;
+}
+
+/**
+ * Take a buffer and format a suitable dns request
+ * returning the length of the request
+ */
+static int format_dns_request(uint8_t *buff, int record_type, char *host, uint8_t flags)
+{
+        struct dns_hdr *req;
+        struct dns_q *qinfo;
+        uint8_t *qname;
+
+        // begin assembling request from buffer
+        req = (struct dns_hdr *)buff;
+        req->id = 123;
+        req->qr = 0;
+        req->opcode = 0;
+        req->aa = 0;
+        req->tc = 0;
+        req->rd = (flags & 0x01) ? 1:0;
+        req->ra = 0;
+        req->z = 0;
+        req->ad = 0;
+        req->cd = 0;
+        req->rcode = 0;
+        req->q_count = htons(1);
+        req->ans_count = 0;
+        req->auth_count = 0;
+        req->add_count = 0;
+
+        /* fill in question doing name compression */
+        qname = buff + sizeof(struct dns_hdr);
+        dns_name_fmt(qname, host);
+        qinfo = (struct dns_q *)&(buff[sizeof(struct dns_hdr) + (strlen((const char *)qname) + 1)]); //fill it
+        qinfo->qtype = htons(record_type);
+        qinfo->qclass = htons(1);
+
+        return sizeof(struct dns_hdr) + (strlen((const char *)qname) + 1) + sizeof(struct dns_q);
+}
+
+/**
+ * Take a response buffer
+ * 
+ * parse the response and return the answer records
+ * 
+ * ie)  answers
+ *      additional records etc
+ */
+static struct dns_response parse_dns_response(uint8_t *buff)
+{
+
+        struct dns_response ret = {NULL, NULL, NULL};
+        struct sockaddr_in addr;
+
+        uint8_t *reader;
+        uint8_t *qname = buff + sizeof(struct dns_hdr);
+        int stop = 0;
+
+        struct dns_hdr *req;
+        struct dns_rec_data *data;
+        struct dns_res_record *response;
+
+        req = (struct dns_hdr *)buff;
+        reader = &buff[sizeof(struct dns_hdr) + (strlen((const char *)qname) + 1) + sizeof(struct dns_q)];
+
+        printf("response got answer count %d\nReponse got auth count %d\nResponse got additional %d",
+               ntohs(req->ans_count),
+               ntohs(req->auth_count),
+               ntohs(req->add_count));
+
+        for (int i = 0; i < ntohs(req->ans_count); i++)
+        {
+                response = malloc(sizeof(struct dns_res_record));
+                if (!response)
+                {
+                        perror("dns:malloc response");
+                        goto fail;
+                }
+
+                response->name = dns_fmt_name(reader, buff, &stop);
+                reader = reader + stop;
+
+                response->resource = (struct dns_rec_data *)(reader);
+                reader = reader + sizeof(struct dns_rec_data);
+
+                if (ntohs(response->resource->type) == A) //if its an ipv4 address
+                {
+
+                        response->rdata = (unsigned char *)malloc(ntohs(response->resource->len));
+
+                        for (int j = 0; j < ntohs(response->resource->len); j++)
+                        {
+                                response->rdata[j] = reader[j];
+                        }
+
+                        // response->rdata[ntohs(response->resource->len)] = '\0';
+                        reader = reader + ntohs(response->resource->len);
+                }
+                else
+                {
+                        printf("was not ipv4 was type %d", ntohs(response->resource->type));
+                        response->rdata = dns_fmt_name(reader, buff, &stop);
+                        reader = reader + stop;
+                }
+
+                long *p;
+                p = (long *)response->rdata;
+                addr.sin_addr.s_addr = (*p); //working without ntohl
+                printf("has IPv4 address : %s", inet_ntoa(addr.sin_addr));
+
+                response->nxt = ret.answer;
+                ret.answer = response;
+        }
+
+        for (int i = 0; i < ntohs(req->auth_count); i++)
+        {
+                response = malloc(sizeof(struct dns_res_record));
+                if (!response)
+                {
+                        perror("dns:malloc response");
+                        goto fail;
+                }
+
+                response->name = dns_fmt_name(reader, buff, &stop);
+                reader += stop;
+
+                response->resource = (struct dns_rec_data *)(reader);
+                reader += sizeof(struct dns_rec_data);
+
+                printf("auth nameserver resource, %d %d %d %d\n", response->resource->class, response->resource->len, response->resource->ttl, response->resource->type);
+
+                response->rdata = dns_fmt_name(reader, buff, &stop);
+                reader += stop;
+
+                printf("Auth nameserver: %s\n", response->name);
+                printf("Auth nameserver rdata: %s\n", response->rdata);
+
+                response->nxt = ret.auth;
+                ret.auth = response;
+        }
+
+        for (int i = 0; i < ntohs(req->add_count); i++)
+        {
+                response = malloc(sizeof(struct dns_res_record));
+                if (!response)
+                {
+                        perror("dns:malloc response");
+                        goto fail;
+                }
+
+                response->name = dns_fmt_name(reader, buff, &stop);
+                reader += stop;
+
+                response->resource = (struct dns_rec_data *)(reader);
+                reader += sizeof(struct dns_rec_data);
+
+                if (ntohs(response->resource->type) == A || ntohs(response->resource->type) == AAAA)
+                {
+                        response->rdata = (unsigned char *)malloc(ntohs(response->resource->len));
+                        for (int j = 0; j < ntohs(response->resource->len); j++)
+                                response->rdata[j] = reader[j];
+                        reader += ntohs(response->resource->len);
+                }
+                else
+                {
+                        response->rdata = dns_fmt_name(reader, buff, &stop);
+                        reader += stop;
+                }
+
+                printf("add rec name: %s\nadd rec data %d %d %d %d\n", 
+                        response->name,
+                        ntohs(response->resource->class),
+                        ntohs(response->resource->ttl),
+                        ntohs(response->resource->type),
+                        ntohs(response->resource->len));
+
+                response->nxt = ret.additional;
+                ret.additional = response;
+        }
+
+        return ret;
+
+fail:
+
+        printf("Fail ecountered\n");
+        return (struct dns_response){NULL, NULL, NULL};
+}
+
 int send_udp_dns_request(char *resolver, char *host)
 {
 
+        // refactor to -> format_dns_req -> send -> recv -> parse response -> loop
         struct dns_hdr *req;
         struct dns_q *qinfo;
         uint8_t buff[65536], *qname, *reader;
         memset(buff, 0, sizeof(buff));
+        char *dhcp = get_dns_resolver();
 
         struct sockaddr_in addr;
         int fd;
@@ -113,34 +373,9 @@ int send_udp_dns_request(char *resolver, char *host)
         addr.sin_addr.s_addr = inet_addr(resolver);
         addr.sin_port = htons(53);
 
-        // begin assembling request from buffer
-        req = (struct dns_hdr *)buff;
-        req->id = 123;
-        req->qr = 0;
-        req->opcode = 0;
-        req->aa = 0;
-        req->tc = 0;
-        req->rd = 1;
-        req->ra = 0;
-        req->z = 0;
-        req->ad = 0;
-        req->cd = 0;
-        req->rcode = 0;
-        req->q_count = htons(1);
-        req->ans_count = 0;
-        req->auth_count = 0;
-        req->add_count = 0;
-
-        /* fill in question doing name compression */
-        qname = buff + sizeof(struct dns_hdr);
-        dns_name_fmt(qname, host);
-        qinfo = (struct dns_q *)&(buff[sizeof(struct dns_hdr) + (strlen((const char *)qname) + 1)]); //fill it
-        qinfo->qtype = htons(2);
-        qinfo->qclass = htons(1);
+        size_t len = format_dns_request(buff, A, host, ITER);
 
         printf("sending\n");
-
-        size_t len = sizeof(struct dns_hdr) + (strlen((const char *)qname) + 1) + sizeof(struct dns_q);
 
         if (sendto(fd, buff, len, 0, (struct sockaddr *)&addr, sizeof(addr)) < 0)
         {
@@ -157,57 +392,8 @@ int send_udp_dns_request(char *resolver, char *host)
                 perror("dns:recv_failed");
         }
 
-        printf("Recieved response in buff");
-        printf("addcount: %d\nauth count:%d\n", ntohs(req->add_count), ntohs(req->ans_count));
-
-        if (ntohs(req->ans_count))
-        {
-                printf("Got dns answer stop iter query\n");
-                // return 0;
-        }
-
-        int stop = 0;
-        char *name;
-        struct dns_rec_data *data;
-        struct dns_res_record response;
-
-        req = (struct dns_hdr *)buff;
-
-        reader = &buff[sizeof(struct dns_hdr) + (strlen((const char *)qname) + 1) + sizeof(struct dns_q)];
-
-        // copypasta, needs to be versioned into this code
-        for (int i = 0; i < ntohs(req->ans_count); i++)
-        {
-                response.name = dns_fmt_name(reader, buff, &stop);
-                reader = reader + stop;
-
-                response.resource = (struct dns_rec_data *)(reader);
-                reader = reader + sizeof(struct dns_rec_data);
-
-                if (ntohs(response.resource->type) == 1) //if its an ipv4 address
-                {
-
-                        response.rdata = (unsigned char *)malloc(ntohs(response.resource->len));
-
-                        for (int j = 0; j < ntohs(response.resource->len); j++)
-                        {
-                                response.rdata[j] = reader[j];
-                        }
-
-                        response.rdata[ntohs(response.resource->len)] = '\0';
-                        reader = reader + ntohs(response.resource->len);
-                }
-                else
-                {
-                        response.rdata = dns_fmt_name(reader, buff, &stop);
-                        reader = reader + stop;
-                }
-
-                long *p;
-                p = (long *)response.rdata;
-                addr.sin_addr.s_addr = (*p); //working without ntohl
-                printf("has IPv4 address : %s", inet_ntoa(addr.sin_addr));
-        }
+        printf("Parse response\n");
+        struct dns_response responses = parse_dns_response(buff);
 
         return 0;
 }
