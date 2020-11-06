@@ -20,7 +20,6 @@
 #define MAX_TTL 50
 #define MAX_NTP 60
 
-
 /* DNS FLAGS -> support for minimal iterative dns */
 #define AAAA 28
 #define A 1
@@ -170,7 +169,7 @@ static int format_dns_request(uint8_t *buff, int record_type, char *host, uint8_
         req->opcode = 0;
         req->aa = 0;
         req->tc = 0;
-        req->rd = (flags & 0x01) ? 1:0;
+        req->rd = (flags & 0x01) ? 1 : 0;
         req->ra = 0;
         req->z = 0;
         req->ad = 0;
@@ -320,12 +319,12 @@ static struct dns_response parse_dns_response(uint8_t *buff)
                         reader += stop;
                 }
 
-                printf("add rec name: %s\nadd rec data %d %d %d %d\n", 
-                        response->name,
-                        ntohs(response->resource->class),
-                        ntohs(response->resource->ttl),
-                        ntohs(response->resource->type),
-                        ntohs(response->resource->len));
+                printf("add rec name: %s\nadd rec data %d %d %d %d\n",
+                       response->name,
+                       ntohs(response->resource->class),
+                       ntohs(response->resource->ttl),
+                       ntohs(response->resource->type),
+                       ntohs(response->resource->len));
 
                 response->nxt = ret.additional;
                 ret.additional = response;
@@ -373,27 +372,78 @@ int send_udp_dns_request(char *resolver, char *host)
         addr.sin_addr.s_addr = inet_addr(resolver);
         addr.sin_port = htons(53);
 
-        size_t len = format_dns_request(buff, A, host, ITER);
-
-        printf("sending\n");
-
-        if (sendto(fd, buff, len, 0, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+        // iter through dns infra
+        // send dns query -> get auth nameserver -> resolve -> iter
+        while (1)
         {
-                perror("sendto failed");
+
+                size_t len = format_dns_request(buff, A, host, ITER);
+
+                printf("sending\n");
+
+                if (sendto(fd, buff, len, 0, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+                {
+                        perror("sendto failed");
+                }
+                printf("Done\n");
+                sleep(3);
+
+                memset(buff, 0, sizeof buff);
+
+                socklen_t plen = sizeof(struct sockaddr_in);
+                if (recvfrom(fd, buff, sizeof(buff), 0, (struct sockaddr *)&addr, &plen) < 0)
+                {
+                        perror("dns:recv_failed");
+                }
+
+                struct dns_response responses = parse_dns_response(buff);
+                if (responses.answer)
+                {
+                        printf("Got answer record\n");
+                        break;
+                }
+
+                // Did not get answer, resolve auth nameserver for next part of stack
+                if (!responses.auth)
+                {
+                        printf("No auth namservers :(\n");
+                        break;
+                }
+
+                struct dns_res_record *auth = responses.auth;
+
+                // resolve hostname (rdata) and set loop resolver
+                addr.sin_addr.s_addr = inet_addr(dhcp);
+                len = format_dns_request(buff, A, auth->rdata, RECURSE);
+
+                if (sendto(fd, buff, len, 0, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+                {
+                        perror("sendto failed");
+                }
+                printf("Done\n");
+                sleep(3);
+
+                memset(buff, 0, sizeof buff);
+
+                if (recvfrom(fd, buff, sizeof(buff), 0, (struct sockaddr *)&addr, &plen) < 0)
+                {
+                        perror("dns:recv_failed");
+                }
+
+                responses = parse_dns_response(buff);
+                if (responses.answer)
+                {
+                        printf("Got answer record\n");
+                        long *p;
+                        p = (long *)responses.answer->rdata;
+                        addr.sin_addr.s_addr = (*p); //working without ntohl
+                }
+                else
+                {
+                        printf("freak it\n");
+                        break;
+                }
         }
-        printf("Done\n");
-        sleep(3);
-
-        memset(buff, 0, sizeof buff);
-
-        socklen_t plen = sizeof(struct sockaddr_in);
-        if (recvfrom(fd, buff, sizeof(buff), 0, (struct sockaddr *)&addr, &plen) < 0)
-        {
-                perror("dns:recv_failed");
-        }
-
-        printf("Parse response\n");
-        struct dns_response responses = parse_dns_response(buff);
 
         return 0;
 }
