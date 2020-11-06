@@ -379,14 +379,14 @@ int send_udp_dns_request(char *resolver, char *host)
 
                 size_t len = format_dns_request(buff, A, host, ITER);
 
-                printf("sending\n");
+                printf("sending iter req\n");
 
                 if (sendto(fd, buff, len, 0, (struct sockaddr *)&addr, sizeof(addr)) < 0)
                 {
                         perror("sendto failed");
                 }
-                printf("Done\n");
-                sleep(3);
+                printf("Done poke for client\n");
+                sleep(1);
 
                 memset(buff, 0, sizeof buff);
 
@@ -416,12 +416,14 @@ int send_udp_dns_request(char *resolver, char *host)
                 addr.sin_addr.s_addr = inet_addr(dhcp);
                 len = format_dns_request(buff, A, auth->rdata, RECURSE);
 
+                printf("\n\nSet reolver to use\n\n");
+
                 if (sendto(fd, buff, len, 0, (struct sockaddr *)&addr, sizeof(addr)) < 0)
                 {
                         perror("sendto failed");
                 }
-                printf("Done\n");
-                sleep(3);
+                printf("Donest\n");
+                sleep(1);
 
                 memset(buff, 0, sizeof buff);
 

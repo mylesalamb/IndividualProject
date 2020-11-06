@@ -113,6 +113,18 @@
 * *0.5 hours* implement solution to ntp/udp checksum issue
 * *4 hours* working on iterative dns
 
+### 5 Nov 2020
+
+* *1 hour* Meeting with advisor
+* *2 hours* Quic configuration on local machine
+* *1 hour* Analysis on how to perform iterative dns
+* *2 hours* Work on iterative dns
+
+### 6 Nov 2020
+* *4 hours* Work on iterative dns
+* *2 hours* Work on iterative DNS bug
+* *1 hours* Work refactoring DNS code
+
 <!--- 
 ### 19 Oct 2019
 
