@@ -221,8 +221,9 @@ int send_tcp_http_request(char *request, char *host, int locport)
                 }
         }
 
-        sleep(3);
+        
         close(fd);
+        sleep(3);
 
         return 0;
 fail:
