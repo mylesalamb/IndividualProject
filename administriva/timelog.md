@@ -125,6 +125,15 @@
 * *2 hours* Work on iterative DNS bug
 * *1 hours* Work refactoring DNS code
 
+### 7 Nov 2020
+
+* *1 hour* finish iterative dns
+* *1hour* refactoring connector.c
+* *1.5 hours* aws setup
+* *1.5 hour* tinkering with provisioning systems (terraform, vagrant)
+* *1 hour* work with image proviosiong (docker, vm images) -> docker images are not fun to work with
+* *1.5 hours* work on terraform and packer
+
 <!--- 
 ### 19 Oct 2019
 

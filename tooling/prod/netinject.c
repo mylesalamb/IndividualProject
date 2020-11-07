@@ -28,7 +28,7 @@ static void nf_handle_conn(struct nf_controller_t *nfc);
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data);
 
 static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
-static int nf_handle_ntp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
+static int nf_handle_gen_udp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 
 struct nf_controller_t *nf_init()
 {
@@ -233,12 +233,12 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         }
         else if (!strncmp(ctx->proto, "NTP", 3)){
                 printf("Picked up ntp flow\n");
-                if(nf_handle_ntp(ctx, payload, len))
+                if(nf_handle_gen_udp(ctx, payload, len))
                         return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
         }
         else if(!strncmp(ctx->proto, "DNS", 3)){
                 printf("Picked up udp flow\n");
-                if(nf_handle_ntp(ctx, payload, len))
+                if(nf_handle_gen_udp(ctx, payload, len))
                         return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
         }
         else
@@ -255,7 +255,7 @@ fail:
         return nfq_set_verdict(queue, id, NF_ACCEPT, 0, NULL);
 }
 
-static int nf_handle_ntp(struct connection_context_t *ctx, uint8_t *payload, size_t len)
+static int nf_handle_gen_udp(struct connection_context_t *ctx, uint8_t *payload, size_t len)
 {
         struct pkt_buff *pkt;
         struct udphdr *udp;
@@ -308,7 +308,6 @@ static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, siz
 
         if (tcp->syn && IS_ECN(ctx->flags))
         {
-                /* cwr,ece */ 
                 tcp->cwr = 1;
                 tcp->ece = 1;
                 
@@ -317,7 +316,8 @@ static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, siz
                 ip->tos = ctx->flags;
         }
 
-        ip->tos = ctx->flags;
+        // apply dscp specific fields
+        ip->tos = ctx->flags & 0xFC;
         nfq_ip_set_checksum(ip);
         nfq_tcp_compute_checksum_ipv4(tcp, ip);
 
