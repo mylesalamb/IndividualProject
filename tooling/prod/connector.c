@@ -82,6 +82,7 @@ static int construct_ip4_sock(char *host, int locport, int extport, int socktype
 }
 static int construct_ip6_sock(char *host, int locport)
 {
+	printf("ip6 code called\n");
         int fd;
         int opt = 1;
         struct sockaddr_in6 addr;
@@ -94,7 +95,7 @@ static int construct_ip6_sock(char *host, int locport)
 
         if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
         {
-                perror("ipv4_sock: reuse port");
+                perror("ipv6_sock: reuse port");
                 close(fd);
                 return -1;
         }
@@ -193,9 +194,9 @@ static int check_raw_response(int fd, int ttlfd, char *host)
 int send_tcp_http_request(char *request, char *host, int locport)
 {
         int fd;
-
+	
         //ipv6 or ipv4
-        if (strlen(host) == INET6_ADDRSTRLEN)
+        if (strlen(host) >= INET_ADDRSTRLEN)
         {
                 fd = construct_ip6_sock(host, locport);
         }
