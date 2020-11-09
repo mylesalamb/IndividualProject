@@ -134,6 +134,10 @@
 * *1 hour* work with image proviosiong (docker, vm images) -> docker images are not fun to work with
 * *1.5 hours* work on terraform and packer
 
+### 9 Nov 2020
+
+* *2.5 hours* Finish up work on packer
+
 <!--- 
 ### 19 Oct 2019
 

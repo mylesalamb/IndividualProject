@@ -27,6 +27,3 @@ cd ..
 git clone $GREPO
 cd $GREPO_PATH
 make
-
-
-make

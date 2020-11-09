@@ -2,7 +2,8 @@
 {
     "variables" : {
       "aws_access_key" : "{{ env `AWS_ACCESS_KEY` }}",
-      "aws_secret_key" : "{{ env `AWS_SECRET_KEY` }}"
+      "aws_secret_key" : "{{ env `AWS_SECRET_KEY` }}",
+      "dest_regions" : "us-west-1,us-west-2"
     },
     "sensitive-variables" : ["aws_access_key", "aws_secret_key"],
     "builders": [
@@ -11,10 +12,21 @@
         "access_key": "{{ user `aws_access_key`}}",
         "secret_key": "{{ user `aws_secret_key`}}",
         "region": "eu-west-1",
-        "source_ami": "ami-06fd8a495a537da8b",
+        "source_ami_filter": {
+          "filters": {
+              "virtualization-type": "hvm",
+              "name": "ubuntu/images/*20.04-amd64-server-*",
+              "root-device-type": "ebs"
+          },
+          "owners": [
+              "099720109477"
+          ],
+          "most_recent": true
+      },
         "instance_type": "t2.micro",
         "ssh_username": "ubuntu",
-        "ami_name": "ecnDetector {{timestamp}}"
+        "ami_name": "ecnDetector {{timestamp}}",
+        "ami_regions": "{{user `dest_regions`}}"
       }
     ],
     "provisioners": [
