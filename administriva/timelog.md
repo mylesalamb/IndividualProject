@@ -137,6 +137,11 @@
 ### 9 Nov 2020
 
 * *2.5 hours* Finish up work on packer
+* *1.5 hours* Work on jit packet modifications -> adapt to ipv6
+
+### 10 Nov 2020
+
+* *1 hour* Set up ntp dataset gatherer + adapt to ipv6
 
 <!--- 
 ### 19 Oct 2019
