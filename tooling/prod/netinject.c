@@ -24,6 +24,7 @@
 #include "netinject.h"
 
 #define IS_ECN(x) (x & 0x03)
+#define SHOULD_MARK(x) (!x->syn && !x->ack && !x->fin)
 
 static void *nf_controller(void *arg);
 static void nf_handle_conn(struct nf_controller_t *nfc);
@@ -205,7 +206,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         int id = 0, len = 0;
         struct nfqnl_msg_packet_hdr *ph;
         uint8_t *payload, ipver;
-        
+
         ph = nfq_get_msg_packet_hdr(pkt);
         if (!ph)
         {
@@ -219,29 +220,32 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         id = ntohl(ph->packet_id);
         len = nfq_get_payload(pkt, &payload);
 
-        // do dispatch for ipv6 or ipv4
-        ipver = (*payload & 0xf0) >> 4; 
-
         if (!len)
         {
                 perror("netinject:pkt len");
                 goto fail;
         }
 
-
         if (!strncmp(ctx->proto, "TCP", 3))
         {
-                 if(nf_handle_tcp(ctx, payload, len))
+                if (nf_handle_tcp(ctx, payload, len))
                         return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
         }
-        else if (!strncmp(ctx->proto, "NTP", 3)){
+        else if (!strncmp(ctx->proto, "DNSTCP", 6))
+        {
+                if (nf_handle_tcp(ctx, payload, len))
+                        return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
+        }
+        else if (!strncmp(ctx->proto, "NTP", 3))
+        {
                 printf("Picked up ntp flow\n");
-                if(nf_handle_gen_udp(ctx, payload, len))
+                if (nf_handle_gen_udp(ctx, payload, len))
                         return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
         }
-        else if(!strncmp(ctx->proto, "DNS", 3)){
+        else if (!strncmp(ctx->proto, "DNSUDP", 6))
+        {
                 printf("Picked up udp flow\n");
-                if(nf_handle_gen_udp(ctx, payload, len))
+                if (nf_handle_gen_udp(ctx, payload, len))
                         return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
         }
         else
@@ -258,7 +262,6 @@ fail:
         return nfq_set_verdict(queue, id, NF_ACCEPT, 0, NULL);
 }
 
-
 /**
 * Prepare packets for mods, and do in an agnostic way
 */
@@ -267,21 +270,20 @@ static int gen_ip_handler(struct pkt_buff *pkt, struct connection_context_t *ctx
         struct iphdr *ip4;
         struct ipv6hdr *ip6;
 
-
-        if(!pkt)
+        if (!pkt)
                 return -1;
 
         ip4 = nfq_ip_get_hdr(pkt);
 
-        if(ip4)
+        if (ip4)
         {
-                nfq_ip_set_transport_header(pkt,ip4);
+                nfq_ip_set_transport_header(pkt, ip4);
                 return 0;
         }
 
         ip6 = nfq_ip6_get_hdr(pkt);
 
-        if(ip6)
+        if (ip6)
         {
                 nfq_ip6_set_transport_header(pkt, ip6, ip6->nexthdr);
                 return 0;
@@ -295,26 +297,26 @@ static int gen_ip_udp_checksum(struct connection_context_t *ctx, struct pkt_buff
         struct iphdr *ip4;
         struct ipv6hdr *ip6;
 
-        if(!pkt)
+        if (!pkt)
                 return -1;
 
         ip4 = nfq_ip_get_hdr(pkt);
 
-        if(ip4)
+        if (ip4)
         {
                 ip4->tos = ctx->flags;
                 nfq_ip_set_checksum(ip4);
-                nfq_udp_compute_checksum_ipv4(hdr,ip4);
+                nfq_udp_compute_checksum_ipv4(hdr, ip4);
                 return 0;
         }
 
         ip6 = nfq_ip6_get_hdr(pkt);
 
-        if(ip6)
+        if (ip6)
         {
                 ip6->priority = ctx->flags >> 4;
                 ip6->flow_lbl[0] = ctx->flags << 4;
-                nfq_udp_compute_checksum_ipv6(hdr,ip6);
+                nfq_udp_compute_checksum_ipv6(hdr, ip6);
                 return 0;
         }
 
@@ -326,35 +328,38 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
         struct iphdr *ip4;
         struct ipv6hdr *ip6;
 
-        if(hdr->syn)
+        if (!pkt)
+                return -1;
+
+        if (IS_ECN(ctx->flags) && hdr->syn)
         {
                 hdr->ece = 1;
                 hdr->cwr = 1;
         }
 
-        if(!pkt)
-                return -1;
-
         ip4 = nfq_ip_get_hdr(pkt);
 
-        if(ip4)
+        if (ip4)
         {
-                ip4->tos = ctx->flags;
+                if (IS_ECN(ctx->flags) && SHOULD_MARK(hdr))
+                        ip4->tos = ctx->flags;
                 nfq_ip_set_checksum(ip4);
-                nfq_tcp_compute_checksum_ipv4(hdr,ip4);
+                nfq_tcp_compute_checksum_ipv4(hdr, ip4);
                 return 0;
         }
 
         ip6 = nfq_ip6_get_hdr(pkt);
 
-        if(ip6)
+        if (ip6)
         {
-                ip6->priority = ctx->flags >> 4;
-                ip6->flow_lbl[0] = ctx->flags << 4;
-                nfq_tcp_compute_checksum_ipv6(hdr,ip6);
+                if (IS_ECN(ctx->flags) && SHOULD_MARK(hdr))
+                {
+                        ip6->priority = ctx->flags >> 4;
+                        ip6->flow_lbl[0] = ctx->flags << 4;
+                }
+                nfq_tcp_compute_checksum_ipv6(hdr, ip6);
                 return 0;
         }
-
 
         return -1;
 }
@@ -363,25 +368,25 @@ static int nf_handle_gen_udp(struct connection_context_t *ctx, uint8_t *payload,
 {
         struct pkt_buff *pkt;
         struct udphdr *udp;
-        
+
         pkt = pktb_alloc(AF_INET, payload, len, 0);
-        
+
         gen_ip_handler(pkt, ctx);
         udp = nfq_udp_get_hdr(pkt);
 
-        if(!udp){
+        if (!udp)
+        {
                 perror("netinjection:could not get udp packet");
                 pktb_free(pkt);
                 return -1;
         }
-        
+
         gen_ip_udp_checksum(ctx, pkt, udp);
-        
+
         memcpy(payload, pktb_data(pkt), len);
         pktb_free(pkt);
 
         return 0;
-
 }
 
 static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len)
@@ -389,9 +394,8 @@ static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, siz
 
         struct pkt_buff *pkt;
         struct tcphdr *tcp;
-        printf("in tcp spec cb\n");
         pkt = pktb_alloc(AF_INET, payload, len, 0);
-        
+
         gen_ip_handler(pkt, ctx);
         tcp = nfq_tcp_get_hdr(pkt);
 
@@ -404,7 +408,6 @@ static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, siz
         printf("in tcp callback\n");
 
         gen_ip_tcp_checksum(ctx, pkt, tcp);
-
 
         memcpy(payload, pktb_data(pkt), len);
         pktb_free(pkt);

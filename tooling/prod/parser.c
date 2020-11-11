@@ -143,7 +143,7 @@ static struct transaction_node_t *parse_transaction(char *buff)
                 transac->request = request;
         }
 
-        if(!strcmp(proto, "DNS")){
+        if(!strncmp(proto, "DNS", 3)){
 
                 // get the record that we want to retrieve from the
                 // dns infra

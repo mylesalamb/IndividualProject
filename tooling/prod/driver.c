@@ -116,12 +116,19 @@ static void dispatch_req(struct transaction_node_t *transac,
                        transac->ctx->host);
                 send_udp_ntp_probe(transac->ctx->host, transac->ctx->port);
         }
-        else if (!strcmp(transac->ctx->proto, "DNS"))
+        else if (!strcmp(transac->ctx->proto, "DNSUDP"))
         {
-                printf("dispatch:dns\n"
+                printf("dispatch:dns udp\n"
                        "with args:\n%s\n%s",
                        transac->ctx->host, transac->request);
                 send_udp_dns_request(transac->ctx->host, transac->request);
+        }
+        else if (!strcmp(transac->ctx->proto, "DNSTCP"))
+        {
+                printf("dispatch:dns tcp\n"
+                       "with args:\n%s\n%s",
+                       transac->ctx->host, transac->request);
+                send_tcp_dns_request(transac->ctx->host, transac->request);
         }
         else
         {

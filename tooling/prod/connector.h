@@ -8,5 +8,7 @@ int send_udp_ntp_request(char *host, int locport);
 int send_udp_ntp_probe(char *host, int locport);
 
 int send_udp_dns_request(char *resolver, char *host);
+int send_tcp_dns_request(char *resolver, char *host);
+
 
 #endif

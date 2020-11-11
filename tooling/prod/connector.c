@@ -32,6 +32,9 @@ static int construct_ip4_sock(char *host, int locport, int extport, int socktype
 static int construct_ip6_sock(char *host, int locport);
 static int check_raw_response(int fd, int ttlfd, char *host);
 
+static int tcp_send_all(int fd, uint8_t *buff, size_t len);
+static int tcp_dns_recv_all(int fd, uint8_t *buff, size_t len);
+
 static int construct_ip4_sock(char *host, int locport, int extport, int socktype)
 {
         int fd;
@@ -82,7 +85,7 @@ static int construct_ip4_sock(char *host, int locport, int extport, int socktype
 }
 static int construct_ip6_sock(char *host, int locport)
 {
-	printf("ip6 code called\n");
+        printf("ip6 code called\n");
         int fd;
         int opt = 1;
         struct sockaddr_in6 addr;
@@ -183,7 +186,64 @@ static int check_raw_response(int fd, int ttlfd, char *host)
         return -1;
 }
 
+static int tcp_send_all(int fd, uint8_t *buff, size_t len)
+{
+        if (fd < 0 || len <= 0 || !buff)
+                return -1;
 
+        uint8_t *ptr = buff;
+        size_t sent = 0;
+
+        while (sent != len)
+        {
+                int ret = send(fd, ptr, len - sent, 0);
+                if (ret < 0)
+                        goto fail;
+                sent += ret;
+                ptr = buff + sent;
+        }
+
+        return 0;
+
+fail:
+        return 1;
+}
+
+static int tcp_dns_recv_all(int fd, uint8_t *buff, size_t buff_len)
+{
+        uint8_t *ptr = buff;
+        uint16_t resp_length;
+
+        int received = recv(fd, buff, buff_len, 0);
+
+        if (received < 0)
+                return -1;
+
+        // get and discount length of the response
+        ptr += received;
+        resp_length = ntohs(*(uint16_t *)buff);
+        received -= 2;
+
+        printf("recieved %d, %d to go\n", received, resp_length - received);
+
+        while (received != resp_length)
+        {
+
+                int status = recv(fd, ptr, buff_len - received, 0);
+                if (status < 0)
+                        return -1;
+
+                received += status;
+                ptr += status;
+        }
+
+        return received;
+}
+
+static int tcp_recv_all(int fd, uint8_t *buff, size_t len)
+{
+        return 0;
+}
 
 /* HTTP client + tcp traceroute implementation */
 
@@ -194,7 +254,7 @@ static int check_raw_response(int fd, int ttlfd, char *host)
 int send_tcp_http_request(char *request, char *host, int locport)
 {
         int fd;
-	
+
         //ipv6 or ipv4
         if (strlen(host) >= INET_ADDRSTRLEN)
         {
@@ -222,7 +282,6 @@ int send_tcp_http_request(char *request, char *host, int locport)
                 }
         }
 
-        
         close(fd);
         sleep(3);
 
@@ -231,7 +290,6 @@ fail:
         close(fd);
         return -1;
 }
-
 
 /**
  * Send an individual tcp segement
@@ -349,7 +407,6 @@ loop_break:
         return 0;
 }
 
-
 /* NTP client + traceroute implementation */
 
 static void dns_name_fmt(uint8_t *dst, uint8_t *src);
@@ -443,8 +500,6 @@ static char *get_dns_resolver()
                 {
                         continue;
                 }
-
-                printf("buff is: \"%s\"", buff);
 
                 // the rest of the line is the ip of the namserver
                 ptr = strtok(buff, " ");
@@ -601,8 +656,6 @@ static struct dns_response parse_dns_response(uint8_t *buff)
                 response->resource = (struct dns_rec_data *)(reader);
                 reader += sizeof(struct dns_rec_data);
 
-                printf("auth nameserver resource, %d %d %d %d\n", response->resource->class, response->resource->len, response->resource->ttl, response->resource->type);
-
                 response->rdata = dns_fmt_name(reader, buff, &stop);
                 reader += stop;
 
@@ -660,6 +713,93 @@ fail:
         return (struct dns_response){NULL, NULL, NULL};
 }
 
+int send_tcp_dns_request(char *resolver, char *host)
+{
+        uint8_t buff[1024];
+        int fd = construct_ip4_sock(resolver, 6000, 53, SOCK_STREAM);
+        char *dhcp = get_dns_resolver();
+
+        while (1)
+        {
+                uint16_t req_len = format_dns_request(buff + 2, A, host, ITER);
+                *(uint16_t *)buff = htons(req_len);
+
+                tcp_send_all(fd, buff, req_len + 2);
+                memset(buff, 0, sizeof(req_len + 2));
+
+                sleep(1);
+
+                tcp_dns_recv_all(fd, buff, sizeof buff);
+                fsync(fd);
+                close(fd);
+                sleep(1);
+
+                struct dns_response dns_response = parse_dns_response(buff + 2);
+
+                if (dns_response.answer)
+                {
+                        printf("Print got answer\n");
+                        break;
+                }
+
+                if (!dns_response.auth)
+                {
+                        printf("No more nameservers\n");
+                        break;
+                }
+
+                memset(buff, 0, sizeof buff);
+
+                struct dns_res_record *auth = dns_response.auth;
+
+                fd = construct_ip4_sock(dhcp, 6000, 53, SOCK_STREAM);
+
+                // resolve hostname (rdata) and set loop resolver
+                // addr.sin_addr.s_addr = inet_addr(dhcp);
+
+                
+
+                req_len = format_dns_request(buff + 2, A, auth->rdata, RECURSE);
+                *(uint16_t *)buff = htons(req_len);
+
+                tcp_send_all(fd, buff, req_len + 2);
+                memset(buff, 0, sizeof(req_len + 2));
+
+                sleep(1);
+
+                tcp_dns_recv_all(fd, buff, sizeof buff);
+                
+                fsync(fd);
+                close(fd);
+                sleep(1);
+
+                char ip_str[INET_ADDRSTRLEN];
+
+                dns_response = parse_dns_response(buff + 2);
+                if (dns_response.answer)
+                {
+                        printf("Got answer record\n");
+                        uint32_t *p;
+                        p = (uint32_t *)dns_response.answer->rdata;
+                        inet_ntop(AF_INET, p, ip_str, INET_ADDRSTRLEN);
+                        printf("resolved ip is -> %s", ip_str);
+                }
+                else
+                {
+                        break;
+                }
+                
+                fd = construct_ip4_sock(ip_str, 6000, 53, SOCK_STREAM);
+                memset(buff, 0, sizeof buff);
+        }
+
+        close(fd);
+
+        sleep(1);
+
+        return 0;
+}
+
 int send_udp_dns_request(char *resolver, char *host)
 {
 
@@ -699,6 +839,7 @@ int send_udp_dns_request(char *resolver, char *host)
         {
 
                 size_t len = format_dns_request(buff, A, host, ITER);
+                printf("request len is (udp): %d", len);
 
                 if (sendto(fd, buff, len, 0, (struct sockaddr *)&addr, sizeof(addr)) < 0)
                 {
@@ -831,8 +972,6 @@ int send_udp_ntp_request(char *host, int locport)
         return 0;
 }
 
-
-
 static int send_ind_ntp_probe(int fd, struct sockaddr_in *addr, int locport, int ttl)
 {
 
@@ -925,8 +1064,6 @@ int send_udp_ntp_probe(char *host, int locport)
 exit:
         return 0;
 }
-
-
 
 /* Dns compression utils */
 
