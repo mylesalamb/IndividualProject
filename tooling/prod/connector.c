@@ -255,11 +255,6 @@ static int tcp_dns_recv_all(int fd, uint8_t *buff, size_t buff_len)
         return received;
 }
 
-static int tcp_recv_all(int fd, uint8_t *buff, size_t len)
-{
-        return 0;
-}
-
 /* HTTP client + tcp traceroute implementation */
 
 /**
@@ -493,11 +488,11 @@ struct dns_response
  * 
  * As long as we test 'on path' nodes
  */
-static char *get_dns_resolver()
+static void *get_dns_resolver(char *ret)
 {
         FILE *handle;
         int len;
-        char buff[256], *ptr, *ret;
+        char buff[256], *ptr;
 
         if ((handle = fopen("/etc/resolv.conf", "r")) == NULL)
         {
@@ -530,8 +525,6 @@ static char *get_dns_resolver()
 
         if (!ptr)
                 return NULL;
-
-        ret = malloc((len + 1) * sizeof(char));
 
         if (!ret)
                 return NULL;
@@ -579,6 +572,36 @@ static int format_dns_request(uint8_t *buff, int record_type, char *host, uint8_
         qinfo->qclass = htons(1);
 
         return sizeof(struct dns_hdr) + (strlen((const char *)qname) + 1) + sizeof(struct dns_q);
+}
+
+static void free_dns_response(struct dns_response response)
+{
+        struct dns_res_record *ptr;
+
+        ptr = response.additional;
+        while(ptr){
+                struct dns_res_record *nxt = ptr->nxt;
+                free(ptr->name);
+                free(ptr->rdata);
+                free(ptr);
+                ptr = nxt;
+        }
+        ptr = response.auth;
+        while(ptr){
+                struct dns_res_record *nxt = ptr->nxt;
+                free(ptr->name);
+                free(ptr->rdata);
+                free(ptr);
+                ptr = nxt;
+        }
+        ptr = response.answer;
+        while(ptr){
+                struct dns_res_record *nxt = ptr->nxt;
+                free(ptr->name);
+                free(ptr->rdata);
+                free(ptr);
+                ptr = nxt;
+        }
 }
 
 /**
@@ -729,8 +752,11 @@ fail:
 int send_tcp_dns_request(char *resolver, char *host)
 {
         uint8_t buff[1024];
+        char dhcp[INET_ADDRSTRLEN];
         int fd = construct_ip4_sock(resolver, 6000, 53, SOCK_STREAM);
-        char *dhcp = get_dns_resolver();
+        get_dns_resolver(dhcp);
+        struct dns_response dns_response = {NULL, NULL, NULL};
+
 
         while (1)
         {
@@ -747,7 +773,8 @@ int send_tcp_dns_request(char *resolver, char *host)
                 close(fd);
                 sleep(1);
 
-                struct dns_response dns_response = parse_dns_response(buff + 2);
+                free_dns_response(dns_response);
+                dns_response = parse_dns_response(buff + 2);
 
                 if (dns_response.answer)
                 {
@@ -786,6 +813,7 @@ int send_tcp_dns_request(char *resolver, char *host)
 
                 char ip_str[INET_ADDRSTRLEN];
 
+                free_dns_response(dns_response);
                 dns_response = parse_dns_response(buff + 2);
                 if (dns_response.answer)
                 {
@@ -815,8 +843,9 @@ int send_udp_dns_request(char *resolver, char *host)
 {
 
         uint8_t buff[65536];
+        char dhcp[INET_ADDRSTRLEN];
         memset(buff, 0, sizeof(buff));
-        char *dhcp = get_dns_resolver();
+        get_dns_resolver(dhcp);
 
         struct sockaddr_in addr;
 

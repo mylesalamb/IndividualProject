@@ -114,6 +114,7 @@ void pcap_free(struct pcap_controller_t *pc)
         pthread_cond_destroy(&pc->cv);
 
         free(pc->pcap_dev);
+        free(pc->outdir);
         free(pc);
 }
 /**
