@@ -29,7 +29,7 @@ void pcap_push_context(struct pcap_controller_t *pc, struct connection_context_t
         pthread_cond_signal(&pc->cv);
 }
 
-struct pcap_controller_t *pcap_init(char *alias)
+struct pcap_controller_t *pcap_init(char *alias, char *dirname)
 {
         pthread_t th;
         pcap_if_t *devs;
@@ -37,12 +37,12 @@ struct pcap_controller_t *pcap_init(char *alias)
         /* setup output data directory */
         struct stat st = {0};
         char cwd[PATH_MAX];
-        char *outdir = malloc(PATH_MAX);
+        char *outdir = malloc(PATH_MAX + strlen(dirname) + 1);
         if(getcwd(cwd, sizeof(cwd)) == NULL){
                 perror("pcap:cwd error");
                 return NULL;
         }
-        sprintf(outdir, "%s/%s", cwd, "data");
+        sprintf(outdir, "%s/%s", cwd, dirname);
 
         if (stat(outdir, &st) == -1)
         {

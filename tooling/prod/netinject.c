@@ -341,7 +341,7 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
 
         if (ip4)
         {
-                if (IS_ECN(ctx->flags) && SHOULD_MARK(hdr))
+                if ( (IS_ECN(ctx->flags)) && (SHOULD_MARK(hdr)))
                         ip4->tos = ctx->flags;
                 nfq_ip_set_checksum(ip4);
                 nfq_tcp_compute_checksum_ipv4(hdr, ip4);

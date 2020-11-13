@@ -69,7 +69,8 @@ static int construct_ip4_sock(char *host, int locport, int extport, int socktype
                 return -1;
         }
 
-        if (socktype == SOCK_STREAM)
+        // add flag opt for udp, makes adapting some code to ipv6 much easier
+        if (socktype == SOCK_STREAM || 1)
         {
 
                 addr.sin_family = AF_INET;
@@ -974,6 +975,14 @@ int send_udp_ntp_request(char *host, int locport)
         uint8_t request[48];
         format_ntp_request(request);
 
+        struct sockaddr_in addr;
+        addr.sin_addr.s_addr = inet_addr(host);
+        addr.sin_port = htons(123);
+        addr.sin_family = AF_INET;
+        socklen_t plen = sizeof(struct sockaddr_in);
+        
+
+
         uint8_t response[48];
         int fd;
         struct timespec rst = HALF_S;
@@ -990,7 +999,7 @@ int send_udp_ntp_request(char *host, int locport)
         for (int i = 0; i < MAX_NTP; i++)
         {
 
-                if (send(fd, request, sizeof(request), 0) == -1)
+                if (send(fd, request, sizeof(request),0) == -1)
                 {
                         perror("Failed ot send");
                         close(fd);
@@ -998,7 +1007,7 @@ int send_udp_ntp_request(char *host, int locport)
                 }
 
                 nanosleep(&rst, &rst);
-                if (recv(fd, response, sizeof(response), 0) == -1)
+                if (recv(fd, response, sizeof(response), 0) <= 0)
                 {
                         perror("Failed to recieve response");
                         close(fd);

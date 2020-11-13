@@ -19,9 +19,10 @@ int main(int argc, char **argv)
 
         char *alias = NULL;
         char *infile = NULL;
+        char *outdir = "data";
         char arg;
 
-        while ((arg = getopt(argc, argv, "a:f:hv")) != -1)
+        while ((arg = getopt(argc, argv, "a:f:d:hv")) != -1)
         {
                 switch (arg)
                 {
@@ -31,6 +32,9 @@ int main(int argc, char **argv)
 
                 case 'f':
                         infile = optarg;
+                        break;
+                case 'd':
+                        outdir = optarg;
                         break;
                 case 'h':
                         print_usage();
@@ -56,7 +60,7 @@ int main(int argc, char **argv)
                 return EXIT_FAILURE;
         }
 
-        struct pcap_controller_t *pc = pcap_init(alias);
+        struct pcap_controller_t *pc = pcap_init(alias, outdir);
         struct nf_controller_t *nf = nf_init();
 
         struct transaction_node_t *cursor = transactions->head;
