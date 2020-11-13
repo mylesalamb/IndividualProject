@@ -19,12 +19,14 @@
         (struct timespec) { 1, 500000000 }
 #define MAX_TTL 50
 #define MAX_NTP 60
+#define MAX_RAW 100
 
-/* DNS FLAGS -> support for minimal iterative dns */
-#define AAAA 28
-#define A 1
+
+/* DNS FLAGS -> support for minimal iterative dns lookups */
+#define AAAA    28
+#define A       1
 #define RECURSE 1
-#define ITER 0
+#define ITER    0
 
 /* Basic socket abstractions that make things a little easier */
 
@@ -40,11 +42,12 @@ static int construct_ip4_sock(char *host, int locport, int extport, int socktype
         int fd;
         int opt = 1;
         struct sockaddr_in addr;
+        memset(&addr, 0, sizeof(struct sockaddr_in));
 
         fd = socket(AF_INET, socktype, 0);
         if (fd < 0)
         {
-                perror("ipv4_socket:create");
+                perror("ipv4_sock: create");
                 return fd;
         }
 
@@ -61,7 +64,7 @@ static int construct_ip4_sock(char *host, int locport, int extport, int socktype
         addr.sin_port = htons(locport);
         if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0)
         {
-                perror("error binding\n");
+                perror("ipv4_sock: bind");
                 close(fd);
                 return -1;
         }
@@ -75,24 +78,36 @@ static int construct_ip4_sock(char *host, int locport, int extport, int socktype
 
                 if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
                 {
-                        perror("error connecting to server\n");
+                        perror("ipv4_sock: connect");
                         close(fd);
                         return -1;
+                }
+        }
+        if (socktype == SOCK_DGRAM)
+        {
+                if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0)
+                {
+                        perror("ipv4_sock: non block");
+                        close(fd);
+                        return -1;               
                 }
         }
 
         return fd;
 }
+
 static int construct_ip6_sock(char *host, int locport)
 {
-        printf("ip6 code called\n");
+        
         int fd;
         int opt = 1;
         struct sockaddr_in6 addr;
+        memset(&addr, 0, sizeof(struct sockaddr_in6));
+        
         fd = socket(AF_INET6, SOCK_STREAM, 0);
         if (fd < 0)
         {
-                perror("ipv6_socket:create");
+                perror("ipv6_sock: create");
                 return fd;
         }
 
@@ -109,7 +124,7 @@ static int construct_ip6_sock(char *host, int locport)
 
         if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)))
         {
-                perror("ipv6_create:bind error");
+                perror("ipv6_sock: bind");
                 close(fd);
                 return -1;
         }
@@ -120,14 +135,14 @@ static int construct_ip6_sock(char *host, int locport)
         addr.sin6_port = htons(80);
         if (inet_pton(AF_INET6, host, &addr.sin6_addr) != 1)
         {
-                perror("Could not convert addr\n");
+                perror("ipv6_sock: assign addr");
                 close(fd);
                 return -1;
         }
 
         if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
         {
-                perror("error connecting to server\n");
+                perror("ipv6_sock: connect");
                 close(fd);
                 return -1;
         }
@@ -142,9 +157,9 @@ static int construct_ip6_sock(char *host, int locport)
  * as we also check for icmp responses from intermediate nodes
  * 
  * returns:
- *      0: response was read from intended host
- *      1: received response from intermediate node
- *      -1: Othersise, failed
+ *      0 : response was read from intended host
+ *      1 : received response from intermediate node
+ *     -1 : Othersise, failed
  */
 static int check_raw_response(int fd, int ttlfd, char *host)
 {
@@ -154,7 +169,7 @@ static int check_raw_response(int fd, int ttlfd, char *host)
         uint8_t buff[4096];
         struct sockaddr_in addr;
         int i = 0;
-        while (i++ < 100)
+        while (i++ < MAX_RAW)
         {
                 if (recvfrom(ttlfd, buff, sizeof(buff), 0, NULL, NULL) > 0)
                 {
@@ -266,7 +281,6 @@ int send_tcp_http_request(char *request, char *host, int locport)
         }
         if (fd < 0)
         {
-                perror("tcp-http socket");
                 goto fail;
         }
 
@@ -275,12 +289,11 @@ int send_tcp_http_request(char *request, char *host, int locport)
         char buff[1024];
         ssize_t request_len = strlen(request);
 
-        if (write(fd, request, request_len) >= 0)
-        {
-                while (read(fd, buff, sizeof(buff)) > 0)
-                {
-                }
-        }
+        tcp_send_all(fd, (uint8_t *)request, request_len);
+
+        while(recv(fd, buff, sizeof(buff), 0))
+                ;
+        
 
         close(fd);
         sleep(3);
@@ -757,8 +770,6 @@ int send_tcp_dns_request(char *resolver, char *host)
                 // resolve hostname (rdata) and set loop resolver
                 // addr.sin_addr.s_addr = inet_addr(dhcp);
 
-                
-
                 req_len = format_dns_request(buff + 2, A, auth->rdata, RECURSE);
                 *(uint16_t *)buff = htons(req_len);
 
@@ -768,7 +779,7 @@ int send_tcp_dns_request(char *resolver, char *host)
                 sleep(1);
 
                 tcp_dns_recv_all(fd, buff, sizeof buff);
-                
+
                 fsync(fd);
                 close(fd);
                 sleep(1);
@@ -788,7 +799,7 @@ int send_tcp_dns_request(char *resolver, char *host)
                 {
                         break;
                 }
-                
+
                 fd = construct_ip4_sock(ip_str, 6000, 53, SOCK_STREAM);
                 memset(buff, 0, sizeof buff);
         }

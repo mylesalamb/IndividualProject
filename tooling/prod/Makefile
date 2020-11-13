@@ -7,13 +7,19 @@
 EXEC=ecnDetector
 EXECSOURCES= netinject.o connector.o pcapture.o driver.o parser.o
 CC=gcc
-CFLAGS=-O2 -g -Wall
+CFLAGS=-O2 -Wall -Wpedantic
 LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink 
 
 $(EXEC): $(EXECSOURCES)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
-.PHONY: clean rmd cleanall
+debug: CFLAGS += -g
+debug: $(EXEC)
+
+.PHONY: clean rmd cleanall test
+
+test:
+	$(MAKE) -C test/
 
 clean:
 	-rm $(EXECSOURCES) $(EXEC)

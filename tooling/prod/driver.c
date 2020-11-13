@@ -45,14 +45,14 @@ int main(int argc, char **argv)
 
         if (!infile)
         {
-                printf("Must provide input file\n");
+                fprintf(stderr, "must provide input file\n");
                 return EXIT_FAILURE;
         }
 
         struct transaction_list_t *transactions = fget_transactions(infile);
         if (!transactions)
         {
-                perror("infile parse error\n");
+                fprintf(stderr, "infile parse error\n");
                 return EXIT_FAILURE;
         }
 
@@ -119,20 +119,20 @@ static void dispatch_req(struct transaction_node_t *transac,
         else if (!strcmp(transac->ctx->proto, "DNSUDP"))
         {
                 printf("dispatch:dns udp\n"
-                       "with args:\n%s\n%s",
+                       "with args:\n%s\n%s\n",
                        transac->ctx->host, transac->request);
                 send_udp_dns_request(transac->ctx->host, transac->request);
         }
         else if (!strcmp(transac->ctx->proto, "DNSTCP"))
         {
                 printf("dispatch:dns tcp\n"
-                       "with args:\n%s\n%s",
+                       "with args:\n%s\n%s\n",
                        transac->ctx->host, transac->request);
                 send_tcp_dns_request(transac->ctx->host, transac->request);
         }
         else
         {
-                perror("dispatch:unrecognised protocol");
+                fprintf(stderr, "dispatch:unrecognised protocol\n");
         }
 
         pcap_close_context(pc);
@@ -144,5 +144,6 @@ static void print_usage()
 
         printf("ECN Detector usage:\n"
                "\t-a alias to prefix to outputted file names\n"
-               "\t-f input file name containing transactions to carry out\n");
+               "\t-f input file name containing transactions to carry out\n"
+               "\t-d output directory name");
 }
