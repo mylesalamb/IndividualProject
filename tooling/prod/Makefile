@@ -18,7 +18,8 @@ debug: $(EXEC)
 
 .PHONY: clean rmd cleanall test
 
-test:
+test: CFLAGS += -DUNIT_TEST
+test: $(EXECSOURCES)
 	$(MAKE) -C test/
 
 clean:

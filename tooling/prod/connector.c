@@ -255,11 +255,6 @@ static int tcp_dns_recv_all(int fd, uint8_t *buff, size_t buff_len)
         return received;
 }
 
-static int tcp_recv_all(int fd, uint8_t *buff, size_t len)
-{
-        return 0;
-}
-
 /* HTTP client + tcp traceroute implementation */
 
 /**

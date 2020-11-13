@@ -6,12 +6,13 @@
 
 #include "parser.h"
 
+#ifndef UNIT_TEST
 static struct transaction_node_t *parse_transaction(char *buff);
 static struct transaction_node_t *transaction_node_init();
 static struct transaction_list_t *transaction_list_init();
 static void transaction_list_insert(struct transaction_list_t *lst, struct transaction_node_t *node);
 static void transaction_node_free(struct transaction_node_t *arg);
-
+#endif
 
 #define HTTP_REQ "GET /index.html HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n"
 const size_t req_len = strlen(HTTP_REQ);
@@ -47,15 +48,17 @@ struct transaction_list_t *fget_transactions(char *filename)
         return tlist;
 }
 
-static struct transaction_node_t *parse_transaction(char *buff)
+unit_static struct transaction_node_t *parse_transaction(char *buff)
 {
-
         int len;
         char *lptr, *rptr;
         char *proto, *host;
         uint8_t tos;
 
         if (!buff)
+                return NULL;
+
+        if(*buff == '#')
                 return NULL;
 
         struct transaction_node_t *transac = transaction_node_init();
@@ -156,7 +159,7 @@ static struct transaction_node_t *parse_transaction(char *buff)
                 while (!isspace(*rptr))
                         rptr++;
 
-                char *req = malloc(sizeof(char) * ((rptr - lptr) + 1));
+                char *req = malloc(sizeof(char) * ((rptr - lptr) + 2));
                 strncpy(req, lptr, rptr - lptr);
                 req[rptr - lptr + 1] = '\0';
                 transac->request = req;
@@ -177,7 +180,7 @@ fail:
         return NULL;
 }
 
-static struct transaction_list_t *transaction_list_init()
+unit_static struct transaction_list_t *transaction_list_init()
 {
         struct transaction_list_t *ret;
         ret = calloc(sizeof(struct transaction_list_t), 1);
@@ -188,7 +191,7 @@ static struct transaction_list_t *transaction_list_init()
         return ret;
 }
 
-static void transaction_list_insert(struct transaction_list_t *lst, struct transaction_node_t *node)
+unit_static void transaction_list_insert(struct transaction_list_t *lst, struct transaction_node_t *node)
 {
 
         if (!lst || !node)
@@ -213,7 +216,7 @@ static void transaction_list_insert(struct transaction_list_t *lst, struct trans
         return;
 }
 
-static struct transaction_node_t *transaction_node_init()
+unit_static struct transaction_node_t *transaction_node_init()
 {
         struct transaction_node_t *ret;
         struct connection_context_t *ctx;
