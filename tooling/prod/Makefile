@@ -18,7 +18,8 @@ debug: $(EXEC)
 
 .PHONY: clean rmd cleanall test
 
-test:
+test: CFLAGS += -D UNIT_TEST
+test: $(EXECSOURCES)
 	$(MAKE) -C test/
 
 clean:
