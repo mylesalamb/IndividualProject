@@ -143,6 +143,14 @@
 
 * *1 hour* Set up ntp dataset gatherer + adapt to ipv6
 
+
+### 12 Nov 2020
+
+* *1 hour* Brief work on methodology
+* *0.5 hours* Small ammendments to installer script
+* *1 hour* Advisor meeting
+* *3 hours* Work on TCP DNS
+* *1 hour* Refactorings + initial test suite 
 <!--- 
 ### 19 Oct 2019
 
