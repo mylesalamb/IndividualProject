@@ -193,6 +193,7 @@ static int check_raw_response(int fd, int ttlfd, char *host)
                         return -1;
                 }
 
+                // switch this to a byte comparison, dont rely on string formatting of ip addrs
                 ip = (struct iphdr *)buff;
                 addr.sin_addr.s_addr = ip->saddr;
                 if (!strcmp(inet_ntoa(addr.sin_addr), host))
@@ -287,7 +288,7 @@ int send_tcp_http_request(char *request, char *host, int locport)
 
         tcp_send_all(fd, (uint8_t *)request, request_len);
 
-        while(recv(fd, buff, sizeof(buff), 0))
+        while(recv(fd, buff, sizeof(buff), 0) >= 0)
                 ;
         
 
