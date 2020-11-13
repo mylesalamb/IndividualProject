@@ -28,11 +28,16 @@ cd $NF_TGT
 make
 sudo make install
 
-echo "$LD_LIBRARY_PATH" | grep -q "$NF_INSTALL_PATH" 
 
-if [ $? -ne 0  ]; then
+if echo "$LD_LIBRARY_PATH" | grep -q "$NF_INSTALL_PATH"; then
 
-	echo "export LD_LIBRARY_PATH=$NF_PATH:$LD_LIBRARY_PATH" >> ~/.bashrc
+	echo "*** Already on path"
+
+else
+
+
+	echo "*** Not on path"
+	echo "export LD_LIBRARY_PATH=$NF_PATH:\$LD_LIBRARY_PATH" >> ~/.bashrc
 	. ~/.bashrc
 
 fi
@@ -42,3 +47,4 @@ cd ..
 git clone $GREPO
 cd $GREPO_PATH
 make
+
