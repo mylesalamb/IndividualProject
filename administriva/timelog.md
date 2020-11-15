@@ -151,6 +151,25 @@
 * *1 hour* Advisor meeting
 * *3 hours* Work on TCP DNS
 * *1 hour* Refactorings + initial test suite 
+
+### 13 Nov 2020
+
+* *3 hours* Attempt to resolve bug with test suite
+* *2 hours* refactor file parser code
+* *2 hours* Attempt to resolve memory leaks with DNS
+
+### 15 Nov 2020
+
+* *0.5 hours* Solve issue with test suite + At to CI
+* *1.5 hours* Adapt ntp code to use IPv6
+* *3 hours* Attempt to adapt ntp tracert code to IPv6
+* *1.5 hours* Various refactorings
+
+### 16 Nov 2020
+* *2 hours* Refactorings in connector.c (protocol client code)
+* *1.5 hours* Attempt to resolve issue with IPv6 raw sockets
+
+
 <!--- 
 ### 19 Oct 2019
 

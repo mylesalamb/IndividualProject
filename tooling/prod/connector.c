@@ -5,7 +5,7 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #include <netinet/ip.h>
-#include <netinet/ip6.h>
+#include <linux/ipv6.h>
 #include <netinet/ip_icmp.h>
 #include <netinet/icmp6.h>
 
@@ -90,7 +90,7 @@ static uint8_t *format_raw_iphdr(
     int ttl)
 {
         struct iphdr *ip4 = (struct iphdr *)buffer;
-        struct ip6_hdr *ip6 = (struct ip6_hdr *)buffer;
+        struct ipv6hdr *ip6 = (struct ipv6hdr *)buffer;
 
         if (!host || !buffer)
                 return NULL;
@@ -105,7 +105,7 @@ static uint8_t *format_raw_iphdr(
 
                 ip4->ihl = 5;
                 ip4->version = 4;
-                ip4->tot_len = sizeof(struct iphdr) + payload_len;
+                ip4->tot_len = htons(sizeof(struct iphdr) + payload_len);
                 ip4->id = htons(54321);
                 ip4->ttl = ttl;
                 ip4->protocol = proto;
@@ -114,22 +114,20 @@ static uint8_t *format_raw_iphdr(
         }
         else if (hdr_type == 6)
         {
-                inet_pton(AF_INET6, host, &ip6->ip6_dst);
-                inet_pton(AF_INET6, "0:0:0:0:0:0:0:0", &ip6->ip6_src);
+                inet_pton(AF_INET6, host, &ip6->daddr);
+                inet_pton(AF_INET6, "0:0:0:0:0:0:0:0", &ip6->saddr);
 
-		ip6->ip6_ctlun.ip6_un2_vfc = 6;
-                ip6->ip6_ctlun.ip6_un1.ip6_un1_plen = payload_len;
-                ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim = ttl;
-                ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt = proto;
-                ip6->ip6_ctlun.ip6_un1.ip6_un1_flow = htonl(0x12345678);
+                ip6->version = 6;
+                ip6->flow_lbl[2] = 0xfc;
+                ip6->payload_len = htons(payload_len);
+                ip6->nexthdr = proto;
+                ip6->hop_limit = ttl;
 
-                return buffer + sizeof(struct ip6_hdr);
+                return buffer + sizeof(struct ipv6hdr);
         }
-        else
-        {
-                fprintf(stderr, "format raw: ip version not recognised");
-                return NULL;
-        }
+
+        fprintf(stderr, "format raw: ip version not recognised\n");
+        return NULL;
 }
 
 /* Assume ipstrs only ever use the 'common' formatting */
@@ -281,7 +279,7 @@ static int check_raw_response(int fd, int ttlfd, char *host)
 {
 
         struct iphdr *ip;
-        struct ip6_hdr *ip6;
+        struct ipv6hdr *ip6;
 
         struct icmphdr *icmp;
         struct icmp6_hdr *icmp6;
@@ -291,14 +289,14 @@ static int check_raw_response(int fd, int ttlfd, char *host)
         uint8_t buff[4096];
         uint8_t saddr[16];
 
-        if(ipver == 4){
+        if (ipver == 4)
+        {
                 inet_pton(AF_INET, host, saddr);
         }
-        else if(ipver == 6)
+        else if (ipver == 6)
         {
                 inet_pton(AF_INET6, host, saddr);
         }
-        
 
         int i = 0;
         while (i++ < MAX_RAW)
@@ -318,16 +316,16 @@ static int check_raw_response(int fd, int ttlfd, char *host)
                         }
                         else
                         {
-                                ip6 = (struct ip6_hdr *)buff;
-                                icmp6 = (struct icmp6_hdr *)(buff + sizeof(struct ip6_hdr));
+                                ip6 = (struct ipv6hdr *)buff;
+                                icmp6 = (struct icmp6_hdr *)(buff + sizeof(struct ipv6hdr));
 
-                                if (icmp6->icmp6_code == ICMP6_TIME_EXCEEDED)
+                                if (icmp6->icmp6_code == ICMP6_TIME_EXCEED_TRANSIT)
                                 {
                                         printf("got time exceeded\n");
                                         return 1;
                                 }
-				printf("got some icmp *** return!\n");
-				return 1;
+                                printf("got some icmp *** return!\n");
+                                return 1;
                         }
                 }
 
@@ -342,21 +340,20 @@ static int check_raw_response(int fd, int ttlfd, char *host)
                 {
                         // switch this to a byte comparison, dont rely on string formatting of ip addrs
                         ip = (struct iphdr *)buff;
-                        
+
                         if (!memcmp(&ip->saddr, saddr, sizeof(ip->saddr)))
                                 return 0;
                         printf("was not host\n");
                 }
                 else
                 {
-                        ip6 = (struct ip6_hdr *)buff;
+                        ip6 = (struct ipv6hdr *)buff;
 
-                        if(!memcmp(&ip6->ip6_src, saddr, sizeof(saddr)))
+                        if (!memcmp(&ip6->saddr, saddr, sizeof(saddr)))
                                 return 0;
 
                         printf("Was not host\n");
                 }
-                
         }
         return -1;
 }
@@ -1179,17 +1176,17 @@ static int send_ind_ntp_probe(int fd, char *host, struct sockaddr *addr, ssize_t
             request,
             sizeof(struct udphdr) + 48,
             IPPROTO_UDP,
-            ttl
-	    );
+            ttl);
 
         udp->uh_sport = htons(locport);
         udp->uh_dport = htons(PORT_NTP);
         udp->uh_ulen = htons(sizeof(struct udphdr) + 48);
         udp->check = 0;
 
-        uint8_t *payload = (uint8_t *)(++udp);
+        uint8_t *payload = ((uint8_t *)udp + sizeof(struct udphdr));
         format_ntp_request(payload);
-        
+
+
         if (sendto(fd, request, (payload + 48 - request), 0, addr, addr_size) < 0)
         {
                 perror("ntpprobe: failed to send\n");
@@ -1203,6 +1200,7 @@ int send_udp_ntp_probe(char *host, int locport)
 {
 
         struct sockaddr_in6 addr;
+        memset(&addr, 0, sizeof(addr));
         struct timespec rst = HALF_S;
         int ipver = get_ipstr_type(host);
         int sock_type = (ipver == 4) ? AF_INET : AF_INET6;
@@ -1220,10 +1218,8 @@ int send_udp_ntp_probe(char *host, int locport)
         }
         else if (sock_type == AF_INET6)
         {
-                
-		struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
-                memset(addr6, 0, sizeof(struct sockaddr_in6)); 
-		inet_pton(AF_INET6, host, &addr6->sin6_addr);
+                struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
+                inet_pton(AF_INET6, host, &addr6->sin6_addr);
                 addr_size = sizeof(struct sockaddr_in6);
         }
 
