@@ -1,5 +1,5 @@
 before_script:
-  - apt-get update && apt install --yes make libpcap-dev libnetfilter-queue-dev CUnit
+  - apt-get update && apt install --yes make libpcap-dev libnetfilter-queue-dev libcunit1-dev
 
 stages:
   - build
