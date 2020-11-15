@@ -117,17 +117,20 @@ static uint8_t *format_raw_iphdr(
                 inet_pton(AF_INET6, host, &ip6->ip6_dst);
                 inet_pton(AF_INET6, "0:0:0:0:0:0:0:0", &ip6->ip6_src);
 
-                ip6->ip6_ctlun.ip6_un1.ip6_un1_plen = payload_len;
+                ip6->ip6_ctlun.ip6_un1.ip6_un1_plen = (struct ip6_hdr) + payload_len;
                 ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim = ttl;
                 ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt = proto;
                 ip6->ip6_ctlun.ip6_un1.ip6_un1_flow = htonl(0x12345678);
-		ip6->ip6_ctlun.ip6_un2_vfc = 6;
+                ip6->ip6_ctlun.ip6_un2_vfc = 6;
+
+
+
 
                 return buffer + sizeof(struct ip6_hdr);
         }
         else
         {
-                fprintf(stderr, "format raw: ip version not recognised");
+                fprintf(stderr, "format raw: ip version not recognised\n");
                 return NULL;
         }
 }
@@ -321,12 +324,12 @@ static int check_raw_response(int fd, int ttlfd, char *host)
                                 ip6 = (struct ip6_hdr *)buff;
                                 icmp6 = (struct icmp6_hdr *)(buff + sizeof(struct ip6_hdr));
 
-                                if (icmp6->icmp6_code == ICMP6_TIME_EXCEEDED)
+                                if (icmp6->icmp6_code == ICMP6_TIME_EXCEED_TRANSIT)
                                 {
                                         printf("got time exceeded\n");
                                         return 1;
                                 }
-				printf("got some icmp *** return!\n");
+                                printf("got some icmp *** return!\n");
 				return 1;
                         }
                 }
@@ -1179,8 +1182,7 @@ static int send_ind_ntp_probe(int fd, char *host, struct sockaddr *addr, ssize_t
             request,
             sizeof(struct udphdr) + 48,
             IPPROTO_UDP,
-            ttl
-	    );
+            ttl);
 
         udp->uh_sport = htons(locport);
         udp->uh_dport = htons(PORT_NTP);
@@ -1202,7 +1204,7 @@ static int send_ind_ntp_probe(int fd, char *host, struct sockaddr *addr, ssize_t
 int send_udp_ntp_probe(char *host, int locport)
 {
 
-        struct sockaddr_in6 addr;
+        struct sockaddr addr;
         struct timespec rst = HALF_S;
         int ipver = get_ipstr_type(host);
         int sock_type = (ipver == 4) ? AF_INET : AF_INET6;
@@ -1220,10 +1222,8 @@ int send_udp_ntp_probe(char *host, int locport)
         }
         else if (sock_type == AF_INET6)
         {
-                
-		struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
-                memset(addr6, 0, sizeof(struct sockaddr_in6)); 
-		inet_pton(AF_INET6, host, &addr6->sin6_addr);
+                struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
+                inet_pton(AF_INET6, host, &addr6->sin6_addr);
                 addr_size = sizeof(struct sockaddr_in6);
         }
 
