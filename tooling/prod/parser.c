@@ -6,12 +6,13 @@
 
 #include "parser.h"
 
+#ifndef UNIT_TEST
 static struct transaction_node_t *parse_transaction(char *buff);
 static struct transaction_node_t *transaction_node_init();
 static struct transaction_list_t *transaction_list_init();
 static void transaction_list_insert(struct transaction_list_t *lst, struct transaction_node_t *node);
 static void transaction_node_free(struct transaction_node_t *arg);
-
+#endif
 
 #define HTTP_REQ "GET /index.html HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n"
 const size_t req_len = strlen(HTTP_REQ);
@@ -31,6 +32,7 @@ struct transaction_list_t *fget_transactions(char *filename)
 
         while (fgets(buff, sizeof(buff), fhandle) != NULL)
         {
+
                 struct transaction_node_t *transac = parse_transaction(buff);
                 if (transac)
                 {
@@ -47,137 +49,102 @@ struct transaction_list_t *fget_transactions(char *filename)
         return tlist;
 }
 
-static struct transaction_node_t *parse_transaction(char *buff)
+unit_static struct transaction_node_t *parse_transaction(char *buff)
 {
+        struct transaction_node_t *ret = NULL;
 
-        int len;
-        char *lptr, *rptr;
-        char *proto, *host;
-        uint8_t tos;
+        char *host = NULL;
+        char *proto = NULL;
+        char *req = NULL;
+        char *sep = " ";
+        uint8_t flags;
 
+        char *tok;
         if (!buff)
                 return NULL;
 
-        struct transaction_node_t *transac = transaction_node_init();
-        if (!transac)
-        {
-                perror("parse_transac:malloc");
+        if (*buff == '#')
+                return NULL;
+
+        buff[strcspn(buff, "\n")] = 0;
+
+        tok = strtok(buff, sep);
+        if (!tok)
                 goto fail;
-        }
 
-        lptr = buff;
-        rptr = buff;
-
-        // parse ip addr
-        while (!isspace(*rptr))
-                rptr++;
-
-        len = rptr - lptr + 1; // length + null char
-        host = malloc(len * sizeof(char));
+        host = malloc(sizeof(char) * strlen(tok) + 1);
         if (!host)
-        {
-                perror("parse_transac:malloc");
                 goto fail;
-        }
+        strcpy(host, tok);
 
-        strncpy(host, lptr, len - 1);
-        host[len - 1] = '\0';
+        // Should be the TOS bits
+        tok = strtok(NULL, sep);
+        if (!tok)
+                goto fail;
 
-        // skip spaces
-        lptr = rptr;
-        while (isspace(*lptr))
-                lptr++;
+        flags = strtol(tok, NULL, 16);
 
-        rptr = lptr;
+        tok = strtok(NULL, sep);
+        if (!tok)
+                goto fail;
 
-        // parse tos
-        rptr = lptr + 2;
-        // get two byte tos field
-        tos = strtol(lptr, NULL, 16);
-
-        // skip spaces
-        lptr = rptr;
-        while (isspace(*lptr))
-                lptr++;
-
-        rptr = lptr;
-
-        // parse proto
-        while (isalpha(*rptr))
-                rptr++;
-
-        len = rptr - lptr + 1; // length + null char
-        proto = malloc(len * sizeof(char));
+        proto = malloc(sizeof(char) * strlen(tok) + 1);
         if (!proto)
                 goto fail;
+        strcpy(proto, tok);
 
-        strncpy(proto, lptr, len - 1);
-        proto[len - 1] = '\0';
-
-        transac->ctx->host = host;
-        transac->ctx->proto = proto;
-        transac->ctx->port = 6000;
-        transac->ctx->flags = tos;
-
-        // handle different request types
-        if (!strcmp(proto, "TCP"))
+        // parse additional options
+        if (!strncmp("TCP", proto, 3))
         {
-                // get webserver name on line to format request properly
-                char ws[128];
+                tok = strtok(NULL, sep);
+                if(!tok)
+                        goto fail;
+                
+                
 
-                lptr = rptr;
-                while (isspace(*lptr))
-                        lptr++;
-                rptr = lptr;
-                while (!isspace(*rptr))
-                        rptr++;
+                req = malloc(sizeof(char) * (strlen(tok) + req_len));
+                if(!req)
+                        goto fail;
 
-                // prepare ws for format
-                strncpy(ws, lptr, rptr - lptr + 1);
-                ws[rptr - lptr] = '\0';
-
-                len = req_len + (rptr - lptr);
-                char *request = malloc(sizeof(char) * len);
-                sprintf(request, HTTP_REQ, ws);
-
-                transac->request = request;
-        }
-
-        if(!strncmp(proto, "DNS", 3)){
-
-                // get the record that we want to retrieve from the
-                // dns infra
-
-
-                lptr = rptr;
-                while (isspace(*lptr))
-                        lptr++;
-                rptr = lptr;
-                while (!isspace(*rptr))
-                        rptr++;
-
-                char *req = malloc(sizeof(char) * ((rptr - lptr) + 1));
-                strncpy(req, lptr, rptr - lptr);
-                req[rptr - lptr + 1] = '\0';
-                transac->request = req;
+                sprintf(req, HTTP_REQ, tok);
                 
         }
+        if (!strncmp("DNS", proto, 3))
+        {
+                tok = strtok(NULL, sep);
+                if(!tok)
+                        goto fail;
+                
+                req = malloc(sizeof(char) * strlen(tok) + 1);
+                if(!req)
+                        goto fail;
+                
+                strcpy(req, tok);
+        }
 
-        // else
-        // {
-        //         perror("parse_transac:proto not supported");
-        //         goto fail;
-        // }
+        ret = transaction_node_init();
 
-        printf("parsed vals ->\n\thost = %s\n\tproto = %s\n\ttos = %x\n", host, proto, tos);
+        if (!ret)
+                goto fail;
 
-        return transac;
+        ret->ctx->flags = flags;
+        ret->ctx->host = host;
+        ret->ctx->port = 6000;
+        ret->ctx->proto = proto;
+        if(req){
+                printf("\"%s\"", req);
+                ret->request = req;
+        }
+        return ret;
+
 fail:
-        free(transac);
+        transaction_node_free(ret);
+        free(host);
+        free(proto);
         return NULL;
 }
 
-static struct transaction_list_t *transaction_list_init()
+unit_static struct transaction_list_t *transaction_list_init()
 {
         struct transaction_list_t *ret;
         ret = calloc(sizeof(struct transaction_list_t), 1);
@@ -188,7 +155,7 @@ static struct transaction_list_t *transaction_list_init()
         return ret;
 }
 
-static void transaction_list_insert(struct transaction_list_t *lst, struct transaction_node_t *node)
+unit_static void transaction_list_insert(struct transaction_list_t *lst, struct transaction_node_t *node)
 {
 
         if (!lst || !node)
@@ -213,7 +180,7 @@ static void transaction_list_insert(struct transaction_list_t *lst, struct trans
         return;
 }
 
-static struct transaction_node_t *transaction_node_init()
+unit_static struct transaction_node_t *transaction_node_init()
 {
         struct transaction_node_t *ret;
         struct connection_context_t *ctx;

@@ -1,5 +1,9 @@
 before_script:
-  - apt-get update && apt install --yes make libpcap-dev libnetfilter-queue-dev
+  - apt-get update && apt install --yes make libpcap-dev libnetfilter-queue-dev libcunit1-dev
+
+stages:
+  - build
+  - test
 
 build:tool:
   image: gcc
@@ -16,3 +20,10 @@ build:dissertation:
   artifacts:
     paths:
       - "dissertation/*.pdf"
+
+test:tool:
+  image: gcc
+  script:
+    - cd tooling/prod
+    - make clean
+    - make test
