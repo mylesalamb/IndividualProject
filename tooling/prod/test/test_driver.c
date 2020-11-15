@@ -14,12 +14,20 @@
                 }                              \
         } while (0)
 
+void test_parse_gibberish_line(void){
+        struct transaction_node_t *transac;
+
+        char gibberish[] = "thisisnot A_ValidLine\n\n\n";
+        transac = parse_transaction(gibberish);
+        CU_ASSERT_PTR_NULL(transac);
+}
+
 void test_parse_line_ntp(void) {
         
         struct transaction_node_t *transac;
         
         
-        char *ntp_norm_buff = "192.168.0.1 02 NTP\n";
+        char ntp_norm_buff[] = "192.168.0.1 02 NTP\n";
         transac = parse_transaction(ntp_norm_buff);
         printf("check non null\n");
         CU_ASSERT_PTR_NOT_NULL(transac);
@@ -31,7 +39,7 @@ void test_parse_line_ntp(void) {
         transaction_node_free(transac);
         
 
-        char *ntp_mal_buff = "192.168.0.1     02      NTP     ";
+        char ntp_mal_buff[] = "192.168.0.1     02      NTP     ";
         transac = parse_transaction(ntp_mal_buff);
 
         CU_ASSERT_PTR_NOT_NULL(transac);
@@ -47,19 +55,20 @@ void test_parse_line_dns(void) {
         struct transaction_node_t *transac;
         
 
-        char *ntp_norm_buff = "192.168.0.1 02 DNS bbc.co.uk\n";
-        transac = parse_transaction(ntp_norm_buff);
+        char dns_norm_buff[] = "192.168.0.1 02 DNS bbc.co.uk\n";
+        transac = parse_transaction(dns_norm_buff);
 
         CU_ASSERT_PTR_NOT_NULL(transac);
         CU_ASSERT_TRUE(transac->ctx->flags == 0x02);
         CU_ASSERT_STRING_EQUAL("DNS", transac->ctx->proto);
         CU_ASSERT_STRING_EQUAL("192.168.0.1", transac->ctx->host);
         CU_ASSERT_STRING_EQUAL(transac->request, "bbc.co.uk");
+        
         transaction_node_free(transac);
         
 
-        char *ntp_mal_buff = "192.168.0.1     02      DNS   bbc.co.uk   ";
-        transac = parse_transaction(ntp_mal_buff);
+        char dns_mal_buff[] = "192.168.0.1     02      DNS   bbc.co.uk   ";
+        transac = parse_transaction(dns_mal_buff);
 
         CU_ASSERT_PTR_NOT_NULL(transac);
         CU_ASSERT_TRUE(transac->ctx->flags == 0x02);
@@ -68,6 +77,9 @@ void test_parse_line_dns(void) {
         CU_ASSERT_STRING_EQUAL(transac->request, "bbc.co.uk");
         transaction_node_free(transac);
 
+        char dns_missing_host[] = "192.168.0.1 02 DNS";
+        transac = parse_transaction(dns_missing_host);
+        CU_ASSERT_PTR_NULL(transac);
 }
 
 void test_parse_line_http(void) {
@@ -75,8 +87,8 @@ void test_parse_line_http(void) {
         struct transaction_node_t *transac;
         
 
-        char *ntp_norm_buff = "192.168.0.1 00 TCP www.bbc.co.uk\n";
-        transac = parse_transaction(ntp_norm_buff);
+        char tcp_norm_buff[] = "192.168.0.1 00 TCP www.bbc.co.uk\n";
+        transac = parse_transaction(tcp_norm_buff);
 
         CU_ASSERT_PTR_NOT_NULL(transac);
         CU_ASSERT_TRUE(transac->ctx->flags == 0x00);
@@ -86,8 +98,8 @@ void test_parse_line_http(void) {
         transaction_node_free(transac);
         
 
-        char *ntp_mal_buff = "192.168.0.1   00      TCP   www.bbc.co.uk  ";
-        transac = parse_transaction(ntp_mal_buff);
+        char tcp_mal_buff[] = "192.168.0.1   00      TCP   www.bbc.co.uk  ";
+        transac = parse_transaction(tcp_mal_buff);
 
         CU_ASSERT_PTR_NOT_NULL(transac);
         CU_ASSERT_TRUE(transac->ctx->flags == 0x00);
@@ -95,19 +107,16 @@ void test_parse_line_http(void) {
         CU_ASSERT_STRING_EQUAL("192.168.0.1", transac->ctx->host);
         CU_ASSERT_PTR_NOT_NULL(strstr(transac->request, "www.bbc.co.uk"));
         transaction_node_free(transac);
-
 }
 
-void test_comment_line()
+void test_parse_line_comment(void)
 {
         struct transaction_node_t *transac;
-        char *buff = "#some comment\n";
+        char buff[] = "#some comment\n";
 
         transac = parse_transaction(buff);
 
         CU_ASSERT_PTR_NULL(transac);
-
-
 }
 
 int main(void)
@@ -136,6 +145,12 @@ int main(void)
 
         ret = CU_add_test(suite, "test of parse line (http)\n", test_parse_line_http);
         CHECK_ERR(ret);
+
+        ret = CU_add_test(suite, "test of parse line (comment)\n", test_parse_line_comment);
+        CHECK_ERR(ret);
+
+        // ret = CU_add_test(suite, "test of parse line (gibberish)\n", test_parse_gibberish_line);
+        // CHECK_ERR(ret);
 
         /* Run all tests using the CUnit Basic interface */
         CU_basic_set_mode(CU_BRM_VERBOSE);
