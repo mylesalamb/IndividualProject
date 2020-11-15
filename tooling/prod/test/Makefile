@@ -4,7 +4,7 @@ EXECSOURCES=test_driver.o
 TESTSOURCES= $(shell ls ../*.o | grep -v driver.o)
 EXEC=test_exec
 CC=gcc
-CFLAGS=-O2 -Wall -I../ -D unit_test
+CFLAGS=-O2 -Wall -I../ -DUNIT_TEST
 LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink -lcunit
 
 .PHONY: $(EXEC) clean

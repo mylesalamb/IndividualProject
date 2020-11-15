@@ -16,26 +16,71 @@
 #include <fcntl.h>
 
 #define HALF_S \
+        (struct timespec) { 5, 000000000 }
+#define RAW_DELAY \
         (struct timespec) { 1, 500000000 }
 #define MAX_TTL 50
 #define MAX_NTP 60
+#define MAX_UDP 5
 #define MAX_RAW 100
 
-
 /* DNS FLAGS -> support for minimal iterative dns lookups */
-#define AAAA    28
-#define A       1
+#define AAAA 28
+#define A 1
 #define RECURSE 1
-#define ITER    0
+#define ITER 0
+
+#define PORT_NTP 123
+#define PORT_DNS 53
+#define PORT_HTTP 80
 
 /* Basic socket abstractions that make things a little easier */
 
 static int construct_ip4_sock(char *host, int locport, int extport, int socktype);
-static int construct_ip6_sock(char *host, int locport);
+static int construct_ip6_sock(char *host, int locport, int extport, int socktype);
 static int check_raw_response(int fd, int ttlfd, char *host);
 
 static int tcp_send_all(int fd, uint8_t *buff, size_t len);
 static int tcp_dns_recv_all(int fd, uint8_t *buff, size_t len);
+
+static int udp_retry_send(int fd, uint8_t *payload, size_t payload_len, uint8_t *response, size_t response_len);
+
+/* Try more than once to send a udp request until we get some response */
+static int udp_retry_send(int fd, uint8_t *payload, size_t payload_len, uint8_t *response, size_t response_len)
+{
+        if (fd < 0 || !payload)
+                return -1;
+
+        int ret_code = 0;
+
+        // sleep between sends
+        struct timespec rst = HALF_S;
+
+        for (int i = 0; i < MAX_UDP; i++)
+        {
+
+                if (send(fd, payload, payload_len, 0) < 0)
+                {
+                        perror("udp_retry_send:send");
+                        return -1;
+                }
+                nanosleep(&rst, &rst);
+
+                if (recv(fd, response, response_len, 0) >= 0)
+                {
+                        ret_code = 1;
+                        break;
+                }
+        }
+
+        return ret_code;
+}
+
+/* Assume ipstrs only ever use the 'common' formatting */
+static int get_ipstr_type(char *host)
+{
+        return (strchr(host, '.') ? 4 : 6);
+}
 
 static int construct_ip4_sock(char *host, int locport, int extport, int socktype)
 {
@@ -90,22 +135,23 @@ static int construct_ip4_sock(char *host, int locport, int extport, int socktype
                 {
                         perror("ipv4_sock: non block");
                         close(fd);
-                        return -1;               
+                        return -1;
                 }
         }
 
         return fd;
 }
 
-static int construct_ip6_sock(char *host, int locport)
+// TODO: Refactor to same contract as ip4
+static int construct_ip6_sock(char *host, int locport, int extport, int socktype)
 {
-        
+
         int fd;
         int opt = 1;
         struct sockaddr_in6 addr;
         memset(&addr, 0, sizeof(struct sockaddr_in6));
-        
-        fd = socket(AF_INET6, SOCK_STREAM, 0);
+
+        fd = socket(AF_INET6, socktype, 0);
         if (fd < 0)
         {
                 perror("ipv6_sock: create");
@@ -133,7 +179,7 @@ static int construct_ip6_sock(char *host, int locport)
         memset(&addr, 0, sizeof(addr));
 
         addr.sin6_family = AF_INET6;
-        addr.sin6_port = htons(80);
+        addr.sin6_port = htons(extport);
         if (inet_pton(AF_INET6, host, &addr.sin6_addr) != 1)
         {
                 perror("ipv6_sock: assign addr");
@@ -141,11 +187,25 @@ static int construct_ip6_sock(char *host, int locport)
                 return -1;
         }
 
-        if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+        if (socktype == SOCK_STREAM || 1)
         {
-                perror("ipv6_sock: connect");
-                close(fd);
-                return -1;
+
+                if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+                {
+                        perror("ipv6_sock: connect");
+                        close(fd);
+                        return -1;
+                }
+        }
+
+        if (socktype == SOCK_DGRAM)
+        {
+                if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0)
+                {
+                        perror("ipv6_sock: non block");
+                        close(fd);
+                        return -1;
+                }
         }
 
         return fd;
@@ -268,33 +328,30 @@ int send_tcp_http_request(char *request, char *host, int locport)
         int fd;
 
         //ipv6 or ipv4
-        if (strlen(host) >= INET_ADDRSTRLEN)
+        if (get_ipstr_type(host) == 6)
         {
-                fd = construct_ip6_sock(host, locport);
+                fd = construct_ip6_sock(host, locport, PORT_HTTP, SOCK_STREAM);
         }
         else
         {
-                fd = construct_ip4_sock(host, locport, 80, SOCK_STREAM);
+                fd = construct_ip4_sock(host, locport, PORT_HTTP, SOCK_STREAM);
         }
         if (fd < 0)
         {
                 goto fail;
         }
 
-        // set outbound connection
-
         char buff[1024];
         ssize_t request_len = strlen(request);
 
         tcp_send_all(fd, (uint8_t *)request, request_len);
 
-        while(recv(fd, buff, sizeof(buff), 0) >= 0)
+        while (recv(fd, buff, sizeof(buff), 0) > 0)
                 ;
-        
 
         close(fd);
         sleep(3);
-
+        printf("returned from send http\n");
         return 0;
 fail:
         close(fd);
@@ -326,7 +383,7 @@ static int send_ind_tcp_probe(int fd, struct sockaddr_in *addr, char *host, int 
         ip->daddr = (*addr).sin_addr.s_addr;
 
         tcp->source = htons(locport);
-        tcp->dest = htons(80);
+        tcp->dest = htons(PORT_HTTP);
         tcp->seq = 123123;
         tcp->ack_seq = (flags & 0x02) ? 1 : 0;
         tcp->doff = 5;
@@ -356,7 +413,7 @@ int send_tcp_syn_probe(char *host, int locport)
 {
 
         struct sockaddr_in addr;
-        struct timespec rst = HALF_S;
+        struct timespec rst = RAW_DELAY;
 
         /* two sockets one for reading ICMP one for reading TCP */
         int fd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
@@ -581,7 +638,8 @@ static void free_dns_response(struct dns_response response)
         struct dns_res_record *ptr;
 
         ptr = response.additional;
-        while(ptr){
+        while (ptr)
+        {
                 struct dns_res_record *nxt = ptr->nxt;
                 free(ptr->name);
                 free(ptr->rdata);
@@ -589,7 +647,8 @@ static void free_dns_response(struct dns_response response)
                 ptr = nxt;
         }
         ptr = response.auth;
-        while(ptr){
+        while (ptr)
+        {
                 struct dns_res_record *nxt = ptr->nxt;
                 free(ptr->name);
                 free(ptr->rdata);
@@ -597,7 +656,8 @@ static void free_dns_response(struct dns_response response)
                 ptr = nxt;
         }
         ptr = response.answer;
-        while(ptr){
+        while (ptr)
+        {
                 struct dns_res_record *nxt = ptr->nxt;
                 free(ptr->name);
                 free(ptr->rdata);
@@ -629,11 +689,6 @@ static struct dns_response parse_dns_response(uint8_t *buff)
 
         req = (struct dns_hdr *)buff;
         reader = &buff[sizeof(struct dns_hdr) + (strlen((const char *)qname) + 1) + sizeof(struct dns_q)];
-
-        printf("response got answer count %d\nReponse got auth count %d\nResponse got additional %d",
-               ntohs(req->ans_count),
-               ntohs(req->auth_count),
-               ntohs(req->add_count));
 
         for (int i = 0; i < ntohs(req->ans_count); i++)
         {
@@ -670,11 +725,6 @@ static struct dns_response parse_dns_response(uint8_t *buff)
                         reader = reader + stop;
                 }
 
-                long *p;
-                p = (long *)response->rdata;
-                addr.sin_addr.s_addr = (*p); //working without ntohl
-                printf("has IPv4 address : %s", inet_ntoa(addr.sin_addr));
-
                 response->nxt = ret.answer;
                 ret.answer = response;
         }
@@ -697,8 +747,8 @@ static struct dns_response parse_dns_response(uint8_t *buff)
                 response->rdata = dns_fmt_name(reader, buff, &stop);
                 reader += stop;
 
-                printf("Auth nameserver: %s\n", response->name);
-                printf("Auth nameserver rdata: %s\n", response->rdata);
+                // printf("Auth nameserver: %s\n", response->name);
+                // printf("Auth nameserver rdata: %s\n", response->rdata);
 
                 response->nxt = ret.auth;
                 ret.auth = response;
@@ -732,12 +782,12 @@ static struct dns_response parse_dns_response(uint8_t *buff)
                         reader += stop;
                 }
 
-                printf("add rec name: %s\nadd rec data %d %d %d %d\n",
-                       response->name,
-                       ntohs(response->resource->class),
-                       ntohs(response->resource->ttl),
-                       ntohs(response->resource->type),
-                       ntohs(response->resource->len));
+                // printf("add rec name: %s\nadd rec data %d %d %d %d\n",
+                //        response->name,
+                //        ntohs(response->resource->class),
+                //        ntohs(response->resource->ttl),
+                //        ntohs(response->resource->type),
+                //        ntohs(response->resource->len));
 
                 response->nxt = ret.additional;
                 ret.additional = response;
@@ -755,10 +805,9 @@ int send_tcp_dns_request(char *resolver, char *host)
 {
         uint8_t buff[1024];
         char dhcp[INET_ADDRSTRLEN];
-        int fd = construct_ip4_sock(resolver, 6000, 53, SOCK_STREAM);
+        int fd = construct_ip4_sock(resolver, 6000, PORT_DNS, SOCK_STREAM);
         get_dns_resolver(dhcp);
         struct dns_response dns_response = {NULL, NULL, NULL};
-
 
         while (1)
         {
@@ -781,12 +830,14 @@ int send_tcp_dns_request(char *resolver, char *host)
                 if (dns_response.answer)
                 {
                         printf("Print got answer\n");
+                        free_dns_response(dns_response);
                         break;
                 }
 
                 if (!dns_response.auth)
                 {
                         printf("No more nameservers\n");
+                        free_dns_response(dns_response);
                         break;
                 }
 
@@ -794,7 +845,7 @@ int send_tcp_dns_request(char *resolver, char *host)
 
                 struct dns_res_record *auth = dns_response.auth;
 
-                fd = construct_ip4_sock(dhcp, 6000, 53, SOCK_STREAM);
+                fd = construct_ip4_sock(dhcp, 6000, PORT_DNS, SOCK_STREAM);
 
                 // resolve hostname (rdata) and set loop resolver
                 // addr.sin_addr.s_addr = inet_addr(dhcp);
@@ -830,7 +881,7 @@ int send_tcp_dns_request(char *resolver, char *host)
                         break;
                 }
 
-                fd = construct_ip4_sock(ip_str, 6000, 53, SOCK_STREAM);
+                fd = construct_ip4_sock(ip_str, 6000, PORT_DNS, SOCK_STREAM);
                 memset(buff, 0, sizeof buff);
         }
 
@@ -851,7 +902,6 @@ int send_udp_dns_request(char *resolver, char *host)
 
         struct sockaddr_in addr;
 
-        //int fd = contruct_ip4_sock(resolver, 6000, 53, SOCK_DGRAM);
         int fd;
 
         fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -873,15 +923,15 @@ int send_udp_dns_request(char *resolver, char *host)
         }
 
         addr.sin_addr.s_addr = inet_addr(resolver);
-        addr.sin_port = htons(53);
+        addr.sin_port = htons(PORT_DNS);
 
+        struct dns_response responses = {NULL, NULL, NULL};
         // iter through dns infra
         // send dns query -> get auth nameserver -> resolve -> iter
         while (1)
         {
 
                 size_t len = format_dns_request(buff, A, host, ITER);
-                printf("request len is (udp): %d", len);
 
                 if (sendto(fd, buff, len, 0, (struct sockaddr *)&addr, sizeof(addr)) < 0)
                 {
@@ -896,10 +946,11 @@ int send_udp_dns_request(char *resolver, char *host)
                 {
                         perror("dns:recv_failed");
                 }
-
+                free_dns_response(responses);
                 struct dns_response responses = parse_dns_response(buff);
                 if (responses.answer)
                 {
+                        free_dns_response(responses);
                         break;
                 }
 
@@ -929,7 +980,7 @@ int send_udp_dns_request(char *resolver, char *host)
                 {
                         perror("dns:recv_failed");
                 }
-
+                free_dns_response(responses);
                 responses = parse_dns_response(buff);
                 if (responses.answer)
                 {
@@ -940,6 +991,7 @@ int send_udp_dns_request(char *resolver, char *host)
                 }
                 else
                 {
+                        free_dns_response(responses);
                         break;
                 }
                 memset(buff, 0, sizeof buff);
@@ -961,10 +1013,13 @@ int send_udp_dns_probe(char *host)
 
 static void format_ntp_request(uint8_t *payload)
 {
+
         payload[0] = 0x23;
         payload[1] = 0x00;
         payload[2] = 0x06;
         payload[3] = 0x20;
+
+        memset(&payload[4], 0, 36);
 
         // some point in time to reference
         uint64_t dummy_payload = 0x35eda5acd5c3ec15;
@@ -976,49 +1031,41 @@ int send_udp_ntp_request(char *host, int locport)
         uint8_t request[48];
         format_ntp_request(request);
 
-        struct sockaddr_in addr;
-        addr.sin_addr.s_addr = inet_addr(host);
-        addr.sin_port = htons(123);
-        addr.sin_family = AF_INET;
-        socklen_t plen = sizeof(struct sockaddr_in);
-        
-
-
         uint8_t response[48];
         int fd;
-        struct timespec rst = HALF_S;
 
-        fd = construct_ip4_sock(host, locport, 123, SOCK_DGRAM);
+        //ipv6 or ipv4
+        if (get_ipstr_type(host) == 6)
+        {
+                fd = construct_ip6_sock(host, locport, PORT_NTP, SOCK_DGRAM);
+        }
+        else
+        {
+                fd = construct_ip4_sock(host, locport, PORT_NTP, SOCK_DGRAM);
+        }
         if (fd < 0)
         {
-                perror("send_ntp:socket creation");
                 return -1;
         }
 
-        // Max number of retries before giving up
-        // NTP enforces poll delays, so we should sleep alot
-        for (int i = 0; i < MAX_NTP; i++)
+        int resp = udp_retry_send(fd, request, sizeof(request), response, sizeof(response));
+
+        switch (resp)
         {
+        case -1:
+                fprintf(stderr, "ntp request errored out");
+                break;
+        case 0:
+                printf("ntp did NOT receive response from node");
+                break;
+        case 1:
+                fprintf(stderr, "ntp did receive response from node");
+                break;
 
-                if (send(fd, request, sizeof(request),0) == -1)
-                {
-                        perror("Failed ot send");
-                        close(fd);
-                        return -1;
-                }
-
-                nanosleep(&rst, &rst);
-                if (recv(fd, response, sizeof(response), 0) <= 0)
-                {
-                        perror("Failed to recieve response");
-                        close(fd);
-                        continue;
-                }
-
+        default:
                 break;
         }
 
-        printf("Got some response\n");
         return 0;
 }
 
@@ -1044,7 +1091,7 @@ static int send_ind_ntp_probe(int fd, struct sockaddr_in *addr, int locport, int
         ip->daddr = (*addr).sin_addr.s_addr;
 
         udp->uh_sport = htons(locport);
-        udp->uh_dport = htons(123);
+        udp->uh_dport = htons(PORT_NTP);
         udp->uh_ulen = htons(sizeof(struct udphdr) + 48);
         udp->check = 0;
 
@@ -1081,7 +1128,7 @@ int send_udp_ntp_probe(char *host, int locport)
 
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = inet_addr(host);
-        addr.sin_port = htons(123);
+        addr.sin_port = htons(PORT_NTP);
 
         /* IP_HDRINCL to tell the kernel that headers are included in the packet */
         int one = 1;
@@ -1096,8 +1143,8 @@ int send_udp_ntp_probe(char *host, int locport)
         {
                 for (int j = 0; j < 5; j++)
                 {
-                        nanosleep(&rst, &rst);
                         send_ind_ntp_probe(fd, &addr, locport, i);
+                        nanosleep(&rst, &rst);
                         int resp = check_raw_response(fd, ttlfd, host);
                         if (resp == 0)
                         {

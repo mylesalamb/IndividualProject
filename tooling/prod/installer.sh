@@ -30,16 +30,11 @@ sudo make install
 
 
 if echo "$LD_LIBRARY_PATH" | grep -q "$NF_INSTALL_PATH"; then
-
 	echo "*** Already on path"
-
 else
-
-
 	echo "*** Not on path"
 	echo "export LD_LIBRARY_PATH=$NF_PATH:\$LD_LIBRARY_PATH" >> ~/.bashrc
 	. ~/.bashrc
-
 fi
 
 cd ..
@@ -48,3 +43,5 @@ git clone $GREPO
 cd $GREPO_PATH
 make
 
+# TODO:	add cronjjob to run the dataset once daily
+#		Save ip(6)tables rules so that we dont have to use root at runtime

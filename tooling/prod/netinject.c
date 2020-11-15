@@ -24,7 +24,7 @@
 #include "netinject.h"
 
 #define IS_ECN(x) (x & 0x03)
-#define SHOULD_MARK(x) (!x->syn && !x->ack && !x->fin)
+#define SHOULD_MARK(x) (!x->syn && !x->fin)
 
 static void *nf_controller(void *arg);
 static void nf_handle_conn(struct nf_controller_t *nfc);
@@ -48,6 +48,7 @@ struct nf_controller_t *nf_init()
         nfc->ctx = NULL;
         nfc->connection_exit = false;
         nfc->controller_exit = false;
+        nfc->queue = NULL;
 
         if (!(nfc->nfq_handle = nfq_open()))
         {
@@ -205,7 +206,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         struct connection_context_t *ctx = *(struct connection_context_t **)data;
         int id = 0, len = 0;
         struct nfqnl_msg_packet_hdr *ph;
-        uint8_t *payload, ipver;
+        uint8_t *payload;
 
         ph = nfq_get_msg_packet_hdr(pkt);
         if (!ph)
@@ -262,11 +263,17 @@ fail:
         return nfq_set_verdict(queue, id, NF_ACCEPT, 0, NULL);
 }
 
+// Use kernel types as opposed to netinet
+// prevent type collisions and better struct naming
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
+
 /**
 * Prepare packets for mods, and do in an agnostic way
 */
 static int gen_ip_handler(struct pkt_buff *pkt, struct connection_context_t *ctx)
 {
+
         struct iphdr *ip4;
         struct ipv6hdr *ip6;
 
@@ -341,7 +348,7 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
 
         if (ip4)
         {
-                if ( (IS_ECN(ctx->flags)) && (SHOULD_MARK(hdr)))
+                if ((IS_ECN(ctx->flags)) && (SHOULD_MARK(hdr)))
                         ip4->tos = ctx->flags;
                 nfq_ip_set_checksum(ip4);
                 nfq_tcp_compute_checksum_ipv4(hdr, ip4);
@@ -363,6 +370,8 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
 
         return -1;
 }
+
+#pragma GCC diagnostic pop
 
 static int nf_handle_gen_udp(struct connection_context_t *ctx, uint8_t *payload, size_t len)
 {

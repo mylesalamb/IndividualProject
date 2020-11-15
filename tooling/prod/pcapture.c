@@ -32,7 +32,7 @@ void pcap_push_context(struct pcap_controller_t *pc, struct connection_context_t
 struct pcap_controller_t *pcap_init(char *alias, char *dirname)
 {
         pthread_t th;
-        pcap_if_t *devs;
+        pcap_if_t *devs = NULL;
 
         /* setup output data directory */
         struct stat st = {0};

@@ -1,6 +1,0 @@
-Things to do when deploying on a new system
-
-- Ensure that libnetfilter_queue (> 1.0.5)
-    - Bugs do not appear to be present in its dependencies
-- Alter runtime linker so that the library can be accessed from the default install location
-- Ensure that iptables setup.sh is run to start the jit packet modifier

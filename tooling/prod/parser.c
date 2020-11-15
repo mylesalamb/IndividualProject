@@ -15,7 +15,7 @@ static void transaction_node_free(struct transaction_node_t *arg);
 #endif
 
 #define HTTP_REQ "GET /index.html HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n"
-const size_t req_len = strlen(HTTP_REQ);
+const size_t req_len = sizeof(HTTP_REQ)/sizeof(char);
 
 struct transaction_list_t *fget_transactions(char *filename)
 {
@@ -132,7 +132,7 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
         ret->ctx->port = 6000;
         ret->ctx->proto = proto;
         if(req){
-                printf("\"%s\"", req);
+                
                 ret->request = req;
         }
         return ret;
@@ -191,6 +191,8 @@ unit_static struct transaction_node_t *transaction_node_init()
                 goto fail;
 
         ret->ctx = ctx;
+        ret->next = NULL;
+        ret->request = NULL;
 
         return ret;
 fail:

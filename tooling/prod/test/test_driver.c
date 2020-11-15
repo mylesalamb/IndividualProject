@@ -29,9 +29,7 @@ void test_parse_line_ntp(void) {
         
         char ntp_norm_buff[] = "192.168.0.1 02 NTP\n";
         transac = parse_transaction(ntp_norm_buff);
-        printf("check non null\n");
         CU_ASSERT_PTR_NOT_NULL(transac);
-        printf("check non null done\n");
         CU_ASSERT_TRUE(transac->ctx->flags == 0x02);
         CU_ASSERT_STRING_EQUAL("NTP", transac->ctx->proto);
         CU_ASSERT_STRING_EQUAL("192.168.0.1", transac->ctx->host);
@@ -149,8 +147,8 @@ int main(void)
         ret = CU_add_test(suite, "test of parse line (comment)\n", test_parse_line_comment);
         CHECK_ERR(ret);
 
-        // ret = CU_add_test(suite, "test of parse line (gibberish)\n", test_parse_gibberish_line);
-        // CHECK_ERR(ret);
+        ret = CU_add_test(suite, "test of parse line (gibberish)\n", test_parse_gibberish_line);
+        CHECK_ERR(ret);
 
         /* Run all tests using the CUnit Basic interface */
         CU_basic_set_mode(CU_BRM_VERBOSE);
