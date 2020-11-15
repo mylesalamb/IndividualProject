@@ -117,11 +117,11 @@ static uint8_t *format_raw_iphdr(
                 inet_pton(AF_INET6, host, &ip6->ip6_dst);
                 inet_pton(AF_INET6, "0:0:0:0:0:0:0:0", &ip6->ip6_src);
 
+		ip6->ip6_ctlun.ip6_un2_vfc = 6;
                 ip6->ip6_ctlun.ip6_un1.ip6_un1_plen = payload_len;
                 ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim = ttl;
                 ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt = proto;
                 ip6->ip6_ctlun.ip6_un1.ip6_un1_flow = htonl(0x12345678);
-		ip6->ip6_ctlun.ip6_un2_vfc = 6;
 
                 return buffer + sizeof(struct ip6_hdr);
         }
