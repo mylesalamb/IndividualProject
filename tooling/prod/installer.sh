@@ -29,7 +29,7 @@ make
 sudo make install
 
 
-if echo "$LD_LIBRARY_PATH" | grep -q "$NF_INSTALL_PATH"; then
+if echo "$LD_LIBRARY_PATH" | grep -q "$NF_PATH"; then
 	echo "*** Already on path"
 else
 	echo "*** Not on path"

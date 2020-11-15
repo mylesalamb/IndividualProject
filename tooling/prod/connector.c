@@ -5,9 +5,13 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #include <netinet/ip.h>
+#include <netinet/ip6.h>
 #include <netinet/ip_icmp.h>
+#include <netinet/icmp6.h>
+
 #include <arpa/inet.h>
-#include <arpa/nameser.h>
+//#include <arpa/nameser.h>
+
 #include <unistd.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -38,8 +42,10 @@
 
 static int construct_ip4_sock(char *host, int locport, int extport, int socktype);
 static int construct_ip6_sock(char *host, int locport, int extport, int socktype);
-static int check_raw_response(int fd, int ttlfd, char *host);
+static int get_ipstr_type(char *host);
 
+static int check_raw_response(int fd, int ttlfd, char *host);
+static uint8_t *format_raw_iphdr(char *host, uint8_t *buffer, ssize_t payload_len, int proto, int ttl);
 static int tcp_send_all(int fd, uint8_t *buff, size_t len);
 static int tcp_dns_recv_all(int fd, uint8_t *buff, size_t len);
 
@@ -66,7 +72,7 @@ static int udp_retry_send(int fd, uint8_t *payload, size_t payload_len, uint8_t 
                 }
                 nanosleep(&rst, &rst);
 
-                if (recv(fd, response, response_len, 0) >= 0)
+                if (recv(fd, response, response_len, 0) > 0)
                 {
                         ret_code = 1;
                         break;
@@ -74,6 +80,56 @@ static int udp_retry_send(int fd, uint8_t *payload, size_t payload_len, uint8_t 
         }
 
         return ret_code;
+}
+
+static uint8_t *format_raw_iphdr(
+    char *host,
+    uint8_t *buffer,
+    ssize_t payload_len,
+    int proto,
+    int ttl)
+{
+        struct iphdr *ip4 = (struct iphdr *)buffer;
+        struct ip6_hdr *ip6 = (struct ip6_hdr *)buffer;
+
+        if (!host || !buffer)
+                return NULL;
+
+        int hdr_type = get_ipstr_type(host);
+
+        if (hdr_type == 4)
+        {
+
+                inet_pton(AF_INET, host, &(ip4->daddr));
+                inet_pton(AF_INET, "0.0.0.0", &(ip4->saddr));
+
+                ip4->ihl = 5;
+                ip4->version = 4;
+                ip4->tot_len = sizeof(struct iphdr) + payload_len;
+                ip4->id = htons(54321);
+                ip4->ttl = ttl;
+                ip4->protocol = proto;
+
+                return buffer + sizeof(struct iphdr);
+        }
+        else if (hdr_type == 6)
+        {
+                inet_pton(AF_INET6, host, &ip6->ip6_dst);
+                inet_pton(AF_INET6, "0:0:0:0:0:0:0:0", &ip6->ip6_src);
+
+                ip6->ip6_ctlun.ip6_un1.ip6_un1_plen = payload_len;
+                ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim = ttl;
+                ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt = proto;
+                ip6->ip6_ctlun.ip6_un1.ip6_un1_flow = htonl(0x12345678);
+
+
+                return buffer + sizeof(struct ip6_hdr);
+        }
+        else
+        {
+                fprintf(stderr, "format raw: ip version not recognised");
+                return NULL;
+        }
 }
 
 /* Assume ipstrs only ever use the 'common' formatting */
@@ -114,7 +170,7 @@ static int construct_ip4_sock(char *host, int locport, int extport, int socktype
                 return -1;
         }
 
-        // add flag opt for udp, makes adapting some code to ipv6 much easier
+        // add flag opt for udp, makes adapting some to ipv6 much easier
         if (socktype == SOCK_STREAM || 1)
         {
 
@@ -142,7 +198,6 @@ static int construct_ip4_sock(char *host, int locport, int extport, int socktype
         return fd;
 }
 
-// TODO: Refactor to same contract as ip4
 static int construct_ip6_sock(char *host, int locport, int extport, int socktype)
 {
 
@@ -226,23 +281,51 @@ static int check_raw_response(int fd, int ttlfd, char *host)
 {
 
         struct iphdr *ip;
+        struct ip6_hdr *ip6;
+
         struct icmphdr *icmp;
+        struct icmp6_hdr *icmp6;
+
+        int ipver = get_ipstr_type(host);
+
         uint8_t buff[4096];
-        struct sockaddr_in addr;
+        uint8_t saddr[16];
+
+        if(ipver == 4){
+                inet_pton(AF_INET, host, saddr);
+        }
+        else if(ipver == 6)
+        {
+                inet_pton(AF_INET6, host, saddr);
+        }
+        
+
         int i = 0;
         while (i++ < MAX_RAW)
         {
                 if (recvfrom(ttlfd, buff, sizeof(buff), 0, NULL, NULL) > 0)
                 {
-                        // we have some icmp packet
-                        // check to see if its a ttl exceeded
-                        ip = (struct iphdr *)buff;
-                        icmp = (struct icmphdr *)(buff + sizeof(struct iphdr));
-
-                        if (icmp->code == ICMP_EXC_TTL)
+                        if (ipver == 4)
                         {
-                                printf("got ttl exceed\n");
-                                return 1;
+                                ip = (struct iphdr *)buff;
+                                icmp = (struct icmphdr *)(buff + sizeof(struct iphdr));
+
+                                if (icmp->code == ICMP_EXC_TTL)
+                                {
+                                        printf("got ttl exceed\n");
+                                        return 1;
+                                }
+                        }
+                        else
+                        {
+                                ip6 = (struct ip6_hdr *)buff;
+                                icmp6 = (struct icmp6_hdr *)(buff + sizeof(struct ip6_hdr));
+
+                                if (icmp6->icmp6_code == ICMP6_TIME_EXCEEDED)
+                                {
+                                        printf("got time exceeded\n");
+                                        return 1;
+                                }
                         }
                 }
 
@@ -253,12 +336,25 @@ static int check_raw_response(int fd, int ttlfd, char *host)
                         return -1;
                 }
 
-                // switch this to a byte comparison, dont rely on string formatting of ip addrs
-                ip = (struct iphdr *)buff;
-                addr.sin_addr.s_addr = ip->saddr;
-                if (!strcmp(inet_ntoa(addr.sin_addr), host))
-                        return 0;
-                printf("was not host was %s\n", inet_ntoa(addr.sin_addr));
+                if (ipver == 4)
+                {
+                        // switch this to a byte comparison, dont rely on string formatting of ip addrs
+                        ip = (struct iphdr *)buff;
+                        
+                        if (!memcmp(&ip->saddr, saddr, sizeof(ip->saddr)))
+                                return 0;
+                        printf("was not host\n");
+                }
+                else
+                {
+                        ip6 = (struct ip6_hdr *)buff;
+
+                        if(!memcmp(&ip6->ip6_src, saddr, sizeof(saddr)))
+                                return 0;
+
+                        printf("Was not host\n");
+                }
+                
         }
         return -1;
 }
@@ -678,7 +774,6 @@ static struct dns_response parse_dns_response(uint8_t *buff)
 {
 
         struct dns_response ret = {NULL, NULL, NULL};
-        struct sockaddr_in addr;
 
         uint8_t *reader;
         uint8_t *qname = buff + sizeof(struct dns_hdr);
@@ -1069,35 +1164,30 @@ int send_udp_ntp_request(char *host, int locport)
         return 0;
 }
 
-static int send_ind_ntp_probe(int fd, struct sockaddr_in *addr, int locport, int ttl)
+static int send_ind_ntp_probe(int fd, char *host, struct sockaddr *addr, ssize_t addr_size, int locport, int ttl)
 {
 
-        struct iphdr *ip;
         struct udphdr *udp;
-        uint8_t request[4096], *payload;
+        uint8_t request[4096];
+
         memset(request, 0, sizeof(request));
 
-        ip = (struct iphdr *)request;
-        udp = (struct udphdr *)(request + sizeof(struct iphdr));
-        payload = (uint8_t *)(request + sizeof(struct udphdr) + sizeof(struct iphdr));
-        format_ntp_request(payload);
-
-        ip->ihl = 5;
-        ip->version = 4;
-        ip->id = htonl(54321);
-        ip->ttl = ttl;
-        ip->protocol = IPPROTO_UDP;
-        ip->saddr = inet_addr("0.0.0.0");
-        ip->daddr = (*addr).sin_addr.s_addr;
+        udp = (struct udphdr *)format_raw_iphdr(
+            host,
+            request,
+            sizeof(struct udphdr) + 48,
+            IPPROTO_UDP,
+            ttl);
 
         udp->uh_sport = htons(locport);
         udp->uh_dport = htons(PORT_NTP);
         udp->uh_ulen = htons(sizeof(struct udphdr) + 48);
         udp->check = 0;
 
-        ip->tot_len = sizeof(struct iphdr) + sizeof(struct udphdr) + 48;
-
-        if (sendto(fd, request, ip->tot_len, 0, (struct sockaddr *)addr, sizeof(struct sockaddr_in)) < 0)
+        uint8_t *payload = (uint8_t *)(++udp);
+        format_ntp_request(payload);
+        
+        if (sendto(fd, request, (payload + 48 - request), 0, addr, addr_size) < 0)
         {
                 perror("ntpprobe: failed to send\n");
                 return -1;
@@ -1109,11 +1199,31 @@ static int send_ind_ntp_probe(int fd, struct sockaddr_in *addr, int locport, int
 int send_udp_ntp_probe(char *host, int locport)
 {
 
-        struct sockaddr_in addr;
+        struct sockaddr addr;
         struct timespec rst = HALF_S;
+        int ipver = get_ipstr_type(host);
+        int sock_type = (ipver == 4) ? AF_INET : AF_INET6;
+        int sock_opt = (ipver == 4) ? IPPROTO_IP : IPPROTO_IPV6;
+        int icmp_ver = (ipver == 4) ? IPPROTO_ICMP : IPPROTO_ICMPV6;
+        int sock_hdr = (ipver == 4) ? IP_HDRINCL : IPV6_HDRINCL;
 
-        int fd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);
-        int ttlfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+        ssize_t addr_size;
+
+        if (sock_type == AF_INET)
+        {
+                struct sockaddr_in *addr4 = (struct sockaddr_in *)&addr;
+                inet_pton(AF_INET, host, &addr4->sin_addr.s_addr);
+                addr_size = sizeof(struct sockaddr_in);
+        }
+        else if (sock_type == AF_INET6)
+        {
+                struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
+                inet_pton(AF_INET6, host, &addr6->sin6_addr);
+                addr_size = sizeof(struct sockaddr_in6);
+        }
+
+        int fd = socket(sock_type, SOCK_RAW, IPPROTO_UDP);
+        int ttlfd = socket(sock_type, SOCK_RAW, icmp_ver);
 
         int err = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
         err |= fcntl(ttlfd, F_SETFL, fcntl(ttlfd, F_GETFL, 0) | O_NONBLOCK);
@@ -1126,14 +1236,10 @@ int send_udp_ntp_probe(char *host, int locport)
                 return -1;
         }
 
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = inet_addr(host);
-        addr.sin_port = htons(PORT_NTP);
-
         /* IP_HDRINCL to tell the kernel that headers are included in the packet */
         int one = 1;
         const int *val = &one;
-        if (setsockopt(fd, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0)
+        if (setsockopt(fd, sock_opt, sock_hdr, val, sizeof(one)) < 0)
         {
                 printf("Error setting IP_HDRINCL. Error number : %d . Error message : %s \n", errno, strerror(errno));
                 return -1;
@@ -1143,7 +1249,7 @@ int send_udp_ntp_probe(char *host, int locport)
         {
                 for (int j = 0; j < 5; j++)
                 {
-                        send_ind_ntp_probe(fd, &addr, locport, i);
+                        send_ind_ntp_probe(fd, host, &addr, addr_size, 6000, i);
                         nanosleep(&rst, &rst);
                         int resp = check_raw_response(fd, ttlfd, host);
                         if (resp == 0)
@@ -1157,8 +1263,13 @@ int send_udp_ntp_probe(char *host, int locport)
                         }
                 }
         }
-        printf("Did not get response from host\n");
+
+        printf("Did not recieve response from host\n");
+        return -1;
+
 exit:
+
+        printf("did recieve response from host\n");
         return 0;
 }
 
