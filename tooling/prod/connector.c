@@ -8,6 +8,9 @@
 #include <linux/ipv6.h>
 #include <netinet/ip_icmp.h>
 #include <netinet/icmp6.h>
+#include <ifaddrs.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
 
 #include <arpa/inet.h>
 //#include <arpa/nameser.h>
@@ -43,6 +46,7 @@
 static int construct_ip4_sock(char *host, int locport, int extport, int socktype);
 static int construct_ip6_sock(char *host, int locport, int extport, int socktype);
 static int get_ipstr_type(char *host);
+static int get_host_ipv6_addr(char *dst);
 
 static int check_raw_response(int fd, int ttlfd, char *host);
 static uint8_t *format_raw_iphdr(char *host, uint8_t *buffer, ssize_t payload_len, int proto, int ttl);
@@ -50,6 +54,40 @@ static int tcp_send_all(int fd, uint8_t *buff, size_t len);
 static int tcp_dns_recv_all(int fd, uint8_t *buff, size_t len);
 
 static int udp_retry_send(int fd, uint8_t *payload, size_t payload_len, uint8_t *response, size_t response_len);
+
+/* tactical bandaid as in6addr_any does not seemt to work with raw sockets */
+static int get_host_ipv6_addr(char *dst)
+{
+        int ret = 0;
+        struct ifaddrs *ifa, *ifa_tmp;
+
+        if (getifaddrs(&ifa) == -1)
+        {
+                perror("getifaddrs failed");
+                exit(1);
+        }
+
+        for (struct ifaddrs *ifa_i = ifa; ifa_i; ifa_i = ifa_i->next)
+        {
+                if (!(ifa_tmp->ifa_addr->sa_family == AF_INET6))
+                        continue;
+
+                // we dont want down interfaces
+                if (!(ifa_tmp->ifa_flags & IFF_UP))
+                        continue;
+
+                if (!(ifa_tmp->ifa_flags & IFF_LOOPBACK))
+                        continue;
+
+                struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)ifa_i->ifa_addr;
+                memcpy(dst, &in6->sin6_addr, sizeof(struct in6_addr));
+                ret = 1
+                break;
+        }
+
+        freeifaddrs(ifa);
+        return ret;
+}
 
 /* Try more than once to send a udp request until we get some response */
 static int udp_retry_send(int fd, uint8_t *payload, size_t payload_len, uint8_t *response, size_t response_len)
@@ -91,12 +129,14 @@ static uint8_t *format_raw_iphdr(
 {
         struct iphdr *ip4 = (struct iphdr *)buffer;
         struct ipv6hdr *ip6 = (struct ipv6hdr *)buffer;
+        struct in6_addr in6_saddr;
+
 
         if (!host || !buffer)
                 return NULL;
 
         int hdr_type = get_ipstr_type(host);
-
+        
         if (hdr_type == 4)
         {
 
@@ -114,8 +154,15 @@ static uint8_t *format_raw_iphdr(
         }
         else if (hdr_type == 6)
         {
+
                 inet_pton(AF_INET6, host, &ip6->daddr);
                 inet_pton(AF_INET6, "0:0:0:0:0:0:0:0", &ip6->saddr);
+
+                if(get_host_ipv6_addr(&ip6->saddr) != 1)
+                {
+                        fprintf(stderr, "fmt_raw_ip_hdr:get ip6 addr");
+                        return NULL;
+                }
 
                 ip6->version = 6;
                 ip6->flow_lbl[2] = 0xfc;
@@ -1185,7 +1232,6 @@ static int send_ind_ntp_probe(int fd, char *host, struct sockaddr *addr, ssize_t
 
         uint8_t *payload = ((uint8_t *)udp + sizeof(struct udphdr));
         format_ntp_request(payload);
-
 
         if (sendto(fd, request, (payload + 48 - request), 0, addr, addr_size) < 0)
         {

@@ -169,6 +169,10 @@
 * *2 hours* Refactorings in connector.c (protocol client code)
 * *1.5 hours* Attempt to resolve issue with IPv6 raw sockets
 
+### 17 Nov 2020
+
+* *3 hours* Work on experiemntal methodology
+
 
 <!--- 
 ### 19 Oct 2019
