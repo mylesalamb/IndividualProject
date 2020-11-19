@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -12,6 +13,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 
+
 #include <arpa/inet.h>
 //#include <arpa/nameser.h>
 
@@ -23,7 +25,7 @@
 #include <fcntl.h>
 
 #define HALF_S \
-        (struct timespec) { 5, 000000000 }
+        (struct timespec) { 0, 500000000 }
 #define RAW_DELAY \
         (struct timespec) { 1, 500000000 }
 #define MAX_TTL 50
@@ -346,6 +348,7 @@ static int check_raw_response(int fd, int ttlfd, char *host)
 
         if (ipver == 4)
         {
+                
                 inet_pton(AF_INET, host, saddr);
         }
         else if (ipver == 6)
@@ -371,8 +374,9 @@ static int check_raw_response(int fd, int ttlfd, char *host)
                         }
                         else
                         {
-                                ip6 = (struct ipv6hdr *)buff;
-                                icmp6 = (struct icmp6_hdr *)(buff + sizeof(struct ipv6hdr));
+                                printf("Check icmpv6\n");
+                                
+                                icmp6 = (struct icmp6_hdr *)buff;
 
                                 if (icmp6->icmp6_type == ICMP6_TIME_EXCEEDED &&
                                     icmp6->icmp6_code == ICMP6_TIME_EXCEED_TRANSIT)
@@ -402,14 +406,23 @@ static int check_raw_response(int fd, int ttlfd, char *host)
                 else
                 {
                         struct sockaddr_in6 addr6;
-                        char cmbuf[0x100];
+                        memset(&addr6, 0, sizeof(struct sockaddr_in6));
+                        uint8_t buff[2000];
+                        ssize_t len;
+                        len = sizeof(addr6);
+                        
+                        char cmbuf[0x200];
                         struct msghdr mh = {
                             .msg_name = &addr6,
                             .msg_namelen = sizeof(addr6),
                             .msg_control = cmbuf,
-                            .msg_controllen = sizeof(cmbuf)}
+                            .msg_controllen = sizeof(cmbuf)};
 
-                        recvmsg(fd, &mh, 0);
+                        if(recvmsg(fd, &mh, 0) < 0)
+                        {
+                                //perror("recvmsg failed");
+                                continue;
+                        }
 
                         for ( // iterate through all the control headers
                             struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mh);
@@ -422,15 +435,32 @@ static int check_raw_response(int fd, int ttlfd, char *host)
                                 {
                                         continue;
                                 }
-                                struct in_pktinfo *pi = CMSG_DATA(cmsg);
+                                struct in6_pktinfo *pi;
+                                pi = CMSG_DATA(cmsg);
+                                printf("addrlen was %d\n", mh.msg_namelen);
+                                
                                 // at this point, peeraddr is the source sockaddr
-                                pi->ipi_spec_dst;
+                               //pi->ipi6_adr;
                                 // pi->ipi_addr is the receiving interface in_addr
+
+                                if (!memcmp(&addr6.sin6_addr, saddr, sizeof(saddr))){
+                                 
+                                        printf("was from host\n");
+                                        return 0;
+
+                                }
+
+                                char a[INET6_ADDRSTRLEN], b[INET6_ADDRSTRLEN];
+                                struct sockaddr_in6 baddr;
+                                //memset(&baddr, 0, sizeof baddr);
+                                baddr.sin6_addr = pi->ipi6_addr;
+                                inet_ntop(AF_INET6, &baddr.sin6_addr, b, sizeof b);
+                                inet_ntop(AF_INET6, &addr6.sin6_addr, a, sizeof(a));
+                                printf("please be from host? %s, otherwise %s", a, b);
+
                         }
 
-                        ip6 = (struct ipv6hdr *)buff;
-                        if (!memcmp(&ip6->saddr, saddr, sizeof(saddr)))
-                                return 0;
+                        
                 }
         }
         return -1;
