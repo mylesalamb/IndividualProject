@@ -23,7 +23,7 @@
 #include <fcntl.h>
 
 #define HALF_S \
-        (struct timespec) { 0, 500000000 }
+        (struct timespec) { 5, 000000000 }
 #define RAW_DELAY \
         (struct timespec) { 1, 500000000 }
 #define MAX_TTL 50
@@ -60,8 +60,8 @@ static int get_host_ipv6_addr(struct in6_addr *dst)
 {
         int ret = 0;
         struct ifaddrs *ifa;
-	char debug[INET6_ADDRSTRLEN];
-	printf("get ipv6 addrs called\n");
+        char debug[INET6_ADDRSTRLEN];
+        printf("get ipv6 addrs called\n");
 
         if (getifaddrs(&ifa) == -1)
         {
@@ -82,20 +82,21 @@ static int get_host_ipv6_addr(struct in6_addr *dst)
                         continue;
 
                 struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)ifa_i->ifa_addr;
-		if(IN6_IS_ADDR_LINKLOCAL(&in6->sin6_addr)){
-			printf("caught link local\n");
-			continue;
-		}
-		inet_ntop(AF_INET6, &in6->sin6_addr, debug,sizeof(debug));
-		printf("ip_str was: %s", debug);
-		
-		memcpy(dst, &in6->sin6_addr, sizeof(struct in6_addr));
+                if (IN6_IS_ADDR_LINKLOCAL(&in6->sin6_addr))
+                {
+                        printf("caught link local\n");
+                        continue;
+                }
+                inet_ntop(AF_INET6, &in6->sin6_addr, debug, sizeof(debug));
+                printf("ip_str was: %s", debug);
+
+                memcpy(dst, &in6->sin6_addr, sizeof(struct in6_addr));
                 ret = 1;
                 break;
         }
 
         freeifaddrs(ifa);
-	printf("get ipv6 addrs returned\n");
+        printf("get ipv6 addrs returned\n");
         return ret;
 }
 
@@ -141,12 +142,11 @@ static uint8_t *format_raw_iphdr(
         struct ipv6hdr *ip6 = (struct ipv6hdr *)buffer;
         struct in6_addr in6_saddr;
 
-
         if (!host || !buffer)
                 return NULL;
 
         int hdr_type = get_ipstr_type(host);
-        
+
         if (hdr_type == 4)
         {
 
@@ -166,9 +166,7 @@ static uint8_t *format_raw_iphdr(
         {
 
                 inet_pton(AF_INET6, host, &ip6->daddr);
-                inet_pton(AF_INET6, "0:0:0:0:0:0:0:0", &ip6->saddr);
-
-                if(get_host_ipv6_addr(&ip6->saddr) != 1)
+                if (get_host_ipv6_addr(&ip6->saddr) != 1)
                 {
                         fprintf(stderr, "fmt_raw_ip_hdr:get ip6 addr");
                         return NULL;
@@ -345,8 +343,6 @@ static int check_raw_response(int fd, int ttlfd, char *host)
 
         uint8_t buff[4096];
         uint8_t saddr[16];
-	memset(buff, 0, sizeof buff);
-	memset(saddr, 0, sizeof saddr);
 
         if (ipver == 4)
         {
@@ -378,25 +374,24 @@ static int check_raw_response(int fd, int ttlfd, char *host)
                                 ip6 = (struct ipv6hdr *)buff;
                                 icmp6 = (struct icmp6_hdr *)(buff + sizeof(struct ipv6hdr));
 
-                                if (icmp6->icmp6_type == ICMP6_TIME_EXCEEDED && 
-					icmp6->icmp6_code == ICMP6_TIME_EXCEED_TRANSIT)
+                                if (icmp6->icmp6_type == ICMP6_TIME_EXCEEDED &&
+                                    icmp6->icmp6_code == ICMP6_TIME_EXCEED_TRANSIT)
                                 {
                                         printf("got time exceeded\n");
                                         return 1;
                                 }
                         }
                 }
-		ssize_t rec;
-	memset(buff, 0, sizeof buff);
-                // otherwise check that we have a response from the host
-                if ((rec = recvfrom(fd, buff, sizeof(buff), 0, NULL, NULL)) < 0)
-                {
-                        printf("failed to read\n");
-                        return -1;
-                }
-		printf("Managed to read :), recieved %ld", rec);
+
+                // if ipv4 just read and parse headers using recvfrom
                 if (ipver == 4)
                 {
+                        if ((recvfrom(fd, buff, sizeof(buff), 0, NULL, NULL)) < 0)
+                        {
+                                printf("failed to read\n");
+                                return -1;
+                        }
+
                         // switch this to a byte comparison, dont rely on string formatting of ip addrs
                         ip = (struct iphdr *)buff;
 
@@ -406,18 +401,36 @@ static int check_raw_response(int fd, int ttlfd, char *host)
                 }
                 else
                 {
+                        struct sockaddr_in6 addr6;
+                        char cmbuf[0x100];
+                        struct msghdr mh = {
+                            .msg_name = &addr6,
+                            .msg_namelen = sizeof(addr6),
+                            .msg_control = cmbuf,
+                            .msg_controllen = sizeof(cmbuf)}
+
+                        recvmsg(fd, &mh, 0);
+
+                        for ( // iterate through all the control headers
+                            struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mh);
+                            cmsg != NULL;
+                            cmsg = CMSG_NXTHDR(&mh, cmsg))
+                        {
+                                // ignore the control headers that don't match what we want
+                                if (cmsg->cmsg_level != IPPROTO_IPV6 ||
+                                    cmsg->cmsg_type != IPV6_PKTINFO)
+                                {
+                                        continue;
+                                }
+                                struct in_pktinfo *pi = CMSG_DATA(cmsg);
+                                // at this point, peeraddr is the source sockaddr
+                                pi->ipi_spec_dst;
+                                // pi->ipi_addr is the receiving interface in_addr
+                        }
+
                         ip6 = (struct ipv6hdr *)buff;
-			printf("version is %d\n", ip6->version);
-	
-                        if (!memcmp(&ip6->saddr, saddr, sizeof(ip6->saddr)))
+                        if (!memcmp(&ip6->saddr, saddr, sizeof(saddr)))
                                 return 0;
-			
-			char a[INET6_ADDRSTRLEN], b[INET6_ADDRSTRLEN];
-
-			inet_ntop(AF_INET6, &ip6->saddr, a, sizeof(a));
-			inet_ntop(AF_INET6, saddr, b, sizeof b);
-
-                        printf("Was not host: expected:\n%s\nactual:%s\n",b,a);
                 }
         }
         return -1;
@@ -1274,19 +1287,6 @@ int send_udp_ntp_probe(char *host, int locport)
 
         ssize_t addr_size;
 
-        if (sock_type == AF_INET)
-        {
-                struct sockaddr_in *addr4 = (struct sockaddr_in *)&addr;
-                inet_pton(AF_INET, host, &addr4->sin_addr.s_addr);
-                addr_size = sizeof(struct sockaddr_in);
-        }
-        else if (sock_type == AF_INET6)
-        {
-                struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
-                inet_pton(AF_INET6, host, &addr6->sin6_addr);
-                addr_size = sizeof(struct sockaddr_in6);
-        }
-
         int fd = socket(sock_type, SOCK_RAW, IPPROTO_UDP);
         int ttlfd = socket(sock_type, SOCK_RAW, icmp_ver);
 
@@ -1310,12 +1310,26 @@ int send_udp_ntp_probe(char *host, int locport)
                 return -1;
         }
 
-	if(sock_type == AF_INET6)
-	{
-		if(setsockopt(fd, sock_opt, IP_PKTINFO, &one, sizeof(one)) < 0)
-			perror("set sock opt raw failed");
-	
-	}
+        if (sock_type == AF_INET)
+        {
+                struct sockaddr_in *addr4 = (struct sockaddr_in *)&addr;
+                inet_pton(AF_INET, host, &addr4->sin_addr.s_addr);
+                addr_size = sizeof(struct sockaddr_in);
+        }
+        else if (sock_type == AF_INET6)
+        {
+                struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
+                inet_pton(AF_INET6, host, &addr6->sin6_addr);
+                addr_size = sizeof(struct sockaddr_in6);
+
+                // use recvmsg functionality to get saddr on raw resp
+
+                if (setsockopt(fd, sock_opt, IPV6_RECVPKTINFO, &one, sizeof(one)) < 0)
+                {
+                        perror("ntp_sock:recvmsg sockopt");
+                        return 1;
+                }
+        }
 
         for (int i = 1; i < MAX_TTL; i++)
         {
