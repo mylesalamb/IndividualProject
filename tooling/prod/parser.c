@@ -94,7 +94,7 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
         strcpy(proto, tok);
 
         // parse additional options
-        if (!strncmp("TCP", proto, 3))
+        if (!strcmp("TCP", proto) || !strncmp("DNS", proto, 3))
         {
                 tok = strtok(NULL, sep);
                 if(!tok)
@@ -102,24 +102,12 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
                 
                 
 
-                req = malloc(sizeof(char) * (strlen(tok) + req_len));
+                req = malloc(sizeof(char) * (strlen(tok) + 1));
                 if(!req)
                         goto fail;
 
-                sprintf(req, HTTP_REQ, tok);
-                
-        }
-        if (!strncmp("DNS", proto, 3))
-        {
-                tok = strtok(NULL, sep);
-                if(!tok)
-                        goto fail;
-                
-                req = malloc(sizeof(char) * strlen(tok) + 1);
-                if(!req)
-                        goto fail;
-                
                 strcpy(req, tok);
+                
         }
 
         ret = transaction_node_init();

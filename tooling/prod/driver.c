@@ -94,17 +94,23 @@ static void dispatch_req(struct transaction_node_t *transac,
 
         if (!strcmp(transac->ctx->proto, "TCP"))
         {
+                
                 printf("dispatch:tcp\n"
                        "with args:\n%s\n%s\n",
                        transac->ctx->host, transac->request);
-                send_tcp_http_request(transac->request, transac->ctx->host, 6000);
+                
+                send_tcp_http_request(
+                        transac->ctx->host,
+                        transac->request,
+                        transac->ctx->port
+                );
         }
         else if (!strcmp(transac->ctx->proto, "TCPPROBE"))
         {
-                printf("Probe network path\n"
+                printf("dispatch:tcpprobe\n"
                        "with args:\n%s\n",
                        transac->ctx->host);
-                send_tcp_syn_probe(transac->ctx->host, transac->ctx->port);
+                send_tcp_http_probe(transac->ctx->host, transac->ctx->port);
         }
         else if (!strcmp(transac->ctx->proto, "NTP"))
         {
@@ -122,17 +128,17 @@ static void dispatch_req(struct transaction_node_t *transac,
         }
         else if (!strcmp(transac->ctx->proto, "DNSUDP"))
         {
-                printf("dispatch:dns udp\n"
+                printf("dispatch:dns(udp)\n"
                        "with args:\n%s\n%s\n",
                        transac->ctx->host, transac->request);
-                send_udp_dns_request(transac->ctx->host, transac->request);
+                send_udp_dns_request(transac->ctx->host, transac->request, transac->ctx->port);
         }
         else if (!strcmp(transac->ctx->proto, "DNSTCP"))
         {
                 printf("dispatch:dns tcp\n"
                        "with args:\n%s\n%s\n",
                        transac->ctx->host, transac->request);
-                send_tcp_dns_request(transac->ctx->host, transac->request);
+                send_tcp_dns_request(transac->ctx->host, transac->request, transac->ctx->port);
         }
         else
         {
