@@ -92,18 +92,18 @@ static void dispatch_req(struct transaction_node_t *transac,
         nf_push_context(nfc, transac->ctx);
         nf_wait_until_rdy(nfc);
 
+        
         if (!strcmp(transac->ctx->proto, "TCP"))
         {
-                
+
                 printf("dispatch:tcp\n"
                        "with args:\n%s\n%s\n",
                        transac->ctx->host, transac->request);
-                
+
                 send_tcp_http_request(
-                        transac->ctx->host,
-                        transac->request,
-                        transac->ctx->port
-                );
+                    transac->ctx->host,
+                    transac->request,
+                    transac->ctx->port);
         }
         else if (!strcmp(transac->ctx->proto, "TCPPROBE"))
         {
@@ -112,19 +112,33 @@ static void dispatch_req(struct transaction_node_t *transac,
                        transac->ctx->host);
                 send_tcp_http_probe(transac->ctx->host, transac->ctx->port);
         }
-        else if (!strcmp(transac->ctx->proto, "NTP"))
+        else if (!strcmp(transac->ctx->proto, "NTPUDP"))
         {
                 printf("dispatch:ntp\n"
                        "with args:\n%s\n",
                        transac->ctx->host);
                 send_udp_ntp_request(transac->ctx->host, transac->ctx->port);
         }
-        else if (!strcmp(transac->ctx->proto, "NTPPROBE"))
+        else if (!strcmp(transac->ctx->proto, "NTPUDPPROBE"))
         {
                 printf("dispatch:ntpprobe\n"
                        "with args:\n%s\n",
                        transac->ctx->host);
                 send_udp_ntp_probe(transac->ctx->host, transac->ctx->port);
+        }
+        else if (!strcmp(transac->ctx->proto, "NTPTCP"))
+        {
+                printf("dispatch:ntp\n"
+                       "with args:\n%s\n",
+                       transac->ctx->host);
+                send_tcp_ntp_request(transac->ctx->host, transac->ctx->port);
+        }
+        else if (!strcmp(transac->ctx->proto, "NTPTCPPROBE"))
+        {
+                printf("dispatch:ntpprobe\n"
+                       "with args:\n%s\n",
+                       transac->ctx->host);
+                send_tcp_ntp_probe(transac->ctx->host, transac->ctx->port);
         }
         else if (!strcmp(transac->ctx->proto, "DNSUDP"))
         {
@@ -139,6 +153,20 @@ static void dispatch_req(struct transaction_node_t *transac,
                        "with args:\n%s\n%s\n",
                        transac->ctx->host, transac->request);
                 send_tcp_dns_request(transac->ctx->host, transac->request, transac->ctx->port);
+        }
+        else if (!strcmp(transac->ctx->proto, "DNSUDPPROBE"))
+        {
+                printf("dispatch:dns(udp)\n"
+                       "with args:\n%s\n%s\n",
+                       transac->ctx->host, transac->request);
+                send_udp_dns_probe(transac->ctx->host, transac->request, transac->ctx->port);
+        }
+        else if (!strcmp(transac->ctx->proto, "DNSTCPPROBE"))
+        {
+                printf("dispatch:dns tcp\n"
+                       "with args:\n%s\n%s\n",
+                       transac->ctx->host, transac->request);
+                send_tcp_dns_probe(transac->ctx->host, transac->request, transac->ctx->port);
         }
         else
         {

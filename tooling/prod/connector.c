@@ -62,6 +62,8 @@ static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr);
 /* request formatters so we can nicely stack requests together */
 static uint8_t *format_dns_request(char *ws, uint8_t *buff);
 static uint8_t *format_ntp_request(uint8_t *buff);
+static uint8_t *format_udp_header(uint8_t *buff, uint16_t len, uint16_t sport, uint16_t dport);
+static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport, uint8_t flags);
 static uint8_t *format_raw_iphdr(uint8_t *buff, struct sockaddr_storage *addr, socklen_t addr_size, ssize_t request_len, int proto, int ttl);
 
 /* underlying request handlers to take care of repeated socket interactions */
@@ -88,8 +90,9 @@ int send_tcp_http_probe(char *host, int locport)
 {
         if (!host)
                 return 1;
-        // Nothign to do, just trace path to host to see if it responds
-        return defer_raw_tracert(host, NULL, 0, locport, PORT_HTTP, IPPROTO_TCP);
+        uint8_t buff[64], *end_ptr;
+        end_ptr = format_tcp_header(buff, locport, PORT_HTTP, 0x01);
+        return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP, IPPROTO_TCP);
 }
 
 int send_tcp_dns_request(char *host, char *ws, int locport)
@@ -131,8 +134,9 @@ int send_tcp_dns_probe(char *host, char *ws, int locport)
 {
         if (!host)
                 return 1;
-        // Nothign to do, just trace path to host to see if it responds
-        return defer_raw_tracert(host, NULL, 0, locport, PORT_DNS, IPPROTO_TCP);
+        uint8_t buff[64], *end_ptr;
+        end_ptr = format_tcp_header(buff, locport, PORT_DNS, 0x01);
+        return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS, IPPROTO_TCP);
 }
 
 int send_udp_dns_probe(char *host, char *ws, int locport)
@@ -141,7 +145,9 @@ int send_udp_dns_probe(char *host, char *ws, int locport)
         if (!host || !ws)
                 return 1;
 
-        end_ptr = format_dns_request(ws, buff);
+        uint8_t *payload = buff + sizeof(struct udphdr);
+        end_ptr = format_dns_request(ws, payload);
+        format_udp_header(buff, end_ptr - payload, locport, PORT_DNS);
 
         return defer_raw_tracert(
             host,
@@ -180,7 +186,8 @@ int send_udp_ntp_probe(char *host, int locport)
         if (!host)
                 return 1;
 
-        end_ptr = format_ntp_request(buff);
+        end_ptr = format_ntp_request(buff + sizeof(struct udphdr));
+        format_udp_header(buff, 48, locport, PORT_NTP);
 
         return defer_raw_tracert(
             host,
@@ -195,8 +202,9 @@ int send_tcp_ntp_probe(char *host, int locport)
 {
         if (!host)
                 return 1;
-        // Nothign to do, just trace path to host to see if it responds
-        return defer_raw_tracert(host, NULL, 0, locport, PORT_HTTP, IPPROTO_TCP);
+        uint8_t buff[64], *end_ptr;
+        end_ptr = format_tcp_header(buff, locport, PORT_HTTP, 0x01);
+        return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP, IPPROTO_TCP);
 }
 
 /* Generic socket abstractions */
@@ -213,14 +221,19 @@ static int host_to_sockaddr(char *host, int extport, struct sockaddr_storage *ad
 {
         int err = 0;
         int addr_family;
+        printf("host is %s\n", host);
 
         if (!host || !addr || !addr_size)
+        {
+                printf("hts failed precond\n");
                 return 1;
+        }
 
         addr_family = ip_ver_str(host);
 
         if (addr_family == AF_INET)
         {
+                printf("ipv4 path\n");
                 struct sockaddr_in *addr4 = (struct sockaddr_in *)addr;
                 addr4->sin_family = AF_INET;
                 addr4->sin_port = htons(extport);
@@ -238,7 +251,10 @@ static int host_to_sockaddr(char *host, int extport, struct sockaddr_storage *ad
                 *addr_size = sizeof(struct sockaddr_in6);
         }
 
-        return err;
+        if (err != 1)
+                return 1;
+
+        return 0;
 }
 
 static int construct_sock_to_host(struct sockaddr_storage *addr, socklen_t *addr_size, int locport, int sock_type)
@@ -318,7 +334,7 @@ static int construct_icmp_sock(struct sockaddr_storage *addr)
         if (!addr)
                 return -1;
 
-        if (addr->ss_family != AF_INET || addr->ss_family != AF_INET6)
+        if (addr->ss_family != AF_INET && addr->ss_family != AF_INET6)
                 return -1;
 
         icmp_ver = (addr->ss_family == AF_INET) ? IPPROTO_ICMP : IPPROTO_ICMPV6;
@@ -371,7 +387,7 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr, int socktype)
                 fprintf(stderr, "contruct raw sock: socket creation");
                 return 1;
         }
-        if(fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK))
+        if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK))
         {
                 fprintf(stderr, "construct_rawsock_to_host:nonblock");
                 return 1;
@@ -447,7 +463,14 @@ static int get_host_ipv6_addr(struct in6_addr *host)
         printf("get ipv6 addrs returned\n");
         return ret;
 }
-
+/**
+ * Check responses from raw sockets
+ * 
+ * returns:
+ *      0: got repsonse from host
+ *      1: got some icmp ttl exceeded
+ *      -1: otherwise errored
+ */
 static int check_raw_response(int fd, int ttlfd, struct sockaddr_storage *addr)
 {
 
@@ -466,17 +489,19 @@ static int check_raw_response(int fd, int ttlfd, struct sockaddr_storage *addr)
                 int ret;
                 if (addr->ss_family == AF_INET)
                 {
-                        ret = check_ip4_response(fd, ttlfd, (struct sockaddr_in*)addr);
+                        ret = check_ip4_response(fd, ttlfd, (struct sockaddr_in *)addr);
                 }
                 else if (addr->ss_family == AF_INET6)
                 {
-                        ret = check_ip6_response(fd, ttlfd, (struct sockaddr_in6*)addr);
+                        ret = check_ip6_response(fd, ttlfd, (struct sockaddr_in6 *)addr);
                 }
 
-                if(ret == 2)
-                {
-                        return 0;
-                }
+                // try spin again if we dont get anything back
+                if(ret == -1)
+                        continue;
+
+                // otherwise return what we saw
+                return ret;
         }
         return -1;
 }
@@ -485,9 +510,9 @@ static int check_raw_response(int fd, int ttlfd, struct sockaddr_storage *addr)
  * Check both the fd, and icmp fd for responses across traceroute
  * 
  * returns:
- *      2  -> got response from intended host
+ *      0  -> got response from intended host
  *      1  -> Got icmp ttl exceeded
- *     -1  -> Error response on an fd
+ *     -1  -> Error response on an fd, or no valued responses
  */
 static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr)
 {
@@ -496,26 +521,32 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr)
         struct iphdr *ip;
         struct icmphdr *icmp;
 
-        ret = recvfrom(ttlfd, buff, sizeof buff, 0, NULL, NULL);
-        if (ret < 0)
-                return ret;
+        if (recvfrom(ttlfd, buff, sizeof buff, 0, NULL, NULL) > 0)
+        {
+                printf("got some icmp traffic\n");
+                ip = (struct iphdr *)buff;
+                icmp = (struct icmphdr *)(buff + sizeof(struct iphdr));
 
-        ip = (struct iphdr *)buff;
-        icmp = (struct icmphdr *)(buff + sizeof(struct iphdr));
+                if (icmp->code == ICMP_EXC_TTL){
+                        printf("was ttl exceed\n");
+                        return 1;
 
-        if (icmp->code == ICMP_EXC_TTL)
-                return 1;
+                }
+        }
 
-        ret = recvfrom(fd, buff, sizeof buff, 0, NULL, NULL);
-        if (ret < 0)
-                return ret;
+        if (recvfrom(fd, buff, sizeof buff, 0, NULL, NULL) > 0)
+        {
 
-        ip = (struct iphdr *)buff;
+                printf("Got response from somewhere");
+                ip = (struct iphdr *)buff;
+                if (!memcmp(&ip->saddr, &srv_addr->sin_addr, sizeof(struct in_addr))){
+                        printf("wasform host\n");
+                        return 0;
+                }
+                        
+        }
 
-        if (!memcmp(&ip->saddr, &srv_addr->sin_addr, sizeof(struct in_addr)))
-                return 2;
-
-        return 0;
+        return -1;
 }
 static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr)
 {
@@ -524,19 +555,21 @@ static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr)
         struct icmp6_hdr *icmp;
 
         // check if we got an icmp ttl exceeded
-        ret = recvfrom(ttlfd, buff, sizeof buff, 0, NULL, NULL);
-        if (ret < 0)
-                return ret;
-
-        icmp = (struct icmp6_hdr *)buff;
-        if (icmp->icmp6_type == ICMP6_TIME_EXCEEDED &&
-            icmp->icmp6_code == ICMP6_TIME_EXCEED_TRANSIT)
+        if (recvfrom(ttlfd, buff, sizeof buff, 0, NULL, NULL) > 0)
         {
-                printf("got time exceeded\n");
-                return 1;
+
+                icmp = (struct icmp6_hdr *)buff;
+                if (icmp->icmp6_type == ICMP6_TIME_EXCEEDED &&
+                    icmp->icmp6_code == ICMP6_TIME_EXCEED_TRANSIT)
+                {
+                        printf("got time exceeded\n");
+                        return 1;
+                }
         }
 
         // Otherwise check if we got a response from the host
+
+       
 
         struct sockaddr_in6 cname;
         memset(&cname, 0, sizeof(cname));
@@ -547,6 +580,11 @@ static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr)
             .msg_namelen = sizeof(cname),
             .msg_control = cmbuf,
             .msg_controllen = sizeof(cmbuf)};
+
+         if (recvmsg(fd, &mh, 0) < 0)
+        {
+                return -1;
+        }
 
         for (
             struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mh);
@@ -567,11 +605,11 @@ static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr)
                 {
 
                         printf("was from host\n");
-                        return 2;
+                        return 0;
                 }
         }
 
-        return 0;
+        return -1;
 }
 
 /* Request formatters */
@@ -689,6 +727,44 @@ static uint8_t *format_ntp_request(uint8_t *buff)
         return buff + 48;
 }
 
+static uint8_t *format_udp_header(uint8_t *buff, uint16_t len, uint16_t sport, uint16_t dport)
+{
+        struct udphdr *hdr;
+
+        if (!buff)
+                return NULL;
+
+        hdr = buff;
+        hdr->uh_dport = htons(dport);
+        hdr->uh_sport = htons(sport);
+        hdr->uh_ulen = htons(len + sizeof(struct udphdr));
+        hdr->check = 0;
+
+        return buff + sizeof(struct udphdr);
+}
+static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport, uint8_t flags)
+{
+        struct tcphdr *hdr;
+
+        srand(time(NULL));
+
+        if (!buff)
+                return NULL;
+
+        hdr = (struct tcphdr *)buff;
+        hdr->source = htons(sport);
+        hdr->dest = htons(dport);
+        hdr->seq = rand();
+        hdr->ack_seq = (flags & 0x02) ? 1 : 0;
+        hdr->doff = 5;
+        hdr->syn = flags & 0x01;
+        hdr->rst = (flags & 0x02) ? 1 : 0;
+        hdr->ack = (flags & 0x02) ? 1 : 0;
+        hdr->window = htons(1000);
+
+        return buff + sizeof(struct tcphdr);
+}
+
 static uint8_t *format_raw_iphdr(uint8_t *buff, struct sockaddr_storage *addr, socklen_t addr_size, ssize_t request_len, int proto, int ttl)
 {
         struct iphdr *ip4 = (struct iphdr *)buff;
@@ -709,6 +785,8 @@ static uint8_t *format_raw_iphdr(uint8_t *buff, struct sockaddr_storage *addr, s
                 ip4->id = htons(54321);
                 ip4->ttl = ttl;
                 ip4->protocol = proto;
+
+                return buff + sizeof(struct iphdr);
         }
         else if (addr->ss_family == AF_INET6)
         {
@@ -852,7 +930,7 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
         err = host_to_sockaddr(host, extport, &srv_addr, &srv_addr_size);
         if (err)
         {
-                fprintf(stderr, "defer_raw: host_to_sockaddr");
+                fprintf(stderr, "defer_raw: host_to_sockaddr\n");
                 return 1;
         }
 
@@ -874,19 +952,31 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
                         int ret;
                         sendto(fd, pkt, offset + buff_len - pkt, 0, (struct sockaddr *)&srv_addr, srv_addr_size);
                         nanosleep(&rst, &rst);
-                        check_raw_response(fd, icmpfd, &srv_addr);
+                        ret = check_raw_response(fd, icmpfd, &srv_addr);
                         if (ret == 0)
                         {
+                                printf("Got some response from host\n");
+                                goto response;
                         }
                         else if (ret == 1)
                         {
+                                printf("Got a ttl exceed\n");
+                                break;
                         }
                         else
                         {
+                                fprintf(stderr, "defer_raw_tracert:check_raw_response\n");
                         }
                 }
         }
 
+
+        close(fd);
+        close(icmpfd);
+        return 1;
+
+
+response:
         close(fd);
         close(icmpfd);
         return 0;
