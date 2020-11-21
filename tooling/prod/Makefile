@@ -8,7 +8,7 @@ EXEC=ecnDetector
 EXECSOURCES= netinject.o connector.o pcapture.o driver.o parser.o
 CC=gcc
 CFLAGS=-O2 -Wall -Wpedantic
-LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink 
+LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink -llsquic
 
 $(EXEC): $(EXECSOURCES)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
