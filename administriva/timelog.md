@@ -113,6 +113,8 @@
 * *0.5 hours* implement solution to ntp/udp checksum issue
 * *4 hours* working on iterative dns
 
+# Week 6
+
 ### 5 Nov 2020
 
 * *1 hour* Meeting with advisor
@@ -133,6 +135,8 @@
 * *1.5 hour* tinkering with provisioning systems (terraform, vagrant)
 * *1 hour* work with image proviosiong (docker, vm images) -> docker images are not fun to work with
 * *1.5 hours* work on terraform and packer
+
+# Week 7
 
 ### 9 Nov 2020
 
@@ -165,6 +169,8 @@
 * *3 hours* Attempt to adapt ntp tracert code to IPv6
 * *1.5 hours* Various refactorings
 
+# Week 8
+
 ### 16 Nov 2020
 * *2 hours* Refactorings in connector.c (protocol client code)
 * *1.5 hours* Attempt to resolve issue with IPv6 raw sockets
@@ -190,6 +196,12 @@
 * *1 hour* make rawsock more robust / fix invalid memory accesses
 * *1 hour* resolve issue with AWS (tx boxes are only useful for burst loads)
 * *1 hour* Further research on terraform deploy script (jit vpc creation)
+
+### 21 Nov 2020
+
+* *2 hours* Resolve issues with IPv6 rawsock not sending
+* *1.5 hours* Minor refactorings
+
 
 
 
