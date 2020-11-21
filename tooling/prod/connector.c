@@ -239,11 +239,14 @@ static int host_to_sockaddr(char *host, int extport, struct sockaddr_storage *ad
                 addr4->sin_port = htons(extport);
                 err = inet_pton(AF_INET, host, &addr4->sin_addr);
 
-                *addr_size = sizeof(struct sockaddr_in6);
+                *addr_size = sizeof(struct sockaddr_in);
         }
         else if (addr_family == AF_INET6)
         {
+                printf("ipv6 path\n");
+                
                 struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)addr;
+                memset(addr6, 0, sizeof(struct sockaddr_in6));
                 addr6->sin6_family = AF_INET6;
                 addr6->sin6_port = htons(extport);
                 err = inet_pton(AF_INET6, host, &addr6->sin6_addr);
@@ -251,8 +254,10 @@ static int host_to_sockaddr(char *host, int extport, struct sockaddr_storage *ad
                 *addr_size = sizeof(struct sockaddr_in6);
         }
 
-        if (err != 1)
+        if (err != 1){
+                printf("inet pton err\n");
                 return 1;
+        }
 
         return 0;
 }
@@ -377,7 +382,7 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr, int socktype)
         else
         {
                 fprintf(stderr, "contruct raw sock: socket family not supported");
-                return 1;
+                return -1;
         }
 
         fd = socket(addr->ss_family, SOCK_RAW, socktype);
@@ -385,12 +390,12 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr, int socktype)
         if (fd < 0)
         {
                 fprintf(stderr, "contruct raw sock: socket creation");
-                return 1;
+                return -1;
         }
         if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK))
         {
                 fprintf(stderr, "construct_rawsock_to_host:nonblock");
-                return 1;
+                return -1;
         }
         if (setsockopt(fd, sock_opt, sock_hdr, &one, sizeof(one)) < 0)
         {
@@ -403,7 +408,7 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr, int socktype)
                 if (setsockopt(fd, sock_opt, IPV6_RECVPKTINFO, &one, sizeof(one)) < 0)
                 {
                         perror("construct_rawsock:recvmsg sockopt");
-                        return 1;
+                        return -1;
                 }
         }
 
@@ -414,16 +419,15 @@ static int get_host_ipv6_addr(struct in6_addr *host)
 {
         int ret = 0;
         struct ifaddrs *ifa;
-        char debug[INET6_ADDRSTRLEN];
 
-        static struct in6_addr cache_ret;
-        static int cache = 0;
+        // static struct in6_addr cache_ret;
+        // static int cache = 0;
 
-        if (cache)
-        {
-                memcpy(host, &cache_ret, sizeof(struct in6_addr));
-                return 0;
-        }
+        // if (cache)
+        // {
+        //         memcpy(host, &cache_ret, sizeof(struct in6_addr));
+        //         return 0;
+        // }
 
         if (getifaddrs(&ifa) == -1)
         {
@@ -449,12 +453,10 @@ static int get_host_ipv6_addr(struct in6_addr *host)
                         printf("caught link local\n");
                         continue;
                 }
-                inet_ntop(AF_INET6, &in6->sin6_addr, debug, sizeof(debug));
-                printf("ip_str was: %s", debug);
 
                 memcpy(host, &in6->sin6_addr, sizeof(struct in6_addr));
-                memcpy(&cache_ret, &in6->sin6_addr, sizeof(struct in6_addr));
-                cache = 1;
+                //memcpy(&cache_ret, &in6->sin6_addr, sizeof(struct in6_addr));
+                //cache = 1;
                 ret = 1;
                 break;
         }
@@ -557,7 +559,7 @@ static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr)
         // check if we got an icmp ttl exceeded
         if (recvfrom(ttlfd, buff, sizeof buff, 0, NULL, NULL) > 0)
         {
-
+                printf("got icmp traffic\n");
                 icmp = (struct icmp6_hdr *)buff;
                 if (icmp->icmp6_type == ICMP6_TIME_EXCEEDED &&
                     icmp->icmp6_code == ICMP6_TIME_EXCEED_TRANSIT)
@@ -854,6 +856,7 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len, int l
                         break;
                 }
         }
+        close(fd);
         sleep(2);
 
         return ret;
@@ -872,26 +875,26 @@ static int defer_tcp_connection(char *host, uint8_t *buff, ssize_t buff_len, int
 
         // get host to some sort of address, we dont really care
         host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len);
-
+        printf("construct sock\n");
         fd = construct_sock_to_host(
             &srv_addr,
             &srv_addr_len,
             locport,
             SOCK_STREAM);
-
+        printf("construct sock end\n");
         if (fd < 0)
         {
                 printf("defer_tcp: bad fd\n");
                 return 1;
         }
-
+        printf("tpc-send");
         tcp_send_all(fd, buff, buff_len);
-
+        printf("send-wait on recieve");
         while (recv(fd, recv_buff, sizeof(recv_buff), 0) > 0)
                 ;
 
         close(fd);
-        sleep(2);
+        sleep(4);
 
         return 0;
 }
@@ -922,12 +925,13 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
         int fd, icmpfd, err;
         struct sockaddr_storage srv_addr;
         socklen_t srv_addr_size;
-
         struct timespec rst = UDP_DLY;
+        uint8_t pkt[1024];
 
-        uint8_t pkt[512];
+        if(!buff)
+                return 1;
 
-        err = host_to_sockaddr(host, extport, &srv_addr, &srv_addr_size);
+        err = host_to_sockaddr(host, 0, &srv_addr, &srv_addr_size);
         if (err)
         {
                 fprintf(stderr, "defer_raw: host_to_sockaddr\n");
@@ -937,11 +941,16 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
         fd = contruct_rawsock_to_host(&srv_addr, proto);
         if (fd < 0)
         {
-                fprintf(stderr, "defer_raw_tracert: bad fd");
+                fprintf(stderr, "defer_raw_tracert: bad fd\n");
                 return 1;
         }
 
         icmpfd = construct_icmp_sock(&srv_addr);
+        if(fd < 0)
+        {
+                fprintf(stderr, "defer_raw_tracert: bad icmp fd\n");
+                return 1;
+        }
 
         for (int i = 1; i < MAX_TTL; i++)
         {
@@ -949,8 +958,15 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
                 memcpy(offset, buff, buff_len);
                 for (int j = 0; j < MAX_UDP; j++)
                 {
+                        int len = (offset - pkt) + buff_len;
+                        printf("len is %d\n", len);
                         int ret;
-                        sendto(fd, pkt, offset + buff_len - pkt, 0, (struct sockaddr *)&srv_addr, srv_addr_size);
+                        ret = sendto(fd, pkt, offset + buff_len - pkt, 0, (struct sockaddr *)&srv_addr, srv_addr_size);
+                        if(ret < 0)
+                        {
+                                perror("send failed");
+                        }
+                        
                         nanosleep(&rst, &rst);
                         ret = check_raw_response(fd, icmpfd, &srv_addr);
                         if (ret == 0)
@@ -977,6 +993,7 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
 
 
 response:
+        sleep(2);
         close(fd);
         close(icmpfd);
         return 0;
