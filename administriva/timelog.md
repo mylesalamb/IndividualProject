@@ -173,6 +173,27 @@
 
 * *3 hours* Work on experiemntal methodology
 
+### 18 Nov 2020
+
+* *1 hour* implement pktinfo to capture ipv6 src addrs
+* *1 hour* ipv4/ipv6 raw sockets impl
+
+### 19 Nov 2020
+
+* *5 hours* refactor/rewrite connector.c
+
+
+### 20 Nov 2020
+
+* *1.5 hours* Resolve issues with refactor (fix sendto port with rawsock)
+* *1 hour* integrate lsquic into installer image
+* *1 hour* make rawsock more robust / fix invalid memory accesses
+* *1 hour* resolve issue with AWS (tx boxes are only useful for burst loads)
+* *1 hour* Further research on terraform deploy script (jit vpc creation)
+
+
+
+
 
 <!--- 
 ### 19 Oct 2019

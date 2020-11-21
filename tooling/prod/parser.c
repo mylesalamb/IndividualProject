@@ -14,9 +14,6 @@ static void transaction_list_insert(struct transaction_list_t *lst, struct trans
 static void transaction_node_free(struct transaction_node_t *arg);
 #endif
 
-#define HTTP_REQ "GET /index.html HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n"
-const size_t req_len = sizeof(HTTP_REQ)/sizeof(char);
-
 struct transaction_list_t *fget_transactions(char *filename)
 {
         FILE *fhandle = fopen(filename, "r");
