@@ -5,10 +5,13 @@
 # and may be rejected by the network
 
 EXEC=ecnDetector
-EXECSOURCES= netinject.o connector.o pcapture.o driver.o parser.o quic.o
-CC=clang
-CFLAGS=-O2 -Wall -Wpedantic -I/home/myleslamb/boringssl/include -I/home/myleslamb/lsquic/include -I/home/myleslamb/lsquic/src/liblsquic
-LDLIBS= -lssl -lcrypto -lz -lpcap -lpthread -lnetfilter_queue -lnfnetlink -lev  -lm -llsquic
+EXECSOURCES=netinject.o connector.o pcapture.o driver.o parser.o quic.o
+WORK_DIR=$(shell pwd)
+CC=gcc
+CFLAGS=-O2 -Wall -Wpedantic -Iboringssl/include -Ilsquic/include -Ilsquic/src/liblsquic
+LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink -lz -lm -lev -llsquic \
+		-L$(WORK_DIR)/boringssl/ssl -L$(WORK_DIR)/boringssl/crypto -lssl -lcrypto # link against boringssl defined
+
 
 $(EXEC): $(EXECSOURCES)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)

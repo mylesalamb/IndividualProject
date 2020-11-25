@@ -13,6 +13,8 @@ NF_PATH=/usr/local/lib
 GREPO=https://github.com/mylesalamb/individualProject.git
 GREPO_PATH=individualProject/tooling/prod
 
+
+# submodules now, due to be removed
 BSSLREPO=https://boringssl.googlesource.com/boringssl
 BSSL_PATH=boringssl
 
@@ -22,7 +24,7 @@ LSREPO_SHA=b117a3a0b7bd11fe6ebd503ec6b45d6b910b41a1
 # Update image to most recent version, and install
 # non crit dependencies
 sudo apt-get update -y
-sudo apt-get install -y gcc g++ zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libevent-dev
+sudo apt-get install -y gcc g++ zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev
 
 cd ~
 
