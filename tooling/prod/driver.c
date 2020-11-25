@@ -61,8 +61,12 @@ int main(int argc, char **argv)
 
         if (0 != lsquic_global_init(LSQUIC_GLOBAL_CLIENT))
         {
-                fprintf(stderr, "lsquic:global_init");
+                fprintf(stderr, "lsquic:global_init\n");
                 exit(EXIT_FAILURE);
+        }
+        else
+        {
+                printf("quic started properly\n");
         }
 
         struct transaction_list_t *transactions = fget_transactions(infile);

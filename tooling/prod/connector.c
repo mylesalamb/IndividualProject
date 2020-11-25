@@ -998,3 +998,143 @@ response:
         close(icmpfd);
         return 0;
 }
+
+
+// Quic stuff
+
+#include "lsquic.h"
+
+static lsquic_conn_ctx_t *
+h3cli_client_on_new_conn (void *stream_if_ctx, struct lsquic_conn *conn)
+{
+    struct h3cli *const h3cli = stream_if_ctx;
+    lsquic_conn_make_stream(conn);
+    return (void *) h3cli;
+}
+
+
+static void
+h3cli_client_on_conn_closed (struct lsquic_conn *conn)
+{
+    struct h3cli *const h3cli = (void *) lsquic_conn_get_ctx(conn);
+    ev_io_stop(h3cli->h3cli_loop, &h3cli->h3cli_sock_w);
+}
+
+
+static lsquic_stream_ctx_t *
+h3cli_client_on_new_stream (void *stream_if_ctx, struct lsquic_stream *stream)
+{
+    struct h3cli *h3cli = stream_if_ctx;
+    lsquic_stream_wantwrite(stream, 1);
+    return (void *) h3cli;
+}
+
+
+static void
+h3cli_client_on_read (struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
+{
+    struct h3cli *h3cli = (struct h3cli *) h;
+    ssize_t nread;
+    unsigned char buf[0x1000];
+
+    nread = lsquic_stream_read(stream, buf, sizeof(buf));
+    if (nread > 0)
+    {
+        fwrite(buf, 1, nread, stdout);
+        fflush(stdout);
+    }
+    else if (nread == 0)
+    {
+        lsquic_stream_shutdown(stream, 0);
+        lsquic_conn_close( lsquic_stream_conn(stream) );
+    }
+    else
+    {
+        ev_break(h3cli->h3cli_loop, EVBREAK_ONE);
+    }
+}
+
+
+struct header_buf
+{
+    unsigned    off;
+    char        buf[UINT16_MAX];
+};
+
+
+/* Convenience wrapper around somewhat involved lsxpack APIs */
+int
+h3cli_set_header (struct lsxpack_header *hdr, struct header_buf *header_buf,
+            const char *name, size_t name_len, const char *val, size_t val_len)
+{
+    if (header_buf->off + name_len + val_len <= sizeof(header_buf->buf))
+    {
+        memcpy(header_buf->buf + header_buf->off, name, name_len);
+        memcpy(header_buf->buf + header_buf->off + name_len, val, val_len);
+        lsxpack_header_set_offset2(hdr, header_buf->buf + header_buf->off,
+                                            0, name_len, name_len, val_len);
+        header_buf->off += name_len + val_len;
+        return 0;
+    }
+    else
+        return -1;
+}
+
+
+/* Send HTTP/3 request.  We don't support payload, just send the headers. */
+static void
+h3cli_client_on_write (struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
+{
+    struct h3cli *const h3cli = (void *) h;
+    struct header_buf hbuf;
+    struct lsxpack_header harray[5];
+    struct lsquic_http_headers headers = { 5, harray, };
+
+    hbuf.off = 0;
+#define V(v) (v), strlen(v)
+    h3cli_set_header(&harray[0], &hbuf, V(":method"), V(h3cli->h3cli_method));
+    h3cli_set_header(&harray[1], &hbuf, V(":scheme"), V("https"));
+    h3cli_set_header(&harray[2], &hbuf, V(":path"), V(h3cli->h3cli_path));
+    h3cli_set_header(&harray[3], &hbuf, V(":authority"),
+                                                    V(h3cli->h3cli_hostname));
+    h3cli_set_header(&harray[4], &hbuf, V("user-agent"), V("h3cli/lsquic"));
+
+    if (0 == lsquic_stream_send_headers(stream, &headers, 0))
+    {
+        lsquic_stream_shutdown(stream, 1);
+        lsquic_stream_wantread(stream, 1);
+    }
+    else
+    {
+        lsquic_conn_abort(lsquic_stream_conn(stream));
+    }
+}
+
+
+static void
+h3cli_client_on_close (struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
+{
+    
+}
+
+static struct lsquic_stream_if h3cli_client_callbacks =
+{
+    .on_new_conn        = h3cli_client_on_new_conn,
+    .on_conn_closed     = h3cli_client_on_conn_closed,
+    .on_new_stream      = h3cli_client_on_new_stream,
+    .on_read            = h3cli_client_on_read,
+    .on_write           = h3cli_client_on_write,
+    .on_close           = h3cli_client_on_close,
+};
+
+int send_quic_http_request(char *host, char *request, int locport)
+{
+
+    struct lsquic_engine_api eapi;
+    struct lsquic_engine_settings settings;
+
+    struct sockaddr_storage saddr, daddr;
+    
+
+
+}
