@@ -9,6 +9,12 @@
 #include "context.h"
 #include "parser.h"
 
+#include "lsquic.h"
+
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/ssl.h>
+
 static void print_usage();
 static void dispatch_req(struct transaction_node_t *transac,
                          struct nf_controller_t *nfc,
@@ -53,6 +59,12 @@ int main(int argc, char **argv)
                 return EXIT_FAILURE;
         }
 
+        if (0 != lsquic_global_init(LSQUIC_GLOBAL_CLIENT))
+        {
+                fprintf(stderr, "lsquic:global_init");
+                exit(EXIT_FAILURE);
+        }
+
         struct transaction_list_t *transactions = fget_transactions(infile);
         if (!transactions)
         {
@@ -72,6 +84,7 @@ int main(int argc, char **argv)
 
         pcap_free(pc);
         nf_free(nf);
+        lsquic_global_cleanup();
 
         transaction_list_free(transactions);
 
@@ -92,7 +105,6 @@ static void dispatch_req(struct transaction_node_t *transac,
         nf_push_context(nfc, transac->ctx);
         nf_wait_until_rdy(nfc);
 
-        
         if (!strcmp(transac->ctx->proto, "TCP"))
         {
 

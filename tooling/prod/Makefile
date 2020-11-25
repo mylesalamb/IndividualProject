@@ -5,10 +5,10 @@
 # and may be rejected by the network
 
 EXEC=ecnDetector
-EXECSOURCES= netinject.o connector.o pcapture.o driver.o parser.o
-CC=gcc
-CFLAGS=-O2 -Wall -Wpedantic
-LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink -llsquic
+EXECSOURCES= netinject.o connector.o pcapture.o driver.o parser.o quic.o
+CC=clang
+CFLAGS=-O2 -Wall -Wpedantic -I/home/myleslamb/boringssl/include -I/home/myleslamb/lsquic/include -I/home/myleslamb/lsquic/src/liblsquic
+LDLIBS= -lssl -lcrypto -lz -lpcap -lpthread -lnetfilter_queue -lnfnetlink -lev  -lm -llsquic
 
 $(EXEC): $(EXECSOURCES)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)

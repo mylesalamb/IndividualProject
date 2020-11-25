@@ -53,6 +53,7 @@ cd $BSSL_PATH
 git checkout $LSREPO_SHA
 cmake . && make
 BORINGSSL=$PWD
+BORINGSSL_INCLUDE=$PWD/include
 
 
 cd ~
@@ -61,7 +62,7 @@ cd $LSREPO_PATH
 git submodule init
 git submodule update 
 cmake -DBORINGSSL_DIR=$BORINGSSL -DBORINGSSL_INCLUDE=$BORINGSSL/include . && make
-sudo make install
+LSQUIC_INCLUDE=$PWD/include
 
 # TODO:	add cronjjob to run the dataset once daily
 #		Save ip(6)tables rules so that we dont have to use root at runtime
