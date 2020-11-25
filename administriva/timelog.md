@@ -202,7 +202,13 @@
 * *2 hours* Resolve issues with IPv6 rawsock not sending
 * *1.5 hours* Minor refactorings
 
+# Week 9
 
+## 25 Nov 2020
+
+* *1 hour* Reading lsquic documentation
+* *3 hours* Work on intial version of Quic connections
+* *2 hour* Begin to integrate lsquic into installer script for cloud machines
 
 
 
