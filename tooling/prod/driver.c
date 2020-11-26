@@ -11,9 +11,6 @@
 
 #include "lsquic.h"
 
-#include <openssl/pem.h>
-#include <openssl/x509.h>
-#include <openssl/ssl.h>
 
 static void print_usage();
 static void dispatch_req(struct transaction_node_t *transac,
@@ -183,6 +180,12 @@ static void dispatch_req(struct transaction_node_t *transac,
                        "with args:\n%s\n%s\n",
                        transac->ctx->host, transac->request);
                 send_tcp_dns_probe(transac->ctx->host, transac->request, transac->ctx->port);
+        }
+        else if (!strcmp(transac->ctx->proto, "QUIC"))
+        {
+                printf("dispatch:quic udp\n"
+                       "with args:\n%s\n%s", transac->ctx->proto, transac->request);
+                send_quic_http_request(transac->ctx->host, transac->request, transac->ctx->port, transac->ctx->flags);
         }
         else
         {

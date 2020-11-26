@@ -91,7 +91,9 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
         strcpy(proto, tok);
 
         // parse additional options
-        if (!strcmp("TCP", proto) || !strncmp("DNS", proto, 3))
+        if (!strcmp("TCP",   proto)    ||
+            !strncmp("DNS",  proto, 3) ||
+            !strncmp("QUIC", proto, 3))
         {
                 tok = strtok(NULL, sep);
                 if(!tok)

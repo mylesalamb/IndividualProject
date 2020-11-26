@@ -17,4 +17,6 @@ int send_tcp_ntp_request(char *host, int locport);
 int send_udp_ntp_probe(char *host, int locport);
 int send_tcp_ntp_probe(char *host, int locport);
 
+int send_quic_http_request(char *host, char *sni, int locport, int ecn);
+
 #endif
