@@ -210,7 +210,10 @@
 * *3 hours* Work on intial version of Quic connections
 * *2 hour* Begin to integrate lsquic into installer script for cloud machines
 
+## 26 Nov 2020
 
+* *2 hours* Continue work with integrating quic
+* *2 hours* Debug issues with wireshark and quic
 
 
 <!--- 
