@@ -244,7 +244,7 @@ static int host_to_sockaddr(char *host, int extport, struct sockaddr_storage *ad
         else if (addr_family == AF_INET6)
         {
                 printf("ipv6 path\n");
-                
+
                 struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)addr;
                 memset(addr6, 0, sizeof(struct sockaddr_in6));
                 addr6->sin6_family = AF_INET6;
@@ -254,7 +254,8 @@ static int host_to_sockaddr(char *host, int extport, struct sockaddr_storage *ad
                 *addr_size = sizeof(struct sockaddr_in6);
         }
 
-        if (err != 1){
+        if (err != 1)
+        {
                 printf("inet pton err\n");
                 return 1;
         }
@@ -499,7 +500,7 @@ static int check_raw_response(int fd, int ttlfd, struct sockaddr_storage *addr)
                 }
 
                 // try spin again if we dont get anything back
-                if(ret == -1)
+                if (ret == -1)
                         continue;
 
                 // otherwise return what we saw
@@ -529,10 +530,10 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr)
                 ip = (struct iphdr *)buff;
                 icmp = (struct icmphdr *)(buff + sizeof(struct iphdr));
 
-                if (icmp->code == ICMP_EXC_TTL){
+                if (icmp->code == ICMP_EXC_TTL)
+                {
                         printf("was ttl exceed\n");
                         return 1;
-
                 }
         }
 
@@ -541,11 +542,11 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr)
 
                 printf("Got response from somewhere");
                 ip = (struct iphdr *)buff;
-                if (!memcmp(&ip->saddr, &srv_addr->sin_addr, sizeof(struct in_addr))){
+                if (!memcmp(&ip->saddr, &srv_addr->sin_addr, sizeof(struct in_addr)))
+                {
                         printf("wasform host\n");
                         return 0;
                 }
-                        
         }
 
         return -1;
@@ -571,8 +572,6 @@ static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr)
 
         // Otherwise check if we got a response from the host
 
-       
-
         struct sockaddr_in6 cname;
         memset(&cname, 0, sizeof(cname));
 
@@ -583,7 +582,7 @@ static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr)
             .msg_control = cmbuf,
             .msg_controllen = sizeof(cmbuf)};
 
-         if (recvmsg(fd, &mh, 0) < 0)
+        if (recvmsg(fd, &mh, 0) < 0)
         {
                 return -1;
         }
@@ -928,7 +927,7 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
         struct timespec rst = UDP_DLY;
         uint8_t pkt[1024];
 
-        if(!buff)
+        if (!buff)
                 return 1;
 
         err = host_to_sockaddr(host, 0, &srv_addr, &srv_addr_size);
@@ -946,7 +945,7 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
         }
 
         icmpfd = construct_icmp_sock(&srv_addr);
-        if(fd < 0)
+        if (fd < 0)
         {
                 fprintf(stderr, "defer_raw_tracert: bad icmp fd\n");
                 return 1;
@@ -962,11 +961,11 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
                         printf("len is %d\n", len);
                         int ret;
                         ret = sendto(fd, pkt, offset + buff_len - pkt, 0, (struct sockaddr *)&srv_addr, srv_addr_size);
-                        if(ret < 0)
+                        if (ret < 0)
                         {
                                 perror("send failed");
                         }
-                        
+
                         nanosleep(&rst, &rst);
                         ret = check_raw_response(fd, icmpfd, &srv_addr);
                         if (ret == 0)
@@ -986,11 +985,9 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
                 }
         }
 
-
         close(fd);
         close(icmpfd);
         return 1;
-
 
 response:
         sleep(2);
@@ -999,142 +996,156 @@ response:
         return 0;
 }
 
-
 // Quic stuff
 
 #include "lsquic.h"
 
 static lsquic_conn_ctx_t *
-h3cli_client_on_new_conn (void *stream_if_ctx, struct lsquic_conn *conn)
+h3cli_client_on_new_conn(void *stream_if_ctx, struct lsquic_conn *conn)
 {
-    struct h3cli *const h3cli = stream_if_ctx;
-    lsquic_conn_make_stream(conn);
-    return (void *) h3cli;
+        struct h3cli *const h3cli = stream_if_ctx;
+        lsquic_conn_make_stream(conn);
+        return (void *)h3cli;
 }
-
 
 static void
-h3cli_client_on_conn_closed (struct lsquic_conn *conn)
+h3cli_client_on_conn_closed(struct lsquic_conn *conn)
 {
-    struct h3cli *const h3cli = (void *) lsquic_conn_get_ctx(conn);
-    ev_io_stop(h3cli->h3cli_loop, &h3cli->h3cli_sock_w);
+        struct h3cli *const h3cli = (void *)lsquic_conn_get_ctx(conn);
+        ev_io_stop(h3cli->h3cli_loop, &h3cli->h3cli_sock_w);
 }
-
 
 static lsquic_stream_ctx_t *
-h3cli_client_on_new_stream (void *stream_if_ctx, struct lsquic_stream *stream)
+h3cli_client_on_new_stream(void *stream_if_ctx, struct lsquic_stream *stream)
 {
-    struct h3cli *h3cli = stream_if_ctx;
-    lsquic_stream_wantwrite(stream, 1);
-    return (void *) h3cli;
+        struct h3cli *h3cli = stream_if_ctx;
+        lsquic_stream_wantwrite(stream, 1);
+        return (void *)h3cli;
 }
-
 
 static void
-h3cli_client_on_read (struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
+h3cli_client_on_read(struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
 {
-    struct h3cli *h3cli = (struct h3cli *) h;
-    ssize_t nread;
-    unsigned char buf[0x1000];
+        struct h3cli *h3cli = (struct h3cli *)h;
+        ssize_t nread;
+        unsigned char buf[0x1000];
 
-    nread = lsquic_stream_read(stream, buf, sizeof(buf));
-    if (nread > 0)
-    {
-        fwrite(buf, 1, nread, stdout);
-        fflush(stdout);
-    }
-    else if (nread == 0)
-    {
-        lsquic_stream_shutdown(stream, 0);
-        lsquic_conn_close( lsquic_stream_conn(stream) );
-    }
-    else
-    {
-        ev_break(h3cli->h3cli_loop, EVBREAK_ONE);
-    }
+        nread = lsquic_stream_read(stream, buf, sizeof(buf));
+        if (nread > 0)
+        {
+                fwrite(buf, 1, nread, stdout);
+                fflush(stdout);
+        }
+        else if (nread == 0)
+        {
+                lsquic_stream_shutdown(stream, 0);
+                lsquic_conn_close(lsquic_stream_conn(stream));
+        }
+        else
+        {
+                ev_break(h3cli->h3cli_loop, EVBREAK_ONE);
+        }
 }
-
 
 struct header_buf
 {
-    unsigned    off;
-    char        buf[UINT16_MAX];
+        unsigned off;
+        char buf[UINT16_MAX];
 };
 
-
 /* Convenience wrapper around somewhat involved lsxpack APIs */
-int
-h3cli_set_header (struct lsxpack_header *hdr, struct header_buf *header_buf,
-            const char *name, size_t name_len, const char *val, size_t val_len)
+int h3cli_set_header(struct lsxpack_header *hdr, struct header_buf *header_buf,
+                     const char *name, size_t name_len, const char *val, size_t val_len)
 {
-    if (header_buf->off + name_len + val_len <= sizeof(header_buf->buf))
-    {
-        memcpy(header_buf->buf + header_buf->off, name, name_len);
-        memcpy(header_buf->buf + header_buf->off + name_len, val, val_len);
-        lsxpack_header_set_offset2(hdr, header_buf->buf + header_buf->off,
-                                            0, name_len, name_len, val_len);
-        header_buf->off += name_len + val_len;
-        return 0;
-    }
-    else
-        return -1;
+        if (header_buf->off + name_len + val_len <= sizeof(header_buf->buf))
+        {
+                memcpy(header_buf->buf + header_buf->off, name, name_len);
+                memcpy(header_buf->buf + header_buf->off + name_len, val, val_len);
+                lsxpack_header_set_offset2(hdr, header_buf->buf + header_buf->off,
+                                           0, name_len, name_len, val_len);
+                header_buf->off += name_len + val_len;
+                return 0;
+        }
+        else
+                return -1;
 }
-
 
 /* Send HTTP/3 request.  We don't support payload, just send the headers. */
 static void
-h3cli_client_on_write (struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
+h3cli_client_on_write(struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
 {
-    struct h3cli *const h3cli = (void *) h;
-    struct header_buf hbuf;
-    struct lsxpack_header harray[5];
-    struct lsquic_http_headers headers = { 5, harray, };
+        struct h3cli *const h3cli = (void *)h;
+        struct header_buf hbuf;
+        struct lsxpack_header harray[5];
+        struct lsquic_http_headers headers = {
+            5,
+            harray,
+        };
 
-    hbuf.off = 0;
+        hbuf.off = 0;
 #define V(v) (v), strlen(v)
-    h3cli_set_header(&harray[0], &hbuf, V(":method"), V(h3cli->h3cli_method));
-    h3cli_set_header(&harray[1], &hbuf, V(":scheme"), V("https"));
-    h3cli_set_header(&harray[2], &hbuf, V(":path"), V(h3cli->h3cli_path));
-    h3cli_set_header(&harray[3], &hbuf, V(":authority"),
-                                                    V(h3cli->h3cli_hostname));
-    h3cli_set_header(&harray[4], &hbuf, V("user-agent"), V("h3cli/lsquic"));
+        h3cli_set_header(&harray[0], &hbuf, V(":method"), V(h3cli->h3cli_method));
+        h3cli_set_header(&harray[1], &hbuf, V(":scheme"), V("https"));
+        h3cli_set_header(&harray[2], &hbuf, V(":path"), V(h3cli->h3cli_path));
+        h3cli_set_header(&harray[3], &hbuf, V(":authority"),
+                         V(h3cli->h3cli_hostname));
+        h3cli_set_header(&harray[4], &hbuf, V("user-agent"), V("h3cli/lsquic"));
 
-    if (0 == lsquic_stream_send_headers(stream, &headers, 0))
-    {
-        lsquic_stream_shutdown(stream, 1);
-        lsquic_stream_wantread(stream, 1);
-    }
-    else
-    {
-        lsquic_conn_abort(lsquic_stream_conn(stream));
-    }
+        if (0 == lsquic_stream_send_headers(stream, &headers, 0))
+        {
+                lsquic_stream_shutdown(stream, 1);
+                lsquic_stream_wantread(stream, 1);
+        }
+        else
+        {
+                lsquic_conn_abort(lsquic_stream_conn(stream));
+        }
 }
 
-
 static void
-h3cli_client_on_close (struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
+h3cli_client_on_close(struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
 {
-    
 }
 
 static struct lsquic_stream_if h3cli_client_callbacks =
-{
-    .on_new_conn        = h3cli_client_on_new_conn,
-    .on_conn_closed     = h3cli_client_on_conn_closed,
-    .on_new_stream      = h3cli_client_on_new_stream,
-    .on_read            = h3cli_client_on_read,
-    .on_write           = h3cli_client_on_write,
-    .on_close           = h3cli_client_on_close,
+    {
+        .on_new_conn = h3cli_client_on_new_conn,
+        .on_conn_closed = h3cli_client_on_conn_closed,
+        .on_new_stream = h3cli_client_on_new_stream,
+        .on_read = h3cli_client_on_read,
+        .on_write = h3cli_client_on_write,
+        .on_close = h3cli_client_on_close,
 };
 
-int send_quic_http_request(char *host, char *request, int locport)
+int send_quic_http_request(char *host, char *request, int locport, uint8_t ecn)
 {
 
-    struct lsquic_engine_api eapi;
-    struct lsquic_engine_settings settings;
+        int fd;
 
-    struct sockaddr_storage saddr, daddr;
-    
+        struct lsquic_engine_api eapi;
+        struct lsquic_engine_settings settings;
 
+        struct sockaddr_storage saddr, daddr;
+        struct socklen_t saddr_len, daddr_len;
+
+        fd = construct_sock_to_host(&daddr, &daddr_len, locport, SOCK_DGRAM);
+        
+        lsquic_engine_init_settings(&settings, LSENG_HTTP);
+        
+        settings.es_ql_bits  = 0; // known issue causes issues with wireshark
+        settings.es_ecn      = ecn;
+        settings.es_versions = lsquic_version.LSQVER_ID29; // This seems to be best option in terms of support + ecn
+
+
+        lsquic_engine_check_settings(&settings)
+
+
+        lsquic_engine_new(LSENG_HTTP, &eapi);
+
+
+        lsquic_engine_destroy(&eapi);
+        close(fd);
+        
+        
 
 }
