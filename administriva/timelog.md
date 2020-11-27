@@ -215,6 +215,9 @@
 * *2 hours* Continue work with integrating quic
 * *2 hours* Debug issues with wireshark and quic
 
+## 27 Nov 2020
+
+* *1.5 hours* Install wireshark from source
 
 <!--- 
 ### 19 Oct 2019
