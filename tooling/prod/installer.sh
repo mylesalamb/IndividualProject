@@ -48,29 +48,24 @@ else
 	. ~/.bashrc
 fi
 
-# setup boring ssl (lsquic dependency)
-cd ~
-git clone $BSSLREPO
-cd $BSSL_PATH
-git checkout $LSREPO_SHA
-cmake . && make
-BORINGSSL=$PWD
-BORINGSSL_INCLUDE=$PWD/include
-
-
-cd ~
-git clone $LSREPO
-cd $LSREPO_PATH
-git submodule init
-git submodule update 
-cmake -DBORINGSSL_DIR=$BORINGSSL -DBORINGSSL_INCLUDE=$BORINGSSL/include . && make
-LSQUIC_INCLUDE=$PWD/include
-
 # TODO:	add cronjjob to run the dataset once daily
 #		Save ip(6)tables rules so that we dont have to use root at runtime
 
 # Setup the ecn tool
 cd ~
-git clone $GREPO
-cd $GREPO_PATH
+git clone --recurse-submodules $GREPO
+cd individualProject/
+
+cd boringssl/
+cmake . && make
+BORINGSSL=$PWD
+BORINGSSL_INCLUDE=$PWD/include
+cd ..
+
+cd lsquic/
+cmake -DBORINGSSL_DIR=$BORINGSSL -DBORINGSSL_INCLUDE=$BORINGSSL/include . && make
+LSQUIC_INCLUDE=$PWD/include
+cd ..
+
+cd tooling/prod
 make
