@@ -13,14 +13,6 @@ NF_PATH=/usr/local/lib
 GREPO=https://github.com/mylesalamb/individualProject.git
 GREPO_PATH=individualProject/tooling/prod
 
-
-# submodules now, due to be removed
-BSSLREPO=https://boringssl.googlesource.com/boringssl
-BSSL_PATH=boringssl
-
-LSREPO=https://github.com/litespeedtech/lsquic.git
-LSREPO_PATH=lsquic
-LSREPO_SHA=b117a3a0b7bd11fe6ebd503ec6b45d6b910b41a1
 # Update image to most recent version, and install
 # non crit dependencies
 sudo apt-get update -y
@@ -65,12 +57,10 @@ cd ..
 cd lsquic/
 cmake -DBORINGSSL_DIR=$BORINGSSL -DBORINGSSL_INCLUDE=$BORINGSSL/include . && make
 sudo make install
-LSQUIC_INCLUDE=$PWD/include
 cd ..
 
 make
+sudo ldconfig
 
-
-
-crontab -l 2>/dev/null; echo "* * * * * /bin/bash $PWD/test.sh" | crontab -
-
+# compat with ec2 stuff
+sudo bash -c "echo \"* * * * * ubuntu /bin/bash $PWD/test.sh\" >> /etc/crontab"
