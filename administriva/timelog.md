@@ -219,6 +219,11 @@
 
 * *1.5 hours* Install wireshark from source
 
+## 28 Nov 2020
+
+* *1.5 hours* Change repo to submodule style
+* *2 hours* Use lsquic tutorial to supplement connection code
+
 <!--- 
 ### 19 Oct 2019
 
