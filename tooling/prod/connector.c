@@ -1476,6 +1476,7 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
      */
         settings.es_ql_bits = 0;
         settings.es_versions = 1 << LSQVER_ID29;
+        settings.es_ecn = ecn;
 
         /* Check settings */
         if (0 != lsquic_engine_check_settings(&settings, LSENG_HTTP,

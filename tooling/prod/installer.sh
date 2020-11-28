@@ -24,7 +24,7 @@ LSREPO_SHA=b117a3a0b7bd11fe6ebd503ec6b45d6b910b41a1
 # Update image to most recent version, and install
 # non crit dependencies
 sudo apt-get update -y
-sudo apt-get install -y gcc g++ zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev
+sudo apt-get install -y gcc g++ zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
 
 cd ~
 
@@ -54,7 +54,7 @@ fi
 # Setup the ecn tool
 cd ~
 git clone --recurse-submodules $GREPO
-cd individualProject/
+cd individualProject/tooling/prod
 
 cd boringssl/
 cmake . && make
@@ -64,8 +64,13 @@ cd ..
 
 cd lsquic/
 cmake -DBORINGSSL_DIR=$BORINGSSL -DBORINGSSL_INCLUDE=$BORINGSSL/include . && make
+sudo make install
 LSQUIC_INCLUDE=$PWD/include
 cd ..
 
-cd tooling/prod
 make
+
+
+
+crontab -l 2>/dev/null; echo "* * * * * /bin/bash $PWD/test.sh" | crontab -
+
