@@ -223,6 +223,8 @@
 
 * *1.5 hours* Change repo to submodule style
 * *2 hours* Use lsquic tutorial to supplement connection code
+* *2 hour* Identify bug introduced in lsquic, revert to previous lsquic release
+* *2 hours* Begin work on integrating cron jobs onto amazon machine
 
 <!--- 
 ### 19 Oct 2019
