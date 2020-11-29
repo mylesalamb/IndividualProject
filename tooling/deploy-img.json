@@ -32,7 +32,7 @@
     "provisioners": [
         {
             "type":"shell",
-            "script": "prod/installer.sh"
+            "script": "installer.sh"
         }
     ]
   }
