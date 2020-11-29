@@ -62,5 +62,6 @@ cd ..
 make
 sudo ldconfig
 
-# compat with ec2 stuff
+# setup the experiement to run in fixed intervals
+sudo service cron stop
 sudo bash -c "echo \"* * * * * ubuntu /bin/bash $PWD/test.sh\" >> /etc/crontab"
