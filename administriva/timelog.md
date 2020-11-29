@@ -226,6 +226,11 @@
 * *2 hour* Identify bug introduced in lsquic, revert to previous lsquic release
 * *2 hours* Begin work on integrating cron jobs onto amazon machine
 
+## 29 Nov 2020
+
+* *4 hours* Work on multi instance terraform
+* *2 hours* Integrate packer output with terraform input 
+
 <!--- 
 ### 19 Oct 2019
 
