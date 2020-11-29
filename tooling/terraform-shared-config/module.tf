@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 0.12"
+  required_version = ">= 0.13"
 }
 
 provider "aws" {
@@ -7,23 +7,9 @@ provider "aws" {
     region = var.region
 }
 
-# data "aws_ami" "image" {
-#   most_recent = true
-#   owners = ["self"]
-#   filter {                       
-#     name = "tag:Application"     
-#     values = ["ecnDetector"]
-#   }                              
-# }
-
-# output "ami_id" {
-#   value = "${data.aws_ami.image.id}"
-# }
-
-
 resource "aws_instance" "ecnDetector" {
   provider                    = aws.singleregion
-  ami                         = "helloami"# data.aws_ami.default.id
+  ami                         = var.ami_image
   instance_type               = "t2.nano"
   vpc_security_group_ids      = ["${aws_security_group.default.id}"]
   subnet_id                   = "${aws_subnet.default.id}"
