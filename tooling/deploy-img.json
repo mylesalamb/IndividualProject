@@ -3,7 +3,7 @@
     "variables" : {
       "aws_access_key" : "{{ env `AWS_ACCESS_KEY` }}",
       "aws_secret_key" : "{{ env `AWS_SECRET_KEY` }}",
-      "dest_regions" : "eu-west-2,eu-west-1" 
+      "dest_regions" : "eu-west-2" 
     },
     "sensitive-variables" : ["aws_access_key", "aws_secret_key"],
     "builders": [
@@ -25,7 +25,7 @@
       },
         "instance_type": "t2.micro",
         "ssh_username": "ubuntu",
-        "ami_name": "ecnDetector",
+        "ami_name": "ecnDetector {{timestamp}}",
         "ami_regions": "{{user `dest_regions`}}"
       }
     ],
