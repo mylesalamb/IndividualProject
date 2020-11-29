@@ -17,7 +17,7 @@ resource "aws_subnet" "default" {
 }
 
 
-resource "aws_internet_gateway" "defualt" {
+resource "aws_internet_gateway" "default" {
     provider = "aws.singleregion"
     vpc_id = "${aws_vpc.default.id}"
 }
@@ -45,7 +45,7 @@ resource "aws_route_table_association" "default" {
 
 # Allow everything to the instances, will be fixed another time
 resource "aws_security_group" "default" {
-    provider = "aws.singlregion"
+    provider = "aws.singleregion"
     name = "single-sec-group"
     vpc_id = "${aws_vpc.default.id}"
     ingress {
