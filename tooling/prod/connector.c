@@ -9,10 +9,14 @@
 #include <stdint.h>
 #include <time.h>
 #include <fcntl.h>
+#include <stddef.h>
+#include <ev.h>
 
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 
+#include <net/if.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
@@ -20,13 +24,16 @@
 #include <netinet/ip_icmp.h>
 #include <netinet/icmp6.h>
 
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/ssl.h>
+
 #include <linux/ipv6.h>
-
 #include <ifaddrs.h>
-
-#include <net/if.h>
-
 #include <arpa/inet.h>
+
+#include "lsquic.h"
+#include "lsxpack_header.h"
 
 #define PORT_NTP 123
 #define PORT_HTTP 80
@@ -38,6 +45,8 @@
 
 #define UDP_DLY \
         (struct timespec) { 0, 500000000 }
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #define DNS_A_RECORD 1
 #define DNS_RECURSIVE 1
@@ -64,7 +73,7 @@ static uint8_t *format_dns_request(char *ws, uint8_t *buff);
 static uint8_t *format_ntp_request(uint8_t *buff);
 static uint8_t *format_udp_header(uint8_t *buff, uint16_t len, uint16_t sport, uint16_t dport);
 static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport, uint8_t flags);
-static uint8_t *format_raw_iphdr(uint8_t *buff, struct sockaddr_storage *addr, socklen_t addr_size, ssize_t request_len, int proto, int ttl);
+static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr, socklen_t addr_size, ssize_t request_len, int proto, int ttl);
 
 /* underlying request handlers to take care of repeated socket interactions */
 static int defer_tcp_connection(char *host, uint8_t *buff, ssize_t buff_len, int locport, int extport);
@@ -764,7 +773,7 @@ static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport,
         return buff + sizeof(struct tcphdr);
 }
 
-static uint8_t *format_raw_iphdr(uint8_t *buff, struct sockaddr_storage *addr, socklen_t addr_size, ssize_t request_len, int proto, int ttl)
+static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr, socklen_t addr_size, ssize_t request_len, int proto, int ttl)
 {
         struct iphdr *ip4 = (struct iphdr *)buff;
         struct ipv6hdr *ip6 = (struct ipv6hdr *)buff;
@@ -951,7 +960,7 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
 
         for (int i = 1; i < MAX_TTL; i++)
         {
-                uint8_t *offset = format_raw_iphdr(pkt, &srv_addr, srv_addr_size, buff_len, proto, i);
+                uint8_t *offset = format_ip_header(pkt, &srv_addr, srv_addr_size, buff_len, proto, i);
                 memcpy(offset, buff, buff_len);
                 for (int j = 0; j < MAX_UDP; j++)
                 {
@@ -993,29 +1002,6 @@ response:
         close(icmpfd);
         return 0;
 }
-
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-
-#include <openssl/pem.h>
-#include <openssl/x509.h>
-#include <openssl/ssl.h>
-
-#include <ev.h>
-
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-
-#include "lsquic.h"
-#include "lsxpack_header.h"
 
 static FILE *s_log_fh;
 
@@ -1103,34 +1089,6 @@ h3cli_packets_out(void *packets_out_ctx, const struct lsquic_out_spec *specs,
                 assert(s < 0);
                 return -1;
         }
-}
-
-static void
-h3cli_usage(const char *argv0)
-{
-        const char *name;
-
-        name = strchr(argv0, '/');
-        if (name)
-                ++name;
-        else
-                name = argv0;
-
-        fprintf(stdout,
-                "Usage: %s [options] hostname port path\n"
-                "\n"
-                "   -L level        Set library-wide log level.  Defaults to 'warn'.\n"
-                "   -l module=level Set log level of specific module.  Several of these\n"
-                "                     can be specified via multiple -l flags or by combining\n"
-                "                     these with comma, e.g. -l event=debug,conn=info.\n"
-                "   -v              Verbose: log program messages as well.\n"
-                "   -M METHOD       Method.  GET by default.\n"
-                "   -o opt=val      Set lsquic engine setting to some value, overriding the\n"
-                "                     defaults.  For example,\n"
-                "                           -o version=ff00001c -o cc_algo=2\n"
-                "   -G DIR          Log TLS secrets to a file in directory DIR.\n"
-                "   -h              Print this help screen and exit.\n",
-                name);
 }
 
 static lsquic_conn_ctx_t *
@@ -1429,6 +1387,138 @@ static const struct lsquic_keylog_if keylog_if =
 };
 
 int send_quic_http_request(char *host, char *sni, int locport, int ecn)
+{
+        struct lsquic_engine_api eapi;
+        const char *cert_file = NULL, *key_file = NULL, *val, *port_str;
+        int opt, version_cleared = 0, settings_initialized = 0;
+        struct addrinfo hints, *res = NULL;
+        socklen_t socklen;
+        struct lsquic_engine_settings settings;
+        struct h3cli h3cli;
+        union
+        {
+                struct sockaddr sa;
+                struct sockaddr_in addr4;
+                struct sockaddr_in6 addr6;
+        } addr;
+        const char *key_log_dir = "data";
+        key_file = "hello.keys";
+        char errbuf[0x100];
+
+        s_log_fh = stderr;
+
+        memset(&h3cli, 0, sizeof(h3cli));
+
+        /* Need hostname, port, and path */
+        h3cli.h3cli_method = "GET";
+        h3cli.h3cli_hostname = sni;
+        port_str = "443";
+        h3cli.h3cli_path = "/";
+
+        /* Resolve hostname */
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_flags = AI_NUMERICSERV;
+        if (0 != getaddrinfo(h3cli.h3cli_hostname, port_str, &hints, &res))
+        {
+                perror("getaddrinfo");
+                return 1;
+                ;
+        }
+        memcpy(&addr.sa, res->ai_addr, res->ai_addrlen);
+
+        if (!settings_initialized)
+                lsquic_engine_init_settings(&settings, LSENG_HTTP);
+
+        /* At the time of this writing, using the loss bits extension causes
+     * decryption failures in Wireshark.  For the purposes of the demo, we
+     * override the default.
+     */
+        settings.es_ql_bits = 0;
+        settings.es_versions =  1 << LSQVER_ID29;
+        settings.es_ecn = ecn;
+
+        /* Check settings */
+        if (0 != lsquic_engine_check_settings(&settings, LSENG_HTTP,
+                                              errbuf, sizeof(errbuf)))
+        {
+                LOG("invalid settings: %s", errbuf);
+                return 1;
+        }
+
+        /* Initialize event loop */
+        h3cli.h3cli_loop = EV_DEFAULT;
+        h3cli.h3cli_sock_fd = socket(addr.sa.sa_family, SOCK_DGRAM, 0);
+
+        /* Set up socket */
+        if (h3cli.h3cli_sock_fd < 0)
+        {
+                perror("socket");
+                return 1;
+                ;
+        }
+        if (0 != h3cli_set_nonblocking(h3cli.h3cli_sock_fd))
+        {
+                perror("fcntl");
+                return 1;
+        }
+
+        h3cli.h3cli_local_sas.ss_family = addr.sa.sa_family;
+        socklen = sizeof(h3cli.h3cli_local_sas);
+        if (0 != bind(h3cli.h3cli_sock_fd,
+                      (struct sockaddr *)&h3cli.h3cli_local_sas, socklen))
+        {
+                perror("bind");
+                return 1;
+        }
+        ev_init(&h3cli.h3cli_timer, h3cli_timer_expired);
+        ev_io_init(&h3cli.h3cli_sock_w, h3cli_read_socket, h3cli.h3cli_sock_fd, EV_READ);
+        ev_io_start(h3cli.h3cli_loop, &h3cli.h3cli_sock_w);
+
+        /* Initialize logging */
+        setvbuf(s_log_fh, NULL, _IOLBF, 0);
+        lsquic_logger_init(&logger_if, s_log_fh, LLTS_HHMMSSUS);
+
+        /* Initialize callbacks */
+        memset(&eapi, 0, sizeof(eapi));
+        eapi.ea_packets_out = h3cli_packets_out;
+        eapi.ea_packets_out_ctx = &h3cli;
+        eapi.ea_stream_if = &h3cli_client_callbacks;
+        eapi.ea_stream_if_ctx = &h3cli;
+        if (key_log_dir)
+        {
+                eapi.ea_keylog_if = &keylog_if;
+                eapi.ea_keylog_ctx = (void *)key_log_dir;
+        }
+        eapi.ea_settings = &settings;
+
+        h3cli.h3cli_engine = lsquic_engine_new(LSENG_HTTP, &eapi);
+        if (!h3cli.h3cli_engine)
+        {
+                LOG("cannot create engine");
+                return 1;
+        }
+
+        h3cli.h3cli_timer.data = &h3cli;
+        h3cli.h3cli_sock_w.data = &h3cli;
+        h3cli.h3cli_conn = lsquic_engine_connect(
+            h3cli.h3cli_engine, 1 << LSQVER_ID29,
+            (struct sockaddr *)&h3cli.h3cli_local_sas, &addr.sa,
+            (void *)(uintptr_t)h3cli.h3cli_sock_fd, /* Peer ctx */
+            NULL, h3cli.h3cli_hostname, 0, NULL, 0, NULL, 0);
+        if (!h3cli.h3cli_conn)
+        {
+                LOG("cannot create connection");
+                return 1;
+        }
+        h3cli_process_conns(&h3cli);
+        ev_run(h3cli.h3cli_loop, 0);
+
+        lsquic_engine_destroy(h3cli.h3cli_engine);
+        return 0;
+}
+
+
+int send_quic_http_probe(char *host, char *sni, int locport, int ecn)
 {
         struct lsquic_engine_api eapi;
         const char *cert_file = NULL, *key_file = NULL, *val, *port_str;

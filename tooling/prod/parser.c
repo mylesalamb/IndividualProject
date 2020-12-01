@@ -90,7 +90,8 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
                 goto fail;
         strcpy(proto, tok);
 
-        // parse additional options
+        // All of these protos require some extra information
+        // Just add to the rest of the line
         if (!strcmp("TCP",   proto)    ||
             !strncmp("DNS",  proto, 3) ||
             !strncmp("QUIC", proto, 3))

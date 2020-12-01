@@ -187,6 +187,11 @@ static void dispatch_req(struct transaction_node_t *transac,
                        "with args:\n%s\n%s", transac->ctx->proto, transac->request);
                 send_quic_http_request(transac->ctx->host, transac->request, transac->ctx->port, transac->ctx->flags);
         }
+        else if (!strcmp(transac->ctx->proto, "QUICPROBE")){
+                printf("dispatch:quicprobe udp\n"
+                       "with args:\n%s\n%s", transac->ctx->proto, transac->request);
+                send_quic_http_probe(transac->ctx->host, transac->request, transac->ctx->port, transac->ctx->flags);
+        }
         else
         {
                 fprintf(stderr, "dispatch:unrecognised protocol\n");
