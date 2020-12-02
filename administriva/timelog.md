@@ -231,6 +231,10 @@
 * *4 hours* Work on multi instance terraform
 * *2 hours* Integrate packer output with terraform input 
 
+## 1 Dec 2020
+
+* *4 hours* Work on Quic tracert
+
 <!--- 
 ### 19 Oct 2019
 
