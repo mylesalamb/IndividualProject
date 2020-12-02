@@ -249,6 +249,11 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
                 if (nf_handle_gen_udp(ctx, payload, len))
                         return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
         }
+        else if (!strncmp(ctx->proto, "QUIC", 4)){
+                printf("Picked up udp flow\n");
+                // if (nf_handle_gen_udp(ctx, payload, len))
+                //         return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
+        }
         else
         {
                 perror("netinject:proto not recognised -> nop");

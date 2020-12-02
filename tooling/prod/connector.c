@@ -38,6 +38,7 @@
 #define PORT_NTP 123
 #define PORT_HTTP 80
 #define PORT_DNS 53
+#define PORT_TLS 443
 
 #define MAX_TTL 50
 #define MAX_UDP 5
@@ -45,8 +46,6 @@
 
 #define UDP_DLY \
         (struct timespec) { 0, 500000000 }
-
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #define DNS_A_RECORD 1
 #define DNS_RECURSIVE 1
@@ -1003,6 +1002,8 @@ response:
         return 0;
 }
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 static FILE *s_log_fh;
 
 struct h3cli
@@ -1049,6 +1050,46 @@ LOG(const char *fmt, ...)
 }
 
 static int
+h3cli_setup_control_message(struct msghdr *msg, const struct lsquic_out_spec *spec, unsigned char *buff, ssize_t buff_len)
+{
+        struct cmsghdr *cmsg;
+        struct sockaddr_in *local_sa;
+        struct sockaddr_in6 *local_sa6;
+        struct in_pktinfo info;
+        struct in6_pktinfo info6;
+        size_t ctl_len;
+
+        msg->msg_control = buff;
+        msg->msg_controllen = buff_len;
+
+        memset(buff, 0, buff_len);
+
+        ctl_len = 0;
+        cmsg = CMSG_FIRSTHDR(msg);
+
+        if (AF_INET == spec->dest_sa->sa_family)
+        {
+                const int tos = spec->ecn;
+                cmsg->cmsg_level = IPPROTO_IP;
+                cmsg->cmsg_type = IP_TOS;
+                cmsg->cmsg_len = CMSG_LEN(sizeof(tos));
+                memcpy(CMSG_DATA(cmsg), &tos, sizeof(tos));
+                ctl_len += CMSG_SPACE(sizeof(tos));
+        }
+        else
+        {
+                const int tos = spec->ecn;
+                cmsg->cmsg_level = IPPROTO_IPV6;
+                cmsg->cmsg_type = IPV6_TCLASS;
+                cmsg->cmsg_len = CMSG_LEN(sizeof(tos));
+                memcpy(CMSG_DATA(cmsg), &tos, sizeof(tos));
+                ctl_len += CMSG_SPACE(sizeof(tos));
+        }
+
+        msg->msg_controllen = ctl_len;
+}
+
+static int
 h3cli_packets_out(void *packets_out_ctx, const struct lsquic_out_spec *specs,
                   unsigned count)
 {
@@ -1056,13 +1097,20 @@ h3cli_packets_out(void *packets_out_ctx, const struct lsquic_out_spec *specs,
         int fd, s = 0;
         struct msghdr msg;
 
+        union
+        {
+                /* cmsg(3) recommends union for proper alignment */
+                unsigned char buf[CMSG_SPACE(MAX(sizeof(struct in_pktinfo),
+                                                 sizeof(struct in6_pktinfo))) +
+                                  CMSG_SPACE(sizeof(int))];
+                struct cmsghdr cmsg;
+        } ancil;
+
         if (0 == count)
                 return 0;
 
         n = 0;
         msg.msg_flags = 0;
-        msg.msg_control = NULL;
-        msg.msg_controllen = 0;
         do
         {
                 fd = (int)(uint64_t)specs[n].peer_ctx;
@@ -1070,6 +1118,17 @@ h3cli_packets_out(void *packets_out_ctx, const struct lsquic_out_spec *specs,
                 msg.msg_namelen = (AF_INET == specs[n].dest_sa->sa_family ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6)),
                 msg.msg_iov = specs[n].iov;
                 msg.msg_iovlen = specs[n].iovlen;
+
+                if (specs[n].ecn)
+                {
+                        h3cli_setup_control_message(&msg, &specs[n], ancil.buf, sizeof(ancil.buf));
+                }
+                else
+                {
+                        msg.msg_control = NULL;
+                        msg.msg_controllen = 0;
+                }
+
                 s = sendmsg(fd, &msg, 0);
                 if (s < 0)
                 {
@@ -1129,8 +1188,8 @@ h3cli_client_on_read(struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
         nread = lsquic_stream_read(stream, buf, sizeof(buf));
         if (nread > 0)
         {
-                fwrite(buf, 1, nread, stdout);
-                fflush(stdout);
+                // fwrite(buf, 1, nread, stdout);
+                // fflush(stdout);
         }
         else if (nread == 0)
         {
@@ -1265,6 +1324,30 @@ h3cli_process_conns(struct h3cli *h3cli)
                 ev_timer_init(&h3cli->h3cli_timer, h3cli_timer_expired, timeout, 0.);
                 ev_timer_start(h3cli->h3cli_loop, &h3cli->h3cli_timer);
         }
+}
+
+static int
+h3cli_set_ecn(int fd, struct sockaddr *sa)
+{
+        int ret;
+        int one = 1;
+
+        if (sa->sa_family == AF_INET)
+        {
+                ret = setsockopt(fd, IPPROTO_IP, IP_RECVTOS, &one, sizeof(one));
+        }
+        else
+        {
+                ret = setsockopt(fd, IPPROTO_IPV6, IPV6_RECVTCLASS, &one, sizeof(one));
+        }
+
+        if (ret)
+        {
+                perror("h3cli_set_ecn");
+                return 1;
+        }
+
+        return 0;
 }
 
 static void
@@ -1402,10 +1485,10 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
                 struct sockaddr_in6 addr6;
         } addr;
         const char *key_log_dir = "data";
-        key_file = "hello.keys";
+        key_file = "heelo.keys";
         char errbuf[0x100];
 
-        s_log_fh = stderr;
+        s_log_fh = stdout;
 
         memset(&h3cli, 0, sizeof(h3cli));
 
@@ -1414,6 +1497,8 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
         h3cli.h3cli_hostname = sni;
         port_str = "443";
         h3cli.h3cli_path = "/";
+
+        lsquic_set_log_level("debug");
 
         /* Resolve hostname */
         memset(&hints, 0, sizeof(hints));
@@ -1434,7 +1519,7 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
      * override the default.
      */
         settings.es_ql_bits = 0;
-        settings.es_versions =  1 << LSQVER_ID29;
+        settings.es_versions = 1 << LSQVER_ID29;
         settings.es_ecn = ecn;
 
         /* Check settings */
@@ -1448,7 +1533,6 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
         /* Initialize event loop */
         h3cli.h3cli_loop = EV_DEFAULT;
         h3cli.h3cli_sock_fd = socket(addr.sa.sa_family, SOCK_DGRAM, 0);
-
         /* Set up socket */
         if (h3cli.h3cli_sock_fd < 0)
         {
@@ -1461,8 +1545,21 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
                 perror("fcntl");
                 return 1;
         }
+        int one = 1;
+        if (setsockopt(h3cli.h3cli_sock_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)))
+        {
+                perror("construct sock to host: reuse port");
+                return -1;
+        }
+
+        if (ecn)
+        {
+                h3cli_set_ecn(h3cli.h3cli_sock_fd, (struct sockaddr *)&addr);
+        }
 
         h3cli.h3cli_local_sas.ss_family = addr.sa.sa_family;
+        struct sockaddr_in *loc_addr = &h3cli.h3cli_local_sas;
+        loc_addr->sin_port = htons(6000);
         socklen = sizeof(h3cli.h3cli_local_sas);
         if (0 != bind(h3cli.h3cli_sock_fd,
                       (struct sockaddr *)&h3cli.h3cli_local_sas, socklen))
@@ -1501,7 +1598,7 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
         h3cli.h3cli_timer.data = &h3cli;
         h3cli.h3cli_sock_w.data = &h3cli;
         h3cli.h3cli_conn = lsquic_engine_connect(
-            h3cli.h3cli_engine, 1 << LSQVER_ID29,
+            h3cli.h3cli_engine, N_LSQVER,
             (struct sockaddr *)&h3cli.h3cli_local_sas, &addr.sa,
             (void *)(uintptr_t)h3cli.h3cli_sock_fd, /* Peer ctx */
             NULL, h3cli.h3cli_hostname, 0, NULL, 0, NULL, 0);
@@ -1512,11 +1609,10 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
         }
         h3cli_process_conns(&h3cli);
         ev_run(h3cli.h3cli_loop, 0);
-
         lsquic_engine_destroy(h3cli.h3cli_engine);
+        sleep(2);
         return 0;
 }
-
 
 int send_quic_http_probe(char *host, char *sni, int locport, int ecn)
 {
@@ -1585,7 +1681,7 @@ int send_quic_http_probe(char *host, char *sni, int locport, int ecn)
         {
                 perror("socket");
                 return 1;
-                ;
+                
         }
         if (0 != h3cli_set_nonblocking(h3cli.h3cli_sock_fd))
         {
@@ -1594,7 +1690,9 @@ int send_quic_http_probe(char *host, char *sni, int locport, int ecn)
         }
 
         h3cli.h3cli_local_sas.ss_family = addr.sa.sa_family;
-        socklen = sizeof(h3cli.h3cli_local_sas);
+        struct sockaddr_in *loc_addr = &h3cli.h3cli_local_sas;
+        loc_addr->sin_port = htons(6000);
+        socklen = sizeof(struct sockaddr_in);
         if (0 != bind(h3cli.h3cli_sock_fd,
                       (struct sockaddr *)&h3cli.h3cli_local_sas, socklen))
         {
@@ -1631,19 +1729,38 @@ int send_quic_http_probe(char *host, char *sni, int locport, int ecn)
 
         h3cli.h3cli_timer.data = &h3cli;
         h3cli.h3cli_sock_w.data = &h3cli;
-        h3cli.h3cli_conn = lsquic_engine_connect(
-            h3cli.h3cli_engine, N_LSQVER,
-            (struct sockaddr *)&h3cli.h3cli_local_sas, &addr.sa,
-            (void *)(uintptr_t)h3cli.h3cli_sock_fd, /* Peer ctx */
-            NULL, h3cli.h3cli_hostname, 0, NULL, 0, NULL, 0);
-        if (!h3cli.h3cli_conn)
+
+        int ttlfd = construct_icmp_sock(&addr);
+        if(ttlfd < 0)
+                perror("bad sock");
+
+        struct timespec rst = UDP_DLY;
+
+        // todo add a flag that checks if we got anything back from
+        // the server in one of the callbacks, to immediately close the connection
+
+        for (int i = 1; i < MAX_TTL; i++)
         {
-                LOG("cannot create connection");
-                return 1;
+                printf("loop\n");
+                uint8_t buff[500];
+                setsockopt(h3cli.h3cli_sock_fd, IPPROTO_IP, IP_TTL, &i, sizeof(i));
+
+                h3cli.h3cli_conn = lsquic_engine_connect(
+                    h3cli.h3cli_engine, N_LSQVER,
+                    (struct sockaddr *)&h3cli.h3cli_local_sas, &addr.sa,
+                    (void *)(uintptr_t)h3cli.h3cli_sock_fd,
+                    NULL, h3cli.h3cli_hostname, 0, NULL, 0, NULL, 0);
+                h3cli_process_conns(&h3cli);
+                sleep(2);
+                lsquic_conn_close(h3cli.h3cli_conn);
+                
+        
         }
-        h3cli_process_conns(&h3cli);
+
+        
         ev_run(h3cli.h3cli_loop, 0);
 
         lsquic_engine_destroy(h3cli.h3cli_engine);
+        sleep(2);
         return 0;
 }
