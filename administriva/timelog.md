@@ -242,7 +242,7 @@
 ## 6 Dec 2020
 
 * *3 hours* Refactor use of strcmp to jump tables + Various minor refactorings
-
+* *2 hours* Attempt to resolve bug with udp + tcp rawsockets
 
 <!--- 
 ### 19 Oct 2019
