@@ -239,6 +239,11 @@
 
 * *3 hours* Work on ethics approval files
 
+## 6 Dec 2020
+
+* *3 hours* Refactor use of strcmp to jump tables + Various minor refactorings
+
+
 <!--- 
 ### 19 Oct 2019
 
