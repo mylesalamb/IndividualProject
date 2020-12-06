@@ -15,6 +15,21 @@ static void transaction_list_insert(struct transaction_list_t *lst, struct trans
 static void transaction_node_free(struct transaction_node_t *arg);
 #endif
 
+extern const char *str_transac_type[];
+
+enum transac_type str_to_transac_type(char *arg)
+{
+        if(!arg)
+                return INVALID;
+
+        for(int i = 0; i < (sizeof(str_transac_type) / sizeof (str_transac_type[0])); i++){
+                if(!strcmp(str_transac_type[i], arg))
+                        return i;
+        }
+
+        return INVALID;
+}
+
 struct transaction_list_t *fget_transactions(char *filename)
 {
         FILE *fhandle = fopen(filename, "r");
@@ -51,10 +66,8 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
 {
         struct transaction_node_t *ret = NULL;
 
-        char proto_tmp[16];
-
         char *host = NULL;
-        enum conn_proto proto = INVALID;
+        enum transac_type type = INVALID;
         char *req = NULL;
         char *sep = " ";
 
@@ -80,14 +93,15 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
         if (!tok)
                 goto fail;
 
-        strcpy(proto_tmp, tok);
-        proto = str_to_proto(proto_tmp);
+        // this is the server type, if its not NTP we parse an additional field
         
+        type = str_to_transac_type(tok);
+        if(type == INVALID)
+                goto fail;
+
         // All of these protos require some extra information
         // Just add to the rest of the line
-        if (!strcmp("TCP",   proto_tmp)    ||
-            !strncmp("DNS",  proto_tmp, 3) ||
-            !strncmp("QUIC", proto_tmp, 3))
+        if (!strcmp("WEB",   tok) || !strncmp("DNS",  tok, 3))
         {
                 tok = strtok(NULL, sep);
                 if(!tok)
@@ -107,10 +121,11 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
                 goto fail;
 
         // flags deffered to dispatch functions now
+        ret->type = type;
         ret->ctx->flags = 0;
+        ret->ctx->additional = 0;
         ret->ctx->host = host;
         ret->ctx->port = 6000;
-        ret->ctx->proto = proto;
         if(req){
                 
                 ret->request = req;

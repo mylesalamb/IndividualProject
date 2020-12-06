@@ -140,6 +140,7 @@ int send_udp_dns_request(char *host, char *ws, int locport)
 
 int send_tcp_dns_probe(char *host, char *ws, int locport)
 {
+        printf("dns probe code called\n");
         if (!host)
                 return 1;
         uint8_t buff[64], *end_ptr;
@@ -426,7 +427,7 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr, int socktype)
 
 static int get_host_ipv6_addr(struct in6_addr *host)
 {
-        int ret = 0;
+        int ret = 1;
         struct ifaddrs *ifa;
 
         // static struct in6_addr cache_ret;
@@ -466,7 +467,7 @@ static int get_host_ipv6_addr(struct in6_addr *host)
                 memcpy(host, &in6->sin6_addr, sizeof(struct in6_addr));
                 //memcpy(&cache_ret, &in6->sin6_addr, sizeof(struct in6_addr));
                 //cache = 1;
-                ret = 1;
+                ret = 0;
                 break;
         }
 
@@ -541,6 +542,11 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr)
                 {
                         printf("was ttl exceed\n");
                         return 1;
+                }
+                if (icmp->type == ICMP_DEST_UNREACH)
+                {
+                        printf("Was dest unreach\n");
+                        return 2;
                 }
         }
 
@@ -782,7 +788,6 @@ static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr, s
 
         if (addr->ss_family == AF_INET)
         {
-                // replace with a memcpy
                 memcpy(&ip4->daddr, &((struct sockaddr_in *)addr)->sin_addr, sizeof(struct in_addr));
                 inet_pton(AF_INET, "0.0.0.0", &(ip4->saddr));
 
@@ -791,6 +796,7 @@ static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr, s
                 ip4->tot_len = htons(sizeof(struct iphdr) + request_len);
                 ip4->id = htons(54321);
                 ip4->ttl = ttl;
+                ip4->check = 0;
                 ip4->protocol = proto;
 
                 return buff + sizeof(struct iphdr);
@@ -799,7 +805,7 @@ static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr, s
         {
                 //replace with a memcpy
                 memcpy(&ip6->daddr, &((struct sockaddr_in6 *)addr)->sin6_addr, sizeof(struct in6_addr));
-                if (get_host_ipv6_addr(&ip6->saddr) != 1)
+                if (get_host_ipv6_addr(&ip6->saddr) == 1)
                 {
                         fprintf(stderr, "fmt_raw_ip_hdr:get ip6 addr\n");
                         return NULL;
@@ -960,16 +966,19 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
         for (int i = 1; i < MAX_TTL; i++)
         {
                 uint8_t *offset = format_ip_header(pkt, &srv_addr, srv_addr_size, buff_len, proto, i);
+                if(!offset)
+                        goto unreachable;
                 memcpy(offset, buff, buff_len);
                 for (int j = 0; j < MAX_UDP; j++)
                 {
                         int len = (offset - pkt) + buff_len;
                         printf("len is %d\n", len);
                         int ret;
-                        ret = sendto(fd, pkt, offset + buff_len - pkt, 0, (struct sockaddr *)&srv_addr, srv_addr_size);
+                        ret = sendto(fd, pkt, len, 0, (struct sockaddr *)&srv_addr, srv_addr_size);
                         if (ret < 0)
                         {
                                 perror("send failed");
+                                continue;
                         }
 
                         nanosleep(&rst, &rst);
@@ -983,6 +992,10 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
                         {
                                 printf("Got a ttl exceed\n");
                                 break;
+                        }
+                        else if (ret == 2)
+                        {
+                                goto unreachable;
                         }
                         else
                         {
@@ -1000,8 +1013,14 @@ response:
         close(fd);
         close(icmpfd);
         return 0;
-}
 
+unreachable:
+        sleep(2);
+        close(fd);
+        close(icmpfd);
+        return 1;
+
+}
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 static FILE *s_log_fh;
@@ -1087,6 +1106,7 @@ h3cli_setup_control_message(struct msghdr *msg, const struct lsquic_out_spec *sp
         }
 
         msg->msg_controllen = ctl_len;
+        return 0;
 }
 
 static int

@@ -35,7 +35,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
 
 static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 static int nf_handle_gen_udp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
-static int nf_nop(struct connection_context_t *ctx, uint8_t *payload, size_t len) {return 0;}
+static int nf_nop(struct connection_context_t *ctx, uint8_t *payload, size_t len) {printf("nop\n");return 0;}
 
 static int (*dispatch_table[])(struct connection_context_t *ctx, uint8_t *payload, size_t len) = {
         &nf_handle_tcp,         // TCP
@@ -166,7 +166,7 @@ static void nf_handle_conn(struct nf_controller_t *nfc)
                 while ((res = recv(nfc->fd, buf, sizeof(buf), 0)) && res > 0)
                         nfq_handle_packet(nfc->nfq_handle, buf, res);
         }
-
+        printf("return to control\n");
         pthread_mutex_lock(&nfc->mtx);
         nfc->ctx = NULL;
         pthread_mutex_unlock(&nfc->mtx);
@@ -243,7 +243,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
                 goto fail;
         }
 
-
+        printf("Packet callback\n");
         int ret;
 
         ret = dispatch_table[ctx->proto](ctx, payload, len);
@@ -373,7 +373,7 @@ static int nf_handle_gen_udp(struct connection_context_t *ctx, uint8_t *payload,
 {
         struct pkt_buff *pkt;
         struct udphdr *udp;
-
+        printf("handle generic udp\n");
         pkt = pktb_alloc(AF_INET, payload, len, 0);
 
         gen_ip_handler(pkt, ctx);

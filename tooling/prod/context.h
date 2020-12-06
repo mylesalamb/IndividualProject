@@ -16,8 +16,7 @@ enum conn_proto {
 	NTP_TCP_PROBE	= 8,
 	DNS_UDP_PROBE 	= 9,
 	DNS_TCP_PROBE 	= 10,
-	QUIC_PROBE 		= 11,
-	INVALID
+	QUIC_PROBE 		= 11
 };
 
 // flags for additional fields

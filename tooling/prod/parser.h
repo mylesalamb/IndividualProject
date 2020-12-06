@@ -4,12 +4,28 @@
 #include "test_config.h"
 #include "context.h"
 
+// Types of transactions passed in, 
+enum transac_type 
+{
+    WEB = 0,
+    DNS = 1,
+    NTP = 2,
+    INVALID = 3
+};
+
+static const char *str_transac_type[] = {
+        "WEB",
+        "DNS",
+        "NTP",
+};
+
 struct transaction_node_t
 {
     struct transaction_node_t *next;
     
     char * request;
     struct connection_context_t *ctx;
+    enum transac_type type;
 };
 
 struct transaction_list_t
