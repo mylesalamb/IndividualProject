@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "parser.h"
+#include "context.h"
 
 #ifndef UNIT_TEST
 static struct transaction_node_t *parse_transaction(char *buff);
@@ -50,11 +51,12 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
 {
         struct transaction_node_t *ret = NULL;
 
+        char proto_tmp[16];
+
         char *host = NULL;
-        char *proto = NULL;
+        enum conn_proto proto = INVALID;
         char *req = NULL;
         char *sep = " ";
-        uint8_t flags;
 
         char *tok;
         if (!buff)
@@ -74,33 +76,22 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
                 goto fail;
         strcpy(host, tok);
 
-        // Should be the TOS bits
         tok = strtok(NULL, sep);
         if (!tok)
                 goto fail;
 
-        flags = strtol(tok, NULL, 16);
-
-        tok = strtok(NULL, sep);
-        if (!tok)
-                goto fail;
-
-        proto = malloc(sizeof(char) * strlen(tok) + 1);
-        if (!proto)
-                goto fail;
-        strcpy(proto, tok);
-
+        strcpy(proto_tmp, tok);
+        proto = str_to_proto(proto_tmp);
+        
         // All of these protos require some extra information
         // Just add to the rest of the line
-        if (!strcmp("TCP",   proto)    ||
-            !strncmp("DNS",  proto, 3) ||
-            !strncmp("QUIC", proto, 3))
+        if (!strcmp("TCP",   proto_tmp)    ||
+            !strncmp("DNS",  proto_tmp, 3) ||
+            !strncmp("QUIC", proto_tmp, 3))
         {
                 tok = strtok(NULL, sep);
                 if(!tok)
                         goto fail;
-                
-                
 
                 req = malloc(sizeof(char) * (strlen(tok) + 1));
                 if(!req)
@@ -115,7 +106,8 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
         if (!ret)
                 goto fail;
 
-        ret->ctx->flags = flags;
+        // flags deffered to dispatch functions now
+        ret->ctx->flags = 0;
         ret->ctx->host = host;
         ret->ctx->port = 6000;
         ret->ctx->proto = proto;
@@ -128,7 +120,8 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
 fail:
         transaction_node_free(ret);
         free(host);
-        free(proto);
+        if(req)
+                free(req);
         return NULL;
 }
 
@@ -212,7 +205,6 @@ void transaction_node_free(struct transaction_node_t *arg)
                 return;
 
         free(arg->ctx->host);
-        free(arg->ctx->proto);
         free(arg->ctx);
         free(arg->request);
         free(arg);

@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -20,7 +21,9 @@
 #include <libnetfilter_queue/libnetfilter_queue_udp.h>
 #include <libnetfilter_queue/libnetfilter_queue_ipv4.h>
 #include <libnetfilter_queue/libnetfilter_queue_ipv6.h>
+#include <sys/types.h>
 
+#include "context.h"
 #include "netinject.h"
 
 #define IS_ECN(x) (x & 0x03)
@@ -32,6 +35,22 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
 
 static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 static int nf_handle_gen_udp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
+static int nf_nop(struct connection_context_t *ctx, uint8_t *payload, size_t len) {return 0;}
+
+static int (*dispatch_table[])(struct connection_context_t *ctx, uint8_t *payload, size_t len) = {
+        &nf_handle_tcp,         // TCP
+        &nf_handle_gen_udp,     // NTP UDP
+        &nf_handle_tcp,         // NTP TCP
+        &nf_handle_gen_udp,     // DNS UDP
+        &nf_handle_tcp,         // DNS TCP
+        &nf_nop,                // QUIC
+        &nf_handle_tcp,         // TCP PROBE
+        &nf_handle_gen_udp,     // NTP UDP PROBE
+        &nf_handle_tcp,         // NTP TCP PROBE
+        &nf_handle_gen_udp,     // DNS UDP PROBE
+        &nf_handle_tcp,         // DNS TCP PROBE
+        &nf_nop                 // QUIC PROBE
+        };
 
 struct nf_controller_t *nf_init()
 {
@@ -215,9 +234,6 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
                 goto fail_no_pkt;
         }
 
-        printf("in packet callback\n");
-
-        // id used by kernel
         id = ntohl(ph->packet_id);
         len = nfq_get_payload(pkt, &payload);
 
@@ -227,38 +243,13 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
                 goto fail;
         }
 
-        if (!strncmp(ctx->proto, "TCP", 3))
-        {
-                if (nf_handle_tcp(ctx, payload, len))
-                        return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
-        }
-        else if (!strncmp(ctx->proto, "DNSTCP", 6))
-        {
-                if (nf_handle_tcp(ctx, payload, len))
-                        return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
-        }
-        else if (!strncmp(ctx->proto, "NTP", 3))
-        {
-                printf("Picked up ntp flow\n");
-                if (nf_handle_gen_udp(ctx, payload, len))
-                        return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
-        }
-        else if (!strncmp(ctx->proto, "DNSUDP", 6))
-        {
-                printf("Picked up udp flow\n");
-                if (nf_handle_gen_udp(ctx, payload, len))
-                        return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
-        }
-        else if (!strncmp(ctx->proto, "QUIC", 4)){
-                printf("Picked up udp flow\n");
-                // if (nf_handle_gen_udp(ctx, payload, len))
-                //         return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
-        }
-        else
-        {
-                perror("netinject:proto not recognised -> nop");
-                printf("proto was: %s", ctx->proto);
-        }
+
+        int ret;
+
+        ret = dispatch_table[ctx->proto](ctx, payload, len);
+
+        if(ret)
+                return nfq_set_verdict(queue, id, NF_DROP, 0, NULL);
 
         return nfq_set_verdict(queue, id, NF_ACCEPT, len, payload);
 

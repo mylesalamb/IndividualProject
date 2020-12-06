@@ -143,15 +143,10 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 {
         printf("outdir is %s\n", pc->outdir);
         char outfile[256];
-        sprintf(outfile,
-                "%s/%s%s%s-%s-%02X-%d.pcap",
-                pc->outdir,
-                (pc->alias) ? pc->alias : "",
-                (pc->alias) ? "-" : "",
-                pc->ctx->host,
-                pc->ctx->proto,
-                pc->ctx->flags,
-                pc->ctx->port);
+        char context_str[128];
+        get_context_str(pc->ctx, context_str);
+        
+        sprintf(outfile,"%s/%s", pc->outdir, context_str);
         printf("outfile is %s", outfile);
         pcap_dumper_t *pd;
         char filter_exp[64];
