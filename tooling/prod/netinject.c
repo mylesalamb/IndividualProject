@@ -163,8 +163,10 @@ static void nf_handle_conn(struct nf_controller_t *nfc)
 
         while (!nf_get_connection_exit(nfc))
         {
-                while ((res = recv(nfc->fd, buf, sizeof(buf), 0)) && res > 0)
+                while ((res = recv(nfc->fd, buf, sizeof(buf), 0)) && res > 0){
+                        printf("handle packet\n");
                         nfq_handle_packet(nfc->nfq_handle, buf, res);
+                }
         }
         printf("return to control\n");
         pthread_mutex_lock(&nfc->mtx);

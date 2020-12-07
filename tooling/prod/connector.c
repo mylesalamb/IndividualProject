@@ -498,7 +498,7 @@ static int check_raw_response(int fd, int ttlfd, struct sockaddr_storage *addr)
         int i = 0;
         while (i++ < MAX_RAW)
         {
-                int ret;
+                int ret = -1;
                 if (addr->ss_family == AF_INET)
                 {
                         ret = check_ip4_response(fd, ttlfd, (struct sockaddr_in *)addr);
@@ -506,6 +506,10 @@ static int check_raw_response(int fd, int ttlfd, struct sockaddr_storage *addr)
                 else if (addr->ss_family == AF_INET6)
                 {
                         ret = check_ip6_response(fd, ttlfd, (struct sockaddr_in6 *)addr);
+                }
+                else
+                {
+                        fprintf(stderr, "address family not supported\n");
                 }
 
                 // try spin again if we dont get anything back
@@ -705,16 +709,18 @@ static uint8_t *format_dns_request(char *ws, uint8_t *buff)
 static void dns_name_fmt(uint8_t *dns, uint8_t *host)
 {
         int lock = 0, i;
-        strcat((char *)host, ".");
+        char host_tmp[INET6_ADDRSTRLEN];
+        strcpy(host_tmp, host);
+        strcat(host_tmp, ".");
 
-        for (i = 0; i < strlen((char *)host); i++)
+        for (i = 0; i < strlen((char *)host_tmp); i++)
         {
-                if (host[i] == '.')
+                if (host_tmp[i] == '.')
                 {
                         *dns++ = i - lock;
                         for (; lock < i; lock++)
                         {
-                                *dns++ = host[lock];
+                                *dns++ = host_tmp[lock];
                         }
                         lock++;
                 }
@@ -749,7 +755,7 @@ static uint8_t *format_udp_header(uint8_t *buff, uint16_t len, uint16_t sport, u
 
         hdr = (struct udphdr *)buff;
         hdr->uh_dport = htons(dport);
-        hdr->uh_sport = htons(sport);
+        hdr->uh_sport = htons(6000);
         hdr->uh_ulen = htons(len + sizeof(struct udphdr));
         hdr->check = 0;
 
@@ -759,7 +765,7 @@ static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport,
 {
         struct tcphdr *hdr;
 
-        srand(time(NULL));
+        //srand(time(NULL));
 
         if (!buff)
                 return NULL;
@@ -767,7 +773,7 @@ static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport,
         hdr = (struct tcphdr *)buff;
         hdr->source = htons(sport);
         hdr->dest = htons(dport);
-        hdr->seq = rand();
+        hdr->seq = htons(1123); //rand();
         hdr->ack_seq = (flags & 0x02) ? 1 : 0;
         hdr->doff = 5;
         hdr->syn = flags & 0x01;
@@ -794,7 +800,7 @@ static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr, s
                 ip4->ihl = 5;
                 ip4->version = 4;
                 ip4->tot_len = htons(sizeof(struct iphdr) + request_len);
-                ip4->id = htons(54321);
+                ip4->id = htons(0);
                 ip4->ttl = ttl;
                 ip4->check = 0;
                 ip4->protocol = proto;
@@ -818,6 +824,9 @@ static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr, s
                 ip6->hop_limit = ttl;
 
                 return buff + sizeof(struct ipv6hdr);
+        }
+        else{
+                fprintf(stderr, "fmt_ip_hdr:address family\n");
         }
 
         fprintf(stderr, "sock family not supported\n");
@@ -933,6 +942,7 @@ static int tcp_send_all(int fd, uint8_t *buff, size_t len)
 static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int locport, int extport, int proto)
 {
 
+        int optval = 0; /* May need to be 1 on some platforms */
         int fd, icmpfd, err;
         struct sockaddr_storage srv_addr;
         socklen_t srv_addr_size;
@@ -948,6 +958,9 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
                 fprintf(stderr, "defer_raw: host_to_sockaddr\n");
                 return 1;
         }
+        
+        struct sockaddr_in *ad = &srv_addr;
+        ad->sin_port = htons(6000);
 
         fd = contruct_rawsock_to_host(&srv_addr, proto);
         if (fd < 0)
@@ -957,7 +970,7 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
         }
 
         icmpfd = construct_icmp_sock(&srv_addr);
-        if (fd < 0)
+        if (icmpfd < 0)
         {
                 fprintf(stderr, "defer_raw_tracert: bad icmp fd\n");
                 return 1;
@@ -980,6 +993,7 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
                                 perror("send failed");
                                 continue;
                         }
+                        printf("sendto(...) = %d\n", ret);
 
                         nanosleep(&rst, &rst);
                         ret = check_raw_response(fd, icmpfd, &srv_addr);
@@ -1004,17 +1018,21 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
                 }
         }
 
+
+        setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *)(&optval), sizeof(optval));
         close(fd);
         close(icmpfd);
         return 1;
 
 response:
+        setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *)(&optval), sizeof(optval));
         sleep(2);
         close(fd);
         close(icmpfd);
         return 0;
 
 unreachable:
+        setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *)(&optval), sizeof(optval));
         sleep(2);
         close(fd);
         close(icmpfd);
