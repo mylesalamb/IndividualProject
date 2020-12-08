@@ -248,6 +248,10 @@
 
 * *3.5 hours* Solve bug with raw tracerts / switch compiler to clang
 
+## 8 Dec 2020
+
+* *3 hours* Refactor / tidy up tool output
+
 <!--- 
 ### 19 Oct 2019
 
