@@ -6,6 +6,7 @@
 
 #include "parser.h"
 #include "context.h"
+#include "log.h"
 
 #ifndef UNIT_TEST
 static struct transaction_node_t *parse_transaction(char *buff);
@@ -37,7 +38,7 @@ struct transaction_list_t *fget_transactions(char *filename)
 
         if (!fhandle)
         {
-                perror("parser: open file");
+                LOG_ERR("open file\n");
                 return NULL;
         }
 

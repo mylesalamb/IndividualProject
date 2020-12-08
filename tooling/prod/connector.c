@@ -32,6 +32,8 @@
 #include <ifaddrs.h>
 #include <arpa/inet.h>
 
+#include "log.h"
+
 #include "lsquic.h"
 #include "lsxpack_header.h"
 
@@ -74,6 +76,8 @@ static uint8_t *format_udp_header(uint8_t *buff, uint16_t len, uint16_t sport, u
 static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport, uint8_t flags);
 static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr, socklen_t addr_size, ssize_t request_len, int proto, int ttl);
 
+static int send_generic_quic_request(char *host, char *sni, int locport, int ecn, int ttl);
+
 /* underlying request handlers to take care of repeated socket interactions */
 static int defer_tcp_connection(char *host, uint8_t *buff, ssize_t buff_len, int locport, int extport);
 static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len, int locport, int extport);
@@ -86,7 +90,7 @@ int send_tcp_http_request(char *host, char *ws, int locport)
 
         if (!host || !ws)
         {
-                fprintf(stderr, "send_tcp_http_request: bad arguments\n");
+                LOG_ERR("bad arguments\n");
                 return 1;
         }
 
@@ -97,7 +101,11 @@ int send_tcp_http_request(char *host, char *ws, int locport)
 int send_tcp_http_probe(char *host, int locport)
 {
         if (!host)
+        {
+                LOG_ERR("bad arguments\n");
                 return 1;
+        }
+
         uint8_t buff[64], *end_ptr;
         end_ptr = format_tcp_header(buff, locport, PORT_HTTP, 0x01);
         return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP, IPPROTO_TCP);
@@ -110,7 +118,7 @@ int send_tcp_dns_request(char *host, char *ws, int locport)
 
         if (!host || !ws)
         {
-                fprintf(stderr, "send_tcp_dns_request: bad arguements\n");
+                LOG_ERR("bad arguments\n");
                 return 1;
         }
 
@@ -130,7 +138,7 @@ int send_udp_dns_request(char *host, char *ws, int locport)
 
         if (!host || !ws)
         {
-                fprintf(stderr, "send_udp_dns_request\n");
+                LOG_ERR("bad arguments\n");
                 return 1;
         }
 
@@ -140,9 +148,12 @@ int send_udp_dns_request(char *host, char *ws, int locport)
 
 int send_tcp_dns_probe(char *host, char *ws, int locport)
 {
-        printf("dns probe code called\n");
+
         if (!host)
+        {
+                LOG_ERR("bad arguments\n");
                 return 1;
+        }
         uint8_t buff[64], *end_ptr;
         end_ptr = format_tcp_header(buff, locport, PORT_DNS, 0x01);
         return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS, IPPROTO_TCP);
@@ -152,7 +163,10 @@ int send_udp_dns_probe(char *host, char *ws, int locport)
 {
         uint8_t buff[512], *end_ptr;
         if (!host || !ws)
+        {
+                LOG_ERR("bad arguments\n");
                 return 1;
+        }
 
         uint8_t *payload = buff + sizeof(struct udphdr);
         end_ptr = format_dns_request(ws, payload);
@@ -171,7 +185,10 @@ int send_udp_ntp_request(char *host, int locport)
 {
         uint8_t buff[512], *end_ptr;
         if (!host)
+        {
+                LOG_ERR("bad arguments\n");
                 return 1;
+        }
 
         end_ptr = format_ntp_request(buff);
         return defer_udp_exchnage(host, buff, end_ptr - buff, locport, PORT_NTP);
@@ -182,7 +199,10 @@ int send_tcp_ntp_request(char *host, int locport)
         uint8_t buff[512];
 
         if (!host)
+        {
+                LOG_ERR("bad arguments\n");
                 return 1;
+        }
 
         sprintf((char *)buff, HTTP_REQ, "ntp.pool.org");
         return defer_tcp_connection(host, buff, strlen((char *)buff), locport, PORT_HTTP);
@@ -193,7 +213,10 @@ int send_udp_ntp_probe(char *host, int locport)
         uint8_t buff[512], *end_ptr;
 
         if (!host)
+        {
+                LOG_ERR("bad arguments\n");
                 return 1;
+        }
 
         end_ptr = format_ntp_request(buff + sizeof(struct udphdr));
         format_udp_header(buff, 48, locport, PORT_NTP);
@@ -210,7 +233,10 @@ int send_udp_ntp_probe(char *host, int locport)
 int send_tcp_ntp_probe(char *host, int locport)
 {
         if (!host)
+        {
+                LOG_ERR("bad arguments\n");
                 return 1;
+        }
         uint8_t buff[64], *end_ptr;
         end_ptr = format_tcp_header(buff, locport, PORT_HTTP, 0x01);
         return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP, IPPROTO_TCP);
@@ -230,11 +256,10 @@ static int host_to_sockaddr(char *host, int extport, struct sockaddr_storage *ad
 {
         int err = 0;
         int addr_family;
-        printf("host is %s\n", host);
 
         if (!host || !addr || !addr_size)
         {
-                printf("hts failed precond\n");
+                LOG_ERR("bad arguments\n");
                 return 1;
         }
 
@@ -242,7 +267,6 @@ static int host_to_sockaddr(char *host, int extport, struct sockaddr_storage *ad
 
         if (addr_family == AF_INET)
         {
-                printf("ipv4 path\n");
                 struct sockaddr_in *addr4 = (struct sockaddr_in *)addr;
                 addr4->sin_family = AF_INET;
                 addr4->sin_port = htons(extport);
@@ -252,8 +276,6 @@ static int host_to_sockaddr(char *host, int extport, struct sockaddr_storage *ad
         }
         else if (addr_family == AF_INET6)
         {
-                printf("ipv6 path\n");
-
                 struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)addr;
                 memset(addr6, 0, sizeof(struct sockaddr_in6));
                 addr6->sin6_family = AF_INET6;
@@ -265,7 +287,7 @@ static int host_to_sockaddr(char *host, int extport, struct sockaddr_storage *ad
 
         if (err != 1)
         {
-                printf("inet pton err\n");
+                LOG_ERR("inet pton\n");
                 return 1;
         }
 
@@ -282,15 +304,14 @@ static int construct_sock_to_host(struct sockaddr_storage *addr, socklen_t *addr
         fd = socket(addr->ss_family, sock_type, 0);
         if (fd < 0)
         {
-                perror("construct sock to host");
-                return 1;
+                LOG_ERR("construct sock to host\n");
+                goto fail;
         }
 
         if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
         {
-                perror("construct sock to host: reuse port");
-                close(fd);
-                return -1;
+                LOG_ERR("construct sock to host: reuse port\n");
+                goto fail;
         }
 
         if (addr->ss_family == AF_INET)
@@ -309,37 +330,37 @@ static int construct_sock_to_host(struct sockaddr_storage *addr, socklen_t *addr
         }
         else
         {
-                fprintf(stderr, "socket family not supported\n");
-                close(fd);
-                return -1;
+                LOG_ERR("socket family not supported\n");
+                goto fail;
         }
         // give the same pre conditions to all sending functions
         // We dont change hosts on sending, so this is fine
         if (bind(fd, (struct sockaddr *)&host_addr, *addr_size))
         {
-                perror("failed to bind");
-                close(fd);
-                return -1;
+                LOG_ERR("failed to bind\n");
+                goto fail;
         }
 
         if (connect(fd, (struct sockaddr *)addr, *addr_size) == -1)
         {
-                perror("construct socket to host: connect");
-                close(fd);
-                return -1;
+                LOG_ERR("connect\n");
+                goto fail;
         }
 
         if (sock_type == SOCK_DGRAM)
         {
                 if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0)
                 {
-                        perror("construct sock to host: non block");
-                        close(fd);
-                        return -1;
+                        LOG_ERR("construct sock to host: non block\n");
+                        goto fail;
                 }
         }
 
         return fd;
+
+fail:
+        close(fd);
+        return -1;
 }
 
 static int construct_icmp_sock(struct sockaddr_storage *addr)
@@ -360,7 +381,7 @@ static int construct_icmp_sock(struct sockaddr_storage *addr)
         int err = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
         if (err)
         {
-                fprintf(stderr, "construct icmp sock: non block");
+                LOG_ERR("non block\n");
                 close(fd);
                 return -1;
         }
@@ -391,7 +412,7 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr, int socktype)
         }
         else
         {
-                fprintf(stderr, "contruct raw sock: socket family not supported");
+                LOG_ERR("socket family not supported\n");
                 return -1;
         }
 
@@ -399,17 +420,17 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr, int socktype)
 
         if (fd < 0)
         {
-                fprintf(stderr, "contruct raw sock: socket creation");
+                LOG_ERR("socket creation\n");
                 return -1;
         }
         if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK))
         {
-                fprintf(stderr, "construct_rawsock_to_host:nonblock");
+                LOG_ERR("nonblock\n");
                 return -1;
         }
         if (setsockopt(fd, sock_opt, sock_hdr, &one, sizeof(one)) < 0)
         {
-                perror("construct_rawsock: IP(V6)_HDRINCL");
+                LOG_ERR("IP(V6)_HDRINCL\n");
                 return -1;
         }
 
@@ -417,7 +438,7 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr, int socktype)
         {
                 if (setsockopt(fd, sock_opt, IPV6_RECVPKTINFO, &one, sizeof(one)) < 0)
                 {
-                        perror("construct_rawsock:recvmsg sockopt");
+                        LOG_ERR("recvmsg sockopt\n");
                         return -1;
                 }
         }
@@ -429,15 +450,6 @@ static int get_host_ipv6_addr(struct in6_addr *host)
 {
         int ret = 1;
         struct ifaddrs *ifa;
-
-        // static struct in6_addr cache_ret;
-        // static int cache = 0;
-
-        // if (cache)
-        // {
-        //         memcpy(host, &cache_ret, sizeof(struct in6_addr));
-        //         return 0;
-        // }
 
         if (getifaddrs(&ifa) == -1)
         {
@@ -460,19 +472,15 @@ static int get_host_ipv6_addr(struct in6_addr *host)
                 struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)ifa_i->ifa_addr;
                 if (IN6_IS_ADDR_LINKLOCAL(&in6->sin6_addr))
                 {
-                        printf("caught link local\n");
                         continue;
                 }
 
                 memcpy(host, &in6->sin6_addr, sizeof(struct in6_addr));
-                //memcpy(&cache_ret, &in6->sin6_addr, sizeof(struct in6_addr));
-                //cache = 1;
                 ret = 0;
                 break;
         }
 
         freeifaddrs(ifa);
-        printf("get ipv6 addrs returned\n");
         return ret;
 }
 /**
@@ -491,7 +499,7 @@ static int check_raw_response(int fd, int ttlfd, struct sockaddr_storage *addr)
 
         if (addr->ss_family != AF_INET && addr->ss_family != AF_INET6)
         {
-                fprintf(stderr, "check raw response: socket family not supported\n");
+                LOG_ERR("socket family not supported\n");
                 return -1;
         }
 
@@ -509,7 +517,7 @@ static int check_raw_response(int fd, int ttlfd, struct sockaddr_storage *addr)
                 }
                 else
                 {
-                        fprintf(stderr, "address family not supported\n");
+                        LOG_ERR("address family not supported\n");
                 }
 
                 // try spin again if we dont get anything back
@@ -538,18 +546,15 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr)
 
         if (recvfrom(ttlfd, buff, sizeof buff, 0, NULL, NULL) > 0)
         {
-                printf("got some icmp traffic\n");
                 ip = (struct iphdr *)buff;
                 icmp = (struct icmphdr *)(buff + sizeof(struct iphdr));
 
                 if (icmp->code == ICMP_EXC_TTL)
                 {
-                        printf("was ttl exceed\n");
                         return 1;
                 }
                 if (icmp->type == ICMP_DEST_UNREACH)
                 {
-                        printf("Was dest unreach\n");
                         return 2;
                 }
         }
@@ -557,11 +562,9 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr)
         if (recvfrom(fd, buff, sizeof buff, 0, NULL, NULL) > 0)
         {
 
-                printf("Got response from somewhere");
                 ip = (struct iphdr *)buff;
                 if (!memcmp(&ip->saddr, &srv_addr->sin_addr, sizeof(struct in_addr)))
                 {
-                        printf("wasform host\n");
                         return 0;
                 }
         }
@@ -576,12 +579,10 @@ static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr)
         // check if we got an icmp ttl exceeded
         if (recvfrom(ttlfd, buff, sizeof buff, 0, NULL, NULL) > 0)
         {
-                printf("got icmp traffic\n");
                 icmp = (struct icmp6_hdr *)buff;
                 if (icmp->icmp6_type == ICMP6_TIME_EXCEEDED &&
                     icmp->icmp6_code == ICMP6_TIME_EXCEED_TRANSIT)
                 {
-                        printf("got time exceeded\n");
                         return 1;
                 }
         }
@@ -615,13 +616,10 @@ static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr)
                         continue;
                 }
                 CMSG_DATA(cmsg);
-                printf("addrlen was %d\n", mh.msg_namelen);
 
                 // at this point, peeraddr is the source sockaddr
                 if (!memcmp(&cname.sin6_addr, &srv_addr->sin6_addr, sizeof(struct in6_addr)))
                 {
-
-                        printf("was from host\n");
                         return 0;
                 }
         }
@@ -710,7 +708,7 @@ static void dns_name_fmt(uint8_t *dns, uint8_t *host)
 {
         int lock = 0, i;
         char host_tmp[INET6_ADDRSTRLEN];
-        strcpy(host_tmp, host);
+        strcpy(host_tmp, (char *)host);
         strcat(host_tmp, ".");
 
         for (i = 0; i < strlen((char *)host_tmp); i++)
@@ -765,7 +763,7 @@ static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport,
 {
         struct tcphdr *hdr;
 
-        //srand(time(NULL));
+        srand(time(NULL));
 
         if (!buff)
                 return NULL;
@@ -773,7 +771,7 @@ static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport,
         hdr = (struct tcphdr *)buff;
         hdr->source = htons(sport);
         hdr->dest = htons(dport);
-        hdr->seq = htons(1123); //rand();
+        hdr->seq = rand();
         hdr->ack_seq = (flags & 0x02) ? 1 : 0;
         hdr->doff = 5;
         hdr->syn = flags & 0x01;
@@ -813,7 +811,7 @@ static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr, s
                 memcpy(&ip6->daddr, &((struct sockaddr_in6 *)addr)->sin6_addr, sizeof(struct in6_addr));
                 if (get_host_ipv6_addr(&ip6->saddr) == 1)
                 {
-                        fprintf(stderr, "fmt_raw_ip_hdr:get ip6 addr\n");
+                        LOG_ERR("get ipv6 addr\n");
                         return NULL;
                 }
 
@@ -825,11 +823,11 @@ static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr, s
 
                 return buff + sizeof(struct ipv6hdr);
         }
-        else{
-                fprintf(stderr, "fmt_ip_hdr:address family\n");
+        else
+        {
+                LOG_ERR("address family\n");
         }
 
-        fprintf(stderr, "sock family not supported\n");
         return NULL;
 }
 
@@ -856,7 +854,7 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len, int l
 
         if (fd < 0)
         {
-                printf("defer_udp: bad fd\n");
+                LOG_ERR("bad fd\n");
                 return 1;
         }
 
@@ -866,7 +864,7 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len, int l
         {
                 if (send(fd, buff, buff_len, 0) < 0)
                 {
-                        perror("defer_udp_exchange:send");
+                        LOG_ERR("send\n");
                         ret = 1;
                         break;
                 }
@@ -895,21 +893,17 @@ static int defer_tcp_connection(char *host, uint8_t *buff, ssize_t buff_len, int
 
         // get host to some sort of address, we dont really care
         host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len);
-        printf("construct sock\n");
         fd = construct_sock_to_host(
             &srv_addr,
             &srv_addr_len,
             locport,
             SOCK_STREAM);
-        printf("construct sock end\n");
         if (fd < 0)
         {
-                printf("defer_tcp: bad fd\n");
+                LOG_ERR("defer_tcp: bad fd\n");
                 return 1;
         }
-        printf("tpc-send");
         tcp_send_all(fd, buff, buff_len);
-        printf("send-wait on recieve");
         while (recv(fd, recv_buff, sizeof(recv_buff), 0) > 0)
                 ;
 
@@ -955,69 +949,64 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
         err = host_to_sockaddr(host, 0, &srv_addr, &srv_addr_size);
         if (err)
         {
-                fprintf(stderr, "defer_raw: host_to_sockaddr\n");
+                LOG_ERR("host_to_sockaddr\n");
                 return 1;
         }
-        
+
         struct sockaddr_in *ad = &srv_addr;
         ad->sin_port = htons(6000);
 
         fd = contruct_rawsock_to_host(&srv_addr, proto);
         if (fd < 0)
         {
-                fprintf(stderr, "defer_raw_tracert: bad fd\n");
+                LOG_ERR("bad fd\n");
                 return 1;
         }
 
         icmpfd = construct_icmp_sock(&srv_addr);
         if (icmpfd < 0)
         {
-                fprintf(stderr, "defer_raw_tracert: bad icmp fd\n");
+                LOG_ERR("bad icmp fd\n");
                 return 1;
         }
 
         for (int i = 1; i < MAX_TTL; i++)
         {
                 uint8_t *offset = format_ip_header(pkt, &srv_addr, srv_addr_size, buff_len, proto, i);
-                if(!offset)
+                if (!offset)
                         goto unreachable;
                 memcpy(offset, buff, buff_len);
                 for (int j = 0; j < MAX_UDP; j++)
                 {
                         int len = (offset - pkt) + buff_len;
-                        printf("len is %d\n", len);
                         int ret;
                         ret = sendto(fd, pkt, len, 0, (struct sockaddr *)&srv_addr, srv_addr_size);
                         if (ret < 0)
                         {
-                                perror("send failed");
+                                LOG_ERR("send failed\n");
                                 continue;
                         }
-                        printf("sendto(...) = %d\n", ret);
 
                         nanosleep(&rst, &rst);
                         ret = check_raw_response(fd, icmpfd, &srv_addr);
                         if (ret == 0)
                         {
-                                printf("Got some response from host\n");
                                 goto response;
                         }
                         else if (ret == 1)
                         {
-                                printf("Got a ttl exceed\n");
                                 break;
                         }
                         else if (ret == 2)
                         {
                                 goto unreachable;
                         }
-                        else
-                        {
-                                fprintf(stderr, "defer_raw_tracert:check_raw_response\n");
-                        }
+                        
+                        // Buffer is empty
+                        // Spin and send again
+                
                 }
         }
-
 
         setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *)(&optval), sizeof(optval));
         close(fd);
@@ -1026,18 +1015,17 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
 
 response:
         setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *)(&optval), sizeof(optval));
-        sleep(2);
+        sleep(1);
         close(fd);
         close(icmpfd);
         return 0;
 
 unreachable:
         setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *)(&optval), sizeof(optval));
-        sleep(2);
+        sleep(1);
         close(fd);
         close(icmpfd);
         return 1;
-
 }
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
@@ -1045,7 +1033,8 @@ static FILE *s_log_fh;
 
 struct h3cli
 {
-        int h3cli_sock_fd;  /* socket */
+        int h3cli_sock_fd; /* socket */
+
         ev_io h3cli_sock_w; /* socket watcher */
         ev_timer h3cli_timer;
         struct ev_loop *h3cli_loop;
@@ -1071,29 +1060,11 @@ static const struct lsquic_logger_if logger_if = {
     h3cli_log_buf,
 };
 
-static int s_verbose;
-static void
-LOG(const char *fmt, ...)
-{
-        if (s_verbose)
-        {
-                va_list ap;
-                fprintf(s_log_fh, "LOG: ");
-                va_start(ap, fmt);
-                (void)vfprintf(s_log_fh, fmt, ap);
-                va_end(ap);
-                fprintf(s_log_fh, "\n");
-        }
-}
 
 static int
 h3cli_setup_control_message(struct msghdr *msg, const struct lsquic_out_spec *spec, unsigned char *buff, ssize_t buff_len)
 {
         struct cmsghdr *cmsg;
-        struct sockaddr_in *local_sa;
-        struct sockaddr_in6 *local_sa6;
-        struct in_pktinfo info;
-        struct in6_pktinfo info6;
         size_t ctl_len;
 
         msg->msg_control = buff;
@@ -1170,14 +1141,14 @@ h3cli_packets_out(void *packets_out_ctx, const struct lsquic_out_spec *specs,
                 s = sendmsg(fd, &msg, 0);
                 if (s < 0)
                 {
-                        LOG("sendmsg failed: %s", strerror(errno));
+                        LOG_ERR("sendmsg failed: %s\n", strerror(errno));
                         break;
                 }
                 ++n;
         } while (n < count);
 
         if (n < count)
-                LOG("could not send all of them"); /* TODO */
+                LOG_INFO("could not send all of them\n");
 
         if (n > 0)
                 return n;
@@ -1192,7 +1163,6 @@ static lsquic_conn_ctx_t *
 h3cli_client_on_new_conn(void *stream_if_ctx, struct lsquic_conn *conn)
 {
         struct h3cli *const h3cli = stream_if_ctx;
-        LOG("created connection");
         lsquic_conn_make_stream(conn);
         return (void *)h3cli;
 }
@@ -1201,8 +1171,6 @@ static void
 h3cli_client_on_conn_closed(struct lsquic_conn *conn)
 {
         struct h3cli *const h3cli = (void *)lsquic_conn_get_ctx(conn);
-
-        LOG("client connection closed -- stop reading from socket");
         ev_io_stop(h3cli->h3cli_loop, &h3cli->h3cli_sock_w);
 }
 
@@ -1210,7 +1178,6 @@ static lsquic_stream_ctx_t *
 h3cli_client_on_new_stream(void *stream_if_ctx, struct lsquic_stream *stream)
 {
         struct h3cli *h3cli = stream_if_ctx;
-        LOG("created new stream, we want to write");
         lsquic_stream_wantwrite(stream, 1);
         /* return h3cli: we don't have any stream-specific context */
         return (void *)h3cli;
@@ -1231,13 +1198,11 @@ h3cli_client_on_read(struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
         }
         else if (nread == 0)
         {
-                LOG("read to end-of-stream: close connection");
                 lsquic_stream_shutdown(stream, 0);
                 lsquic_conn_close(lsquic_stream_conn(stream));
         }
         else
         {
-                LOG("error reading from stream (%s) -- exit loop");
                 ev_break(h3cli->h3cli_loop, EVBREAK_ONE);
         }
 }
@@ -1293,7 +1258,6 @@ h3cli_client_on_write(struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
         }
         else
         {
-                LOG("ERROR: lsquic_stream_send_headers failed: %s", strerror(errno));
                 lsquic_conn_abort(lsquic_stream_conn(stream));
         }
 }
@@ -1301,7 +1265,7 @@ h3cli_client_on_write(struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
 static void
 h3cli_client_on_close(struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
 {
-        LOG("stream closed");
+ 
 }
 
 static struct lsquic_stream_if h3cli_client_callbacks =
@@ -1311,7 +1275,7 @@ static struct lsquic_stream_if h3cli_client_callbacks =
         .on_new_stream = h3cli_client_on_new_stream,
         .on_read = h3cli_client_on_read,
         .on_write = h3cli_client_on_write,
-        .on_close = h3cli_client_on_close,
+         .on_close = h3cli_client_on_close,
 };
 
 static int
@@ -1350,15 +1314,10 @@ h3cli_process_conns(struct h3cli *h3cli)
                         /* Expected case: convert to seconds */
                         timeout = (ev_tstamp)diff / 1000000;
                 else if (diff <= 0)
-                        /* It should not happen often that the next tick is in the past
-             * as we just processed connections.  Avoid a busy loop by
-             * scheduling an event:
-             */
                         timeout = 0.0;
                 else
                         /* Round up to granularity */
                         timeout = (ev_tstamp)LSQUIC_DF_CLOCK_GRANULARITY / 1000000;
-                LOG("converted diff %d usec to %.4lf seconds", diff, timeout);
                 ev_timer_init(&h3cli->h3cli_timer, h3cli_timer_expired, timeout, 0.);
                 ev_timer_start(h3cli->h3cli_loop, &h3cli->h3cli_timer);
         }
@@ -1392,7 +1351,6 @@ static void
 h3cli_proc_ancillary(struct msghdr *msg, struct sockaddr_storage *storage,
                      int *ecn)
 {
-        const struct in6_pktinfo *in6_pkt;
         struct cmsghdr *cmsg;
 
         for (cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg))
@@ -1439,7 +1397,7 @@ h3cli_read_socket(EV_P_ ev_io *w, int revents)
         if (-1 == nread)
         {
                 if (!(EAGAIN == errno || EWOULDBLOCK == errno))
-                        LOG("recvmsg: %s", strerror(errno));
+                        LOG_ERR("recvmsg: %s", strerror(errno));
                 return;
         }
 
@@ -1477,12 +1435,12 @@ keylog_open(void *ctx, lsquic_conn_t *conn)
         sz = snprintf(path, sizeof(path), "%s/%s.keys", dir, id_str);
         if ((size_t)sz >= sizeof(path))
         {
-                LOG("WARN: %s: file too long", __func__);
+                LOG_INFO("file too long\n");
                 return NULL;
         }
         fh = fopen(path, "wb");
         if (!fh)
-                LOG("WARN: could not open %s for writing: %s", path, strerror(errno));
+                LOG_INFO("Could not open %s for writing: %s\n", path, strerror(errno));
         return fh;
 }
 
@@ -1509,19 +1467,35 @@ static const struct lsquic_keylog_if keylog_if =
 
 int send_quic_http_request(char *host, char *sni, int locport, int ecn)
 {
+
+        return send_generic_quic_request(host, sni, locport, ecn, MAX_TTL);
+}
+
+int send_quic_http_probe(char *host, char *sni, int locport, int ecn)
+{
+        int ret;
+        for (int i = 1; i < MAX_TTL; i++)
+        {
+                ret = send_generic_quic_request(host, sni, locport, ecn, i);
+                if (ret)
+                {
+                        printf("seen some response");
+                        break;
+                }
+        }
+}
+
+static int send_generic_quic_request(char *host, char *sni, int locport, int ecn, int ttl)
+{
         struct lsquic_engine_api eapi;
         const char *cert_file = NULL, *key_file = NULL, *val, *port_str;
-        int opt, version_cleared = 0, settings_initialized = 0;
+        int opt, version_cleared = 0;
         struct addrinfo hints, *res = NULL;
         socklen_t socklen;
         struct lsquic_engine_settings settings;
         struct h3cli h3cli;
-        union
-        {
-                struct sockaddr sa;
-                struct sockaddr_in addr4;
-                struct sockaddr_in6 addr6;
-        } addr;
+        struct sockaddr_storage addr;
+        socklen_t addr_len;
         const char *key_log_dir = "data";
         key_file = "heelo.keys";
         char errbuf[0x100];
@@ -1538,45 +1512,35 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
 
         lsquic_set_log_level("debug");
 
-        /* Resolve hostname */
-        memset(&hints, 0, sizeof(hints));
-        hints.ai_flags = AI_NUMERICSERV;
-        if (0 != getaddrinfo(h3cli.h3cli_hostname, port_str, &hints, &res))
+        // resolve host to sockaddr
+        int ret = host_to_sockaddr(host, PORT_TLS, &addr, &addr_len);
+        if (ret)
         {
-                perror("getaddrinfo");
+                fprintf(stderr, "send_quic_http");
                 return 1;
-                ;
         }
-        memcpy(&addr.sa, res->ai_addr, res->ai_addrlen);
 
-        if (!settings_initialized)
-                lsquic_engine_init_settings(&settings, LSENG_HTTP);
+        lsquic_engine_init_settings(&settings, LSENG_HTTP);
 
-        /* At the time of this writing, using the loss bits extension causes
-     * decryption failures in Wireshark.  For the purposes of the demo, we
-     * override the default.
-     */
         settings.es_ql_bits = 0;
         settings.es_versions = 1 << LSQVER_ID29;
         settings.es_ecn = ecn;
 
-        /* Check settings */
         if (0 != lsquic_engine_check_settings(&settings, LSENG_HTTP,
                                               errbuf, sizeof(errbuf)))
         {
-                LOG("invalid settings: %s", errbuf);
+                LOG_INFO("invalid settings: %s\n", errbuf);
                 return 1;
         }
 
         /* Initialize event loop */
         h3cli.h3cli_loop = EV_DEFAULT;
-        h3cli.h3cli_sock_fd = socket(addr.sa.sa_family, SOCK_DGRAM, 0);
-        /* Set up socket */
+        h3cli.h3cli_sock_fd = socket(addr.ss_family, SOCK_DGRAM, 0);
+
         if (h3cli.h3cli_sock_fd < 0)
         {
                 perror("socket");
                 return 1;
-                ;
         }
         if (0 != h3cli_set_nonblocking(h3cli.h3cli_sock_fd))
         {
@@ -1595,10 +1559,11 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
                 h3cli_set_ecn(h3cli.h3cli_sock_fd, (struct sockaddr *)&addr);
         }
 
-        h3cli.h3cli_local_sas.ss_family = addr.sa.sa_family;
+        h3cli.h3cli_local_sas.ss_family = addr.ss_family;
         struct sockaddr_in *loc_addr = &h3cli.h3cli_local_sas;
         loc_addr->sin_port = htons(6000);
         socklen = sizeof(h3cli.h3cli_local_sas);
+
         if (0 != bind(h3cli.h3cli_sock_fd,
                       (struct sockaddr *)&h3cli.h3cli_local_sas, socklen))
         {
@@ -1629,176 +1594,27 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
         h3cli.h3cli_engine = lsquic_engine_new(LSENG_HTTP, &eapi);
         if (!h3cli.h3cli_engine)
         {
-                LOG("cannot create engine");
+                LOG_ERR("cannot create engine\n");
                 return 1;
         }
+
+        setsockopt(h3cli.h3cli_sock_fd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
 
         h3cli.h3cli_timer.data = &h3cli;
         h3cli.h3cli_sock_w.data = &h3cli;
         h3cli.h3cli_conn = lsquic_engine_connect(
             h3cli.h3cli_engine, N_LSQVER,
-            (struct sockaddr *)&h3cli.h3cli_local_sas, &addr.sa,
+            (struct sockaddr *)&h3cli.h3cli_local_sas, &addr,
             (void *)(uintptr_t)h3cli.h3cli_sock_fd, /* Peer ctx */
             NULL, h3cli.h3cli_hostname, 0, NULL, 0, NULL, 0);
         if (!h3cli.h3cli_conn)
         {
-                LOG("cannot create connection");
+                LOG_ERR("cannot create connection\n");
                 return 1;
         }
         h3cli_process_conns(&h3cli);
         ev_run(h3cli.h3cli_loop, 0);
         lsquic_engine_destroy(h3cli.h3cli_engine);
-        sleep(2);
-        return 0;
-}
-
-int send_quic_http_probe(char *host, char *sni, int locport, int ecn)
-{
-        struct lsquic_engine_api eapi;
-        const char *cert_file = NULL, *key_file = NULL, *val, *port_str;
-        int opt, version_cleared = 0, settings_initialized = 0;
-        struct addrinfo hints, *res = NULL;
-        socklen_t socklen;
-        struct lsquic_engine_settings settings;
-        struct h3cli h3cli;
-        union
-        {
-                struct sockaddr sa;
-                struct sockaddr_in addr4;
-                struct sockaddr_in6 addr6;
-        } addr;
-        const char *key_log_dir = NULL;
-        char errbuf[0x100];
-
-        s_log_fh = stderr;
-
-        memset(&h3cli, 0, sizeof(h3cli));
-
-        /* Need hostname, port, and path */
-        h3cli.h3cli_method = "GET";
-        h3cli.h3cli_hostname = sni;
-        port_str = "443";
-        h3cli.h3cli_path = "/";
-
-        /* Resolve hostname */
-        memset(&hints, 0, sizeof(hints));
-        hints.ai_flags = AI_NUMERICSERV;
-        if (0 != getaddrinfo(h3cli.h3cli_hostname, port_str, &hints, &res))
-        {
-                perror("getaddrinfo");
-                return 1;
-                ;
-        }
-        memcpy(&addr.sa, res->ai_addr, res->ai_addrlen);
-
-        if (!settings_initialized)
-                lsquic_engine_init_settings(&settings, LSENG_HTTP);
-
-        /* At the time of this writing, using the loss bits extension causes
-     * decryption failures in Wireshark.  For the purposes of the demo, we
-     * override the default.
-     */
-        settings.es_ql_bits = 0;
-        settings.es_versions = 1 << LSQVER_ID29;
-        settings.es_ecn = ecn;
-
-        /* Check settings */
-        if (0 != lsquic_engine_check_settings(&settings, LSENG_HTTP,
-                                              errbuf, sizeof(errbuf)))
-        {
-                LOG("invalid settings: %s", errbuf);
-                return 1;
-        }
-
-        /* Initialize event loop */
-        h3cli.h3cli_loop = EV_DEFAULT;
-        h3cli.h3cli_sock_fd = socket(addr.sa.sa_family, SOCK_DGRAM, 0);
-
-        /* Set up socket */
-        if (h3cli.h3cli_sock_fd < 0)
-        {
-                perror("socket");
-                return 1;
-                
-        }
-        if (0 != h3cli_set_nonblocking(h3cli.h3cli_sock_fd))
-        {
-                perror("fcntl");
-                return 1;
-        }
-
-        h3cli.h3cli_local_sas.ss_family = addr.sa.sa_family;
-        struct sockaddr_in *loc_addr = &h3cli.h3cli_local_sas;
-        loc_addr->sin_port = htons(6000);
-        socklen = sizeof(struct sockaddr_in);
-        if (0 != bind(h3cli.h3cli_sock_fd,
-                      (struct sockaddr *)&h3cli.h3cli_local_sas, socklen))
-        {
-                perror("bind");
-                return 1;
-        }
-        ev_init(&h3cli.h3cli_timer, h3cli_timer_expired);
-        ev_io_init(&h3cli.h3cli_sock_w, h3cli_read_socket, h3cli.h3cli_sock_fd, EV_READ);
-        ev_io_start(h3cli.h3cli_loop, &h3cli.h3cli_sock_w);
-
-        /* Initialize logging */
-        setvbuf(s_log_fh, NULL, _IOLBF, 0);
-        lsquic_logger_init(&logger_if, s_log_fh, LLTS_HHMMSSUS);
-
-        /* Initialize callbacks */
-        memset(&eapi, 0, sizeof(eapi));
-        eapi.ea_packets_out = h3cli_packets_out;
-        eapi.ea_packets_out_ctx = &h3cli;
-        eapi.ea_stream_if = &h3cli_client_callbacks;
-        eapi.ea_stream_if_ctx = &h3cli;
-        if (key_log_dir)
-        {
-                eapi.ea_keylog_if = &keylog_if;
-                eapi.ea_keylog_ctx = (void *)key_log_dir;
-        }
-        eapi.ea_settings = &settings;
-
-        h3cli.h3cli_engine = lsquic_engine_new(LSENG_HTTP, &eapi);
-        if (!h3cli.h3cli_engine)
-        {
-                LOG("cannot create engine");
-                return 1;
-        }
-
-        h3cli.h3cli_timer.data = &h3cli;
-        h3cli.h3cli_sock_w.data = &h3cli;
-
-        int ttlfd = construct_icmp_sock(&addr);
-        if(ttlfd < 0)
-                perror("bad sock");
-
-        struct timespec rst = UDP_DLY;
-
-        // todo add a flag that checks if we got anything back from
-        // the server in one of the callbacks, to immediately close the connection
-
-        for (int i = 1; i < MAX_TTL; i++)
-        {
-                printf("loop\n");
-                uint8_t buff[500];
-                setsockopt(h3cli.h3cli_sock_fd, IPPROTO_IP, IP_TTL, &i, sizeof(i));
-
-                h3cli.h3cli_conn = lsquic_engine_connect(
-                    h3cli.h3cli_engine, N_LSQVER,
-                    (struct sockaddr *)&h3cli.h3cli_local_sas, &addr.sa,
-                    (void *)(uintptr_t)h3cli.h3cli_sock_fd,
-                    NULL, h3cli.h3cli_hostname, 0, NULL, 0, NULL, 0);
-                h3cli_process_conns(&h3cli);
-                sleep(2);
-                lsquic_conn_close(h3cli.h3cli_conn);
-                
-        
-        }
-
-        
-        ev_run(h3cli.h3cli_loop, 0);
-
-        lsquic_engine_destroy(h3cli.h3cli_engine);
-        sleep(2);
+        sleep(1);
         return 0;
 }

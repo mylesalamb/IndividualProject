@@ -1,8 +1,8 @@
 EXEC=ecnDetector
-EXECSOURCES=connector.o netinject.o connector.o pcapture.o driver.o parser.o context.o
+EXECSOURCES=connector.o netinject.o connector.o pcapture.o driver.o parser.o context.o log.o
 WORK_DIR=$(shell pwd)
 CC=clang
-CFLAGS=-O2 -Wall -Wextra -Iboringssl/include -Ilsquic/include -Ilsquic/src/liblsquic
+CFLAGS=-O2 -Wall -Iboringssl/include -Ilsquic/include -Ilsquic/src/liblsquic
 LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink -lev -llsquic -lz -lm \
 		-L$(WORK_DIR)/boringssl/ssl -L$(WORK_DIR)/boringssl/crypto -lssl -lcrypto # link against boringssl defined
 

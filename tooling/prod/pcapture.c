@@ -13,6 +13,7 @@
 
 #include "pcapture.h"
 #include "context.h"
+#include "log.h"
 
 static void *pcap_controller(void *arg);
 static void pcap_log_conn(struct pcap_controller_t *pc);
@@ -39,11 +40,11 @@ struct pcap_controller_t *pcap_init(char *alias, char *dirname)
         char cwd[PATH_MAX];
         char *outdir = malloc(PATH_MAX + strlen(dirname) + 1);
         if(getcwd(cwd, sizeof(cwd)) == NULL){
-                perror("pcap:cwd error");
+                LOG_ERR("cwd\n");
                 return NULL;
         }
-        sprintf(outdir, "%s/%s", cwd, dirname);
 
+        sprintf(outdir, "%s/%s", cwd, dirname);
         if (stat(outdir, &st) == -1)
         {
                 mkdir(outdir, 0777);
@@ -54,14 +55,14 @@ struct pcap_controller_t *pcap_init(char *alias, char *dirname)
         pcap_findalldevs(&devs, errbuff);
         if (!devs)
         {
-                perror("pcap_init:no devices");
+                LOG_ERR("pcap_init:no devices\n");
                 return NULL;
         }
 
         char *dev = malloc(sizeof(char) * strlen(devs->name) + 1);
         if (!dev)
         {
-                perror("pcap_init:malloc");
+                LOG_ERR("pcap_init:malloc\n");
                 return NULL;
         }
         strcpy(dev, devs->name);
@@ -77,7 +78,7 @@ struct pcap_controller_t *pcap_init(char *alias, char *dirname)
         // start the controller and wait for the connection information to be recived
         if (pthread_create(&th, NULL, pcap_controller, pc))
         {
-                perror("pcap:thread creation");
+                LOG_ERR("pcap:thread creation\n");
                 return NULL;
         }
 
@@ -141,13 +142,15 @@ static bool get_connection_exit(struct pcap_controller_t *pc)
 
 static void pcap_log_conn(struct pcap_controller_t *pc)
 {
-        printf("outdir is %s\n", pc->outdir);
+
         char outfile[256];
         char context_str[128];
-        get_context_str(pc->ctx, context_str);
         
+        // Setup the name of the file from the controller context
+        get_context_str(pc->ctx, context_str);
         sprintf(outfile,"%s/%s", pc->outdir, context_str);
-        printf("outfile is %s", outfile);
+        LOG_INFO("outfile is %s\n", outfile);
+        
         pcap_dumper_t *pd;
         char filter_exp[64];
         sprintf(filter_exp, "port %d or dst port %d or icmp or icmp6", pc->ctx->port, pc->ctx->port);
@@ -157,30 +160,30 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         if (pcap_lookupnet(pc->pcap_dev, &ip, &subnet_mask, error_buffer) == -1)
         {
-                perror("pcap:device lookup");
+                LOG_ERR("pcap:device lookup\n");
                 ip = 0;
                 subnet_mask = 0;
         }
         pc->handle = pcap_open_live(pc->pcap_dev, BUFSIZ, 1, 1000, error_buffer);
         if (pc->handle == NULL)
         {
-                perror("pcap:open wireless");
+                LOG_ERR("open wireless\n");
                 return;
         }
         if (pcap_compile(pc->handle, &filter, filter_exp, 0, ip) == -1)
         {
-                perror("pcap:compile filter");
+                LOG_ERR("compile filter\n");
                 return;
         }
         if (pcap_setfilter(pc->handle, &filter) == -1)
         {
-                perror("pcap:set filter");
+                LOG_ERR("set filter\n");
                 return;
         }
 
         if (pcap_setnonblock(pc->handle, 1, error_buffer) == -1)
         {
-                perror("pcap:set non block");
+                LOG_ERR("set non block\n");
                 return;
         }
 
@@ -190,11 +193,10 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         pthread_mutex_unlock(&pc->mtx);
         pthread_cond_signal(&pc->cap_rdy);
 
-        printf("Start dumping packets\n");
         pd = pcap_dump_open(pc->handle, outfile);
 
         if(pd == NULL){
-                printf("call to open failed\n");
+                LOG_ERR("dump open\n");
         }
 
         do
@@ -207,8 +209,6 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         pcap_freecode(&filter);
         // close network interface handle
         pcap_close(pc->handle);
-
-        printf("pcap:return_to_controller\n");
 }
 
 /**

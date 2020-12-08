@@ -38,8 +38,6 @@ struct connection_context_t
 };
 
 void get_context_str(struct connection_context_t *ctx, char *dst);
-enum conn_proto str_to_proto(char *arg);
-char *proto_to_str(enum conn_proto arg);
 
 
 #endif
