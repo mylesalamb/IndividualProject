@@ -244,6 +244,10 @@
 * *3 hours* Refactor use of strcmp to jump tables + Various minor refactorings
 * *2 hours* Attempt to resolve bug with udp + tcp rawsockets
 
+## 7 Dec 2020
+
+* *3.5 hours* Solve bug with raw tracerts / switch compiler to clang
+
 <!--- 
 ### 19 Oct 2019
 
