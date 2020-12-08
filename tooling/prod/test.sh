@@ -4,14 +4,16 @@ DATASET=../datasets/pre-flight.dataset
 CONF="runs.conf"
 
 
-#sudo service cron stop
+sudo service cron stop
 
-# if [ ! $? -eq 0 ]; then 
-#     echo "could not stop cron" >> experiment.log
-# fi
+if [ ! $? -eq 0 ]; then 
+    echo "could not stop cron" >> experiment.log
+fi
 
 # change directory to where the script is being called from
 cd "$(dirname "$0")"
+
+mkdir keystore
 
 if [ ! -f $CONF ]; then
     echo "RUNS=0" >> $CONF

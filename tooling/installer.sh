@@ -16,7 +16,7 @@ GREPO_PATH=individualProject/tooling/prod
 # Update image to most recent version, and install
 # non crit dependencies
 sudo apt-get update -y
-sudo apt-get install -y clang  zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
+sudo apt-get install -y clang zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
 
 cd ~
 

@@ -28,7 +28,7 @@
 #include "log.h"
 
 #define IS_ECN(x) (x & 0x03)
-#define SHOULD_MARK(x) (!x->syn && !x->fin)
+#define IS_TCP_CONTROL(x) (x->syn || x->fin)
 
 static void *nf_controller(void *arg);
 static void nf_handle_conn(struct nf_controller_t *nfc);
@@ -341,7 +341,7 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
 
         if (ip4)
         {
-                if ((IS_ECN(ctx->flags)) && (SHOULD_MARK(hdr)))
+                if ((IS_ECN(ctx->flags)) && nfq_tcp_get_payload(hdr, pkt))
                         ip4->tos = ctx->flags;
                 nfq_ip_set_checksum(ip4);
                 nfq_tcp_compute_checksum_ipv4(hdr, ip4);
@@ -352,7 +352,7 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
 
         if (ip6)
         {
-                if (IS_ECN(ctx->flags) && SHOULD_MARK(hdr))
+                if (IS_ECN(ctx->flags) && nfq_tcp_get_payload(hdr, pkt))
                 {
                         ip6->priority = ctx->flags >> 4;
                         ip6->flow_lbl[0] = ctx->flags << 4;

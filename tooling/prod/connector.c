@@ -555,6 +555,10 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr)
                 }
                 if (icmp->type == ICMP_DEST_UNREACH)
                 {
+                        if (icmp->code == ICMP_UNREACH_HOST_PROHIB)
+                        {
+                                return 3;
+                        }
                         return 2;
                 }
         }
@@ -584,6 +588,12 @@ static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr)
                     icmp->icmp6_code == ICMP6_TIME_EXCEED_TRANSIT)
                 {
                         return 1;
+                }
+
+                if (icmp->icmp6_type == ICMP6_DST_UNREACH &&
+                    icmp->icmp6_code == ICMP6_DST_UNREACH_ADMIN)
+                {
+                        return 3;
                 }
         }
 
@@ -936,7 +946,6 @@ static int tcp_send_all(int fd, uint8_t *buff, size_t len)
 static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int locport, int extport, int proto)
 {
 
-        int optval = 0; /* May need to be 1 on some platforms */
         int fd, icmpfd, err;
         struct sockaddr_storage srv_addr;
         socklen_t srv_addr_size;
@@ -946,15 +955,12 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
         if (!buff)
                 return 1;
 
-        err = host_to_sockaddr(host, 0, &srv_addr, &srv_addr_size);
+        err = host_to_sockaddr(host, extport, &srv_addr, &srv_addr_size);
         if (err)
         {
                 LOG_ERR("host_to_sockaddr\n");
                 return 1;
         }
-
-        struct sockaddr_in *ad = &srv_addr;
-        ad->sin_port = htons(6000);
 
         fd = contruct_rawsock_to_host(&srv_addr, proto);
         if (fd < 0)
@@ -1001,41 +1007,46 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
                         {
                                 goto unreachable;
                         }
-                        
+
                         // Buffer is empty
                         // Spin and send again
-                
                 }
         }
 
-        setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *)(&optval), sizeof(optval));
         close(fd);
         close(icmpfd);
         return 1;
 
 response:
-        setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *)(&optval), sizeof(optval));
+
         sleep(1);
         close(fd);
         close(icmpfd);
         return 0;
 
 unreachable:
-        setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (char *)(&optval), sizeof(optval));
         sleep(1);
         close(fd);
         close(icmpfd);
         return 1;
 }
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-static FILE *s_log_fh;
+/**
+ *  Copyright (c) 2020 LiteSpeed Technologies
+ *  From here to the end of the file is an adopted version of the lsquic tutorial
+ *  https://github.com/dtikhonov/lsquic-tutorial
+ * 
+ *  This code is licensed under the MIT License, which is compatible with this project (under
+ *  the same license)
+ */
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 struct h3cli
 {
-        int h3cli_sock_fd; /* socket */
-
-        ev_io h3cli_sock_w; /* socket watcher */
+        int h3cli_sock_fd;
+        int seen_response;
+        ev_io h3cli_sock_w;
         ev_timer h3cli_timer;
         struct ev_loop *h3cli_loop;
         lsquic_engine_t *h3cli_engine;
@@ -1047,19 +1058,6 @@ struct h3cli
 };
 
 static void h3cli_process_conns(struct h3cli *);
-
-static int
-h3cli_log_buf(void *ctx, const char *buf, size_t len)
-{
-        FILE *out = ctx;
-        fwrite(buf, 1, len, out);
-        fflush(out);
-        return 0;
-}
-static const struct lsquic_logger_if logger_if = {
-    h3cli_log_buf,
-};
-
 
 static int
 h3cli_setup_control_message(struct msghdr *msg, const struct lsquic_out_spec *spec, unsigned char *buff, ssize_t buff_len)
@@ -1193,8 +1191,7 @@ h3cli_client_on_read(struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
         nread = lsquic_stream_read(stream, buf, sizeof(buf));
         if (nread > 0)
         {
-                // fwrite(buf, 1, nread, stdout);
-                // fflush(stdout);
+                h3cli->seen_response = 1;
         }
         else if (nread == 0)
         {
@@ -1265,7 +1262,6 @@ h3cli_client_on_write(struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
 static void
 h3cli_client_on_close(struct lsquic_stream *stream, lsquic_stream_ctx_t *h)
 {
- 
 }
 
 static struct lsquic_stream_if h3cli_client_callbacks =
@@ -1275,7 +1271,7 @@ static struct lsquic_stream_if h3cli_client_callbacks =
         .on_new_stream = h3cli_client_on_new_stream,
         .on_read = h3cli_client_on_read,
         .on_write = h3cli_client_on_write,
-         .on_close = h3cli_client_on_close,
+        .on_close = h3cli_client_on_close,
 };
 
 static int
@@ -1363,6 +1359,10 @@ h3cli_proc_ancillary(struct msghdr *msg, struct sockaddr_storage *storage,
         }
 }
 
+struct keylog_ctx
+{
+};
+
 #if defined(IP_RECVORIGDSTADDR)
 #define DST_MSG_SZ sizeof(struct sockaddr_in)
 #else
@@ -1416,6 +1416,8 @@ h3cli_read_socket(EV_P_ ev_io *w, int revents)
 static void *
 keylog_open(void *ctx, lsquic_conn_t *conn)
 {
+        // struct h3cli *h3_ctx = (struct h3cli *)ctx;
+        // printf("%s %s\n", h3_ctx->h3cli_hostname, h3_ctx->h3cli_method);
         const char *const dir = ctx ? ctx : ".";
         const lsquic_cid_t *cid;
         FILE *fh;
@@ -1473,50 +1475,74 @@ int send_quic_http_request(char *host, char *sni, int locport, int ecn)
 
 int send_quic_http_probe(char *host, char *sni, int locport, int ecn)
 {
-        int ret;
+        int icmpfd;
+        struct sockaddr_storage addr;
+        socklen_t socklen;
+        host_to_sockaddr(host, PORT_TLS, &addr, &socklen);
+        icmpfd = construct_icmp_sock(&addr);
         for (int i = 1; i < MAX_TTL; i++)
         {
-                ret = send_generic_quic_request(host, sni, locport, ecn, i);
-                if (ret)
+                int ret = send_generic_quic_request(host, sni, locport, ecn, i);
+                if (!ret)
                 {
-                        printf("seen some response");
-                        break;
+                        printf("seen some response\n");
+                        return 0;
+                }
+                // pass an invalid fd, disable check for host
+                if (addr.ss_family == AF_INET)
+                {
+                        ret = -1;
+                        int spin = 0;
+                        while (spin++ < 100 || ret != -1)
+                        {
+                                ret = check_ip4_response(-1, icmpfd, (struct sockaddr_in *)&addr);
+                        }
+                        // icmp host prohibited
+                        if (ret == 3)
+                        {
+                                break;
+                        }
+                }
+                else if (addr.ss_family == AF_INET6)
+                {
+                        ret = -1;
+                        int spin = 0;
+                        while (spin++ < 100 || ret != -1)
+                        {
+                                ret = check_ip6_response(-1, icmpfd, (struct sockaddr_in6 *)&addr);
+                        }
+                        if (ret == 3)
+                        {
+                        }
                 }
         }
+
+        return 1;
 }
 
 static int send_generic_quic_request(char *host, char *sni, int locport, int ecn, int ttl)
 {
         struct lsquic_engine_api eapi;
-        const char *cert_file = NULL, *key_file = NULL, *val, *port_str;
-        int opt, version_cleared = 0;
-        struct addrinfo hints, *res = NULL;
-        socklen_t socklen;
+        socklen_t socklen = 0;
         struct lsquic_engine_settings settings;
         struct h3cli h3cli;
         struct sockaddr_storage addr;
         socklen_t addr_len;
-        const char *key_log_dir = "data";
-        key_file = "heelo.keys";
+        const char *key_log_dir = "keystore";
         char errbuf[0x100];
-
-        s_log_fh = stdout;
 
         memset(&h3cli, 0, sizeof(h3cli));
 
         /* Need hostname, port, and path */
         h3cli.h3cli_method = "GET";
         h3cli.h3cli_hostname = sni;
-        port_str = "443";
         h3cli.h3cli_path = "/";
-
-        lsquic_set_log_level("debug");
 
         // resolve host to sockaddr
         int ret = host_to_sockaddr(host, PORT_TLS, &addr, &addr_len);
         if (ret)
         {
-                fprintf(stderr, "send_quic_http");
+                fprintf(stderr, "send_quic_http\n");
                 return 1;
         }
 
@@ -1560,9 +1586,26 @@ static int send_generic_quic_request(char *host, char *sni, int locport, int ecn
         }
 
         h3cli.h3cli_local_sas.ss_family = addr.ss_family;
-        struct sockaddr_in *loc_addr = &h3cli.h3cli_local_sas;
-        loc_addr->sin_port = htons(6000);
-        socklen = sizeof(h3cli.h3cli_local_sas);
+
+        if (addr.ss_family == AF_INET)
+        {
+                struct sockaddr_in *loc_addr = (struct sockaddr_in *)&h3cli.h3cli_local_sas;
+                loc_addr->sin_port = htons(6000);
+                socklen = sizeof(struct sockaddr_in);
+        }
+        else if (addr.ss_family == AF_INET6)
+        {
+
+                struct sockaddr_in6 *loc_addr = (struct sockaddr_in6 *)&h3cli.h3cli_local_sas;
+                // this should really get moved somewhere nicer, rather than spin in tracert
+                if (get_host_ipv6_addr(&loc_addr->sin6_addr))
+                {
+                        LOG_ERR("Ext host is ipv6, with no IPv6 addr\n");
+                        return -1;
+                }
+                loc_addr->sin6_port = htons(6000);
+                socklen = sizeof(struct sockaddr_in6);
+        }
 
         if (0 != bind(h3cli.h3cli_sock_fd,
                       (struct sockaddr *)&h3cli.h3cli_local_sas, socklen))
@@ -1573,10 +1616,6 @@ static int send_generic_quic_request(char *host, char *sni, int locport, int ecn
         ev_init(&h3cli.h3cli_timer, h3cli_timer_expired);
         ev_io_init(&h3cli.h3cli_sock_w, h3cli_read_socket, h3cli.h3cli_sock_fd, EV_READ);
         ev_io_start(h3cli.h3cli_loop, &h3cli.h3cli_sock_w);
-
-        /* Initialize logging */
-        setvbuf(s_log_fh, NULL, _IOLBF, 0);
-        lsquic_logger_init(&logger_if, s_log_fh, LLTS_HHMMSSUS);
 
         /* Initialize callbacks */
         memset(&eapi, 0, sizeof(eapi));
@@ -1604,7 +1643,7 @@ static int send_generic_quic_request(char *host, char *sni, int locport, int ecn
         h3cli.h3cli_sock_w.data = &h3cli;
         h3cli.h3cli_conn = lsquic_engine_connect(
             h3cli.h3cli_engine, N_LSQVER,
-            (struct sockaddr *)&h3cli.h3cli_local_sas, &addr,
+            (struct sockaddr *)&h3cli.h3cli_local_sas, (struct sockaddr *)&addr,
             (void *)(uintptr_t)h3cli.h3cli_sock_fd, /* Peer ctx */
             NULL, h3cli.h3cli_hostname, 0, NULL, 0, NULL, 0);
         if (!h3cli.h3cli_conn)
@@ -1616,5 +1655,9 @@ static int send_generic_quic_request(char *host, char *sni, int locport, int ecn
         ev_run(h3cli.h3cli_loop, 0);
         lsquic_engine_destroy(h3cli.h3cli_engine);
         sleep(1);
-        return 0;
+
+        if (h3cli.seen_response)
+                return 0;
+
+        return -1;
 }

@@ -161,7 +161,7 @@ static int dispatch_web(struct transaction_node_t *transac,
         }
 
         transac->ctx->proto = TCP_PROBE;
-        for (uint8_t ecn = 0; ecn < 1; ecn++)
+        for (uint8_t ecn = 0; ecn < 4; ecn++)
         {
                 transac->ctx->flags = ecn;
 
@@ -240,7 +240,7 @@ static int dispatch_dns(struct transaction_node_t *transac,
         }
 
         transac->ctx->proto = DNS_UDP_PROBE;
-        for (uint8_t ecn = 0; ecn < 1; ecn++)
+        for (uint8_t ecn = 0; ecn < 4; ecn++)
         {
                 transac->ctx->flags = ecn;
 
@@ -280,7 +280,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
                         struct pcap_controller_t *pc)
 {
         LOG_INFO("dispatch ntp, to host %s\n", transac->ctx->host);
-        int ecn;
+        uint8_t ecn;
         // // todo add tcp stuff
         transac->ctx->proto = NTP_TCP;
         for (ecn = 0; ecn < 4; ecn++)
@@ -319,7 +319,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
         }
 
         transac->ctx->proto = NTP_UDP_PROBE;
-        for (uint8_t ecn = 0; ecn < 3; ecn++)
+        for (ecn = 0; ecn < 3; ecn++)
         {
                 transac->ctx->flags = ecn;
 
