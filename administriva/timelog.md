@@ -251,7 +251,8 @@
 ## 8 Dec 2020
 
 * *3 hours* Refactor / tidy up tool output
-
+* *3 hours* Tidy up installer script for deploy
+* *1.5 hours* Resolve issues from preflight deploy
 <!--- 
 ### 19 Oct 2019
 
