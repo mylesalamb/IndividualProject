@@ -47,7 +47,10 @@
 #define MAX_RAW 100
 
 #define UDP_DLY \
-        (struct timespec) { 0, 500000000 }
+        (struct timespec) { 0, 100000000 }
+
+#define CONN_DLY \ 
+        (struct timespec) {0, 100000000 }
 
 #define DNS_A_RECORD 1
 #define DNS_RECURSIVE 1
@@ -885,7 +888,7 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len, int l
                 }
         }
         close(fd);
-        sleep(2);
+        sleep(1);
 
         return ret;
 }
@@ -918,7 +921,7 @@ static int defer_tcp_connection(char *host, uint8_t *buff, ssize_t buff_len, int
                 ;
 
         close(fd);
-        sleep(4);
+        sleep(1);
 
         return 0;
 }
