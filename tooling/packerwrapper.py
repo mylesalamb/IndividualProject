@@ -8,15 +8,34 @@ Tactiacal band aid script to assist with getting ami-ids from packer build
 into terraform in a tfvars file, better ways to solve this issue exist
 '''
 
+# 1607469587,amazon-ebs,artifact,0,string,AMIs were created:\neu-west-1: ami-0a17648f88941e10b\neu-west-2: ami-0b0eef2e72efead39\n
 def get_ami_from_data(arg):
     if len(arg) < 3:
         return None
     
-    if arg[1] != "id":
+    if arg[0] != "0":
         return None
-    
-    region, ami = arg[2].split(':')
-    return (region, ami)
+
+    if arg[1] != "string":
+        return None
+
+    outDict = {}    
+    regionAmiDesc = arg[2].split('\\n')
+    amiNames = regionAmiDesc[0:]
+    for elt in amiNames:
+        nameami = elt.split(':')
+
+        if len(nameami) != 2:
+            continue
+        
+
+        name, ami = nameami
+        if not ami:
+            continue
+        outDict[name.strip()] = ami.strip()
+   
+    return outDict 
+
 
 
 parser = argparse.ArgumentParser(description="Parse output from packer build")
@@ -57,18 +76,18 @@ for line in lines:
     if len(frag) < 6:
         continue
     timestamp,target,cat,*data = frag
-    print(data)
     if target != "amazon-ebs":
         continue
     if cat != "artifact":
         continue
+
+    print(data)
     ret = get_ami_from_data(data)
 
     if not ret:
         continue
 
-    region, ami = ret
-    out_json["{r}_ami".format(r=region)] = ami
+    out_json = ret
 
 with open("images.auto.tfvars.json", 'w') as outfile:
     json.dump(out_json, outfile)

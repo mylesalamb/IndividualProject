@@ -17,6 +17,7 @@ GREPO_PATH=individualProject/tooling/prod
 # non crit dependencies
 sudo apt-get update -y
 sudo apt-get install -y clang zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
+git lfs install
 
 cd ~
 
@@ -60,6 +61,7 @@ sudo make install
 cd ..
 
 make
+sudo setcap cap_net_raw,cap_net_admin=eip ecnDetector
 sudo ldconfig
 
 # setup the experiement to run in fixed intervals

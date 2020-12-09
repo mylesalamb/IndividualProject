@@ -4,10 +4,14 @@ DATASET=../datasets/pre-flight.dataset
 CONF="runs.conf"
 
 
-sudo service cron stop
+# sudo service cron stop
 
-if [ ! $? -eq 0 ]; then 
-    echo "could not stop cron" >> experiment.log
+# if [ ! $? -eq 0 ]; then 
+#     echo "could not stop cron" >> experiment.log
+# fi
+
+if `pgrep ecnDetector`; then
+    echo "already running" >> cron.log
 fi
 
 # change directory to where the script is being called from

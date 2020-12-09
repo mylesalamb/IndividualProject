@@ -11,7 +11,7 @@ resource "aws_instance" "ecnDetector" {
   provider                    = aws.singleregion
   ami                         = var.ami_image
   key_name                    = var.aws_key_name
-  instance_type               = "t2.micro"
+  instance_type               = "t2.medium"
   vpc_security_group_ids      = [aws_security_group.default.id]
   subnet_id                   = aws_subnet.default.id
   associate_public_ip_address = true
