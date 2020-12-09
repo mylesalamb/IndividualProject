@@ -300,7 +300,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
                 nf_close_context(nfc);
         }
 
-        transac->ctx->proto = DNS_UDP;
+        transac->ctx->proto = NTP_UDP;
         for (ecn = 0; ecn < 4; ecn++)
         {
                 transac->ctx->flags = ecn;
@@ -334,7 +334,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
                 nf_close_context(nfc);
         }
 
-        transac->ctx->proto = DNS_TCP_PROBE;
+        transac->ctx->proto = NTP_TCP_PROBE;
         for (ecn = 0; ecn < 3; ecn++)
         {
                 transac->ctx->flags = ecn;

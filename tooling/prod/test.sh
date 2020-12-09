@@ -25,6 +25,8 @@ fi
 
 source $CONF
 
+sudo ./setup.sh
+
 echo "### Start run $RUNS ###" >> experiment.log
 ./$EXEC -f $DATASET -d trace${RUNS} >> experiment.log
 

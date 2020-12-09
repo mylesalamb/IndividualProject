@@ -32,7 +32,7 @@ def get_ami_from_data(arg):
         name, ami = nameami
         if not ami:
             continue
-        outDict[name.strip()] = ami.strip()
+        outDict[name.strip()+"_ami"] = ami.strip()
    
     return outDict 
 

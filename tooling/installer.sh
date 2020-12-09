@@ -16,7 +16,7 @@ GREPO_PATH=individualProject/tooling/prod
 # Update image to most recent version, and install
 # non crit dependencies
 sudo apt-get update -y
-sudo apt-get install -y clang zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
+sudo apt-get install -y clang git-lfs zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
 git lfs install
 
 cd ~
@@ -64,9 +64,13 @@ make
 sudo setcap cap_net_raw,cap_net_admin=eip ecnDetector
 sudo ldconfig
 
+# pull datasets
+git lfs install 
+git lfs pull
+
 # setup the experiement to run in fixed intervals
 sudo service cron stop
-sudo bash -c "echo \"* */12 * * * ubuntu /bin/bash $PWD/test.sh\" >> /etc/crontab"
+sudo bash -c "echo \"10 2 * * * ubuntu /bin/bash $PWD/test.sh\" >> /etc/crontab"
 
 # Stop the kernel negotiating ecn on our behalf
 # Alter retry behaviour, a fair number of NTP hosts will be done
