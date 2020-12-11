@@ -1,23 +1,30 @@
-before_script:
-  - apt-get update && apt install --yes unoconv git-lfs
+# alter the behaviour of installer scripts
+variables:
+  CI_BUILD: "1"
+  DEBIAN_FRONTEND: "noninteractive"
 
 stages:
   - build
   - test
 
-# alter the behaviour of installer scripts
-variables:
-  CI_BUILD: "1"
-
 build:tool:
-  before_script:
-    - git submodule update
-  image: gcc
+  image: ubuntu
   script:
+    - ./tooling/installer.sh
+
+test:tool:
+  image: ubuntu
+  before_script:
+    - apt-get update --yes && apt install --yes libcunit1-dev
+  script:
+    - ./tooling/installer.sh
     - cd tooling/prod
-    - make
+    - make clean
+    - make test
 
 build:ethics:
+  before_script:
+    - apt-get update --yes && apt install --yes unoconv
   script:
     - cd administriva/ethics
     - unoconv -f pdf *.odt
@@ -34,10 +41,3 @@ build:dissertation:
   artifacts:
     paths:
       - "dissertation/*.pdf"
-
-test:tool:
-  image: gcc
-  script:
-    - cd tooling/prod
-    - make clean
-    - make test

@@ -1,10 +1,12 @@
+include Makefile.variables
+
 EXEC=ecnDetector
 EXECSOURCES=connector.o netinject.o connector.o pcapture.o driver.o parser.o context.o log.o
 WORK_DIR=$(shell pwd)
 CC=clang
-CFLAGS= -Wall -Iboringssl/include -Ilsquic/include -Ilsquic/src/liblsquic
+CFLAGS= -Wall -I$(BSSL_DIR)/include -I$(LSQUIC_DIR)/include -I$(LSQUIC_DIR)/src/liblsquic
 LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink -lev -llsquic -lz -lm \
-		-L$(WORK_DIR)/boringssl/ssl -L$(WORK_DIR)/boringssl/crypto -lssl -lcrypto # link against boringssl defined
+		-L$(BSSL_DIR)/ssl -L$(BSSL_DIR)/crypto -lssl -lcrypto # link against boringssl defined
 
 
 default: CFLAGS += -O2
@@ -20,7 +22,7 @@ debug: $(EXEC)
 
 test: CFLAGS += -DUNIT_TEST
 test: $(EXECSOURCES)
-	$(MAKE) -C test/
+	$(MAKE) -C test/ CFLAGS="$(CFLAGS) -I$(shell pwd)" LDLIBS="$(LDLIBS)" CC="$(CC)"
 
 clean:
 	-rm $(EXECSOURCES) $(EXEC)

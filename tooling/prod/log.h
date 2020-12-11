@@ -7,6 +7,4 @@ void log_init();
 void log_info_(const char *src, const int line,  const char *fmt, ...);
 void log_err_(const char *src, const int line, const char *fmt, ...);
 
-
-
 #endif
