@@ -19,11 +19,11 @@ build:tool:
 
 build:ethics:
   script:
-    - cd administriva/EthicsApproval
+    - cd administriva/ethics
     - unoconv -f pdf *.odt
   artifacts:
     paths:
-      - "administriva/EthicsApproval/*.pdf"
+      - "administriva/ethics/*.pdf"
 
 build:dissertation:
   image: blang/latex
