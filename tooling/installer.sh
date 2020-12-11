@@ -43,7 +43,7 @@ else
 	. ~/.bashrc
 fi
 
-if [ ! -z $CI_BUILD ]; then
+if [ -z $CI_BUILD ]; then
 	cd ~
 	git clone --recurse-submodules $GREPO
 	cd individualProject/tooling/prod
@@ -61,13 +61,13 @@ cd ..
 
 cd lsquic/
 cmake -DBORINGSSL_DIR=$BORINGSSL -DBORINGSSL_INCLUDE=$BORINGSSL/include . && make
-sudo make install
+make install
 cd ..
 
 make
 
 
-if [ ! -z $CI_BUILD ]; then
+if [ -z $CI_BUILD ]; then
 	sudo setcap cap_net_raw,cap_net_admin=eip ecnDetector
 	sudo ldconfig
 
