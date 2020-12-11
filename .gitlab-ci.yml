@@ -1,6 +1,7 @@
 # alter the behaviour of installer scripts
 variables:
   CI_BUILD: "1"
+  DEBIAN_FRONTEND: "noninteractive"
 
 stages:
   - build
