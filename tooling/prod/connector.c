@@ -46,11 +46,15 @@
 #define MAX_UDP 5
 #define MAX_RAW 100
 
+// Tenth of a second is enough to wait between sending udp packets
+// or for responses
 #define UDP_DLY \
         (struct timespec) { 0, 100000000 }
 
-#define CONN_DLY \ 
-        (struct timespec) {0, 100000000 }
+// Half second to ensure that tcp connections finish up
+// and that pcap component has collected the last of the packets to file
+#define CONN_DLY \
+        (struct timespec) {0, 300000000 }
 
 #define DNS_A_RECORD 1
 #define DNS_RECURSIVE 1
@@ -849,6 +853,7 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len, int l
 {
         int fd;
         struct timespec rst = UDP_DLY;
+        struct timespec dly = CONN_DLY;
         struct sockaddr_storage srv_addr;
         socklen_t srv_addr_len;
 
@@ -888,7 +893,9 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len, int l
                 }
         }
         close(fd);
-        sleep(1);
+
+
+        nanosleep(&dly, &dly);
 
         return ret;
 }
@@ -896,6 +903,7 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len, int l
 static int defer_tcp_connection(char *host, uint8_t *buff, ssize_t buff_len, int locport, int extport)
 {
         int fd;
+        struct timespec dly = CONN_DLY;
         struct sockaddr_storage srv_addr;
         socklen_t srv_addr_len;
 
@@ -921,7 +929,7 @@ static int defer_tcp_connection(char *host, uint8_t *buff, ssize_t buff_len, int
                 ;
 
         close(fd);
-        sleep(1);
+        nanosleep(&dly, &dly);
 
         return 0;
 }
@@ -953,7 +961,11 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
         struct sockaddr_storage srv_addr;
         socklen_t srv_addr_size;
         struct timespec rst = UDP_DLY;
+        struct timespec dly = CONN_DLY;
+        
         uint8_t pkt[1024];
+        memset(pkt, 0, sizeof pkt);
+
 
         if (!buff)
                 return 1;
@@ -1022,13 +1034,13 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
 
 response:
 
-        sleep(1);
+        nanosleep(&dly, &dly);
         close(fd);
         close(icmpfd);
         return 0;
 
 unreachable:
-        sleep(1);
+        nanosleep(&dly, &dly);
         close(fd);
         close(icmpfd);
         return 1;
