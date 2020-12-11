@@ -81,4 +81,7 @@ if [ -z $CI_BUILD ]; then
 	sudo sysctl -w net.ipv4.tcp_ecn=1
 	sudo sysctl -w net.ipv4.tcp_syn_retries=3
 	sudo sysctl -w net.ipv4.tcp_synack_retries=3
-fi 
+
+else
+	ldconfig
+fi
