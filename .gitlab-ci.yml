@@ -1,6 +1,5 @@
 # Handle submodule and lfs dependencies
 .git_sub: &git_sub |
-  apt install --yes git-lfs
   git submodule update
 
 # alter the behaviour of installer scripts
