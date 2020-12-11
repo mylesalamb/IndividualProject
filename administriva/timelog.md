@@ -259,6 +259,14 @@
 * *1 hours* Tidy up delays -> make tool faster
 * *2 hours* Resolve timing issue that caused segfault with tool
 
+## Dec 11 2020
+
+* *3 hours* Improve timing through use of nanosleep
+* *3 hours* Fix CI pipeline (Was left broken for a while)
+* *1 hours* Tweaks to ethics documentation
+
+
+
 <!--- 
 ### 19 Oct 2019
 
