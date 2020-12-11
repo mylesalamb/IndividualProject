@@ -13,6 +13,8 @@ NF_PATH=/usr/local/lib
 GREPO=https://github.com/mylesalamb/individualProject.git
 GREPO_PATH=individualProject/tooling/prod
 
+DEBIAN_FRONTEND=noninteractive
+
 # Update image to most recent version, and install
 # non crit dependencies
 apt-get update -y
