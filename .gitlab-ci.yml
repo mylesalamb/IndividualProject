@@ -1,15 +1,29 @@
 before_script:
-  - apt-get update && apt install --yes make libpcap-dev libnetfilter-queue-dev libcunit1-dev
+  - apt-get update && apt install --yes unoconv git-lfs
 
 stages:
   - build
   - test
 
+# alter the behaviour of installer scripts
+variables:
+  CI_BUILD: "1"
+
 build:tool:
+  before_script:
+    - git submodule update
   image: gcc
   script:
     - cd tooling/prod
     - make
+
+build:ethics:
+  script:
+    - cd administriva/EthicsApproval
+    - unoconv -f pdf *.odt
+  artifacts:
+    paths:
+      - "administriva/EthicsApproval/*.pdf"
 
 build:dissertation:
   image: blang/latex
