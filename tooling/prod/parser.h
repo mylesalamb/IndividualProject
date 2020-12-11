@@ -8,9 +8,10 @@
 enum transac_type 
 {
     WEB = 0,
-    DNS = 1,
-    NTP = 2,
-    INVALID = 3
+    DNS,
+    NTP,
+    _COUNT,
+    INVALID
 };
 
 static const char *str_transac_type[] = {
@@ -28,9 +29,12 @@ struct transaction_node_t
     enum transac_type type;
 };
 
+/**
+ * Partition on the type, this allows us to account for ntp poll interval
+ */
 struct transaction_list_t
 {
-    struct transaction_node_t *head, *tail;
+    struct transaction_node_t *type_headers[3];
 };
 
 

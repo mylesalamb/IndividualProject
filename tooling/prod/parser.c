@@ -20,11 +20,12 @@ extern const char *str_transac_type[];
 
 enum transac_type str_to_transac_type(char *arg)
 {
-        if(!arg)
+        if (!arg)
                 return INVALID;
 
-        for(int i = 0; i < (sizeof(str_transac_type) / sizeof (str_transac_type[0])); i++){
-                if(!strcmp(str_transac_type[i], arg))
+        for (int i = 0; i < (sizeof(str_transac_type) / sizeof(str_transac_type[0])); i++)
+        {
+                if (!strcmp(str_transac_type[i], arg))
                         return i;
         }
 
@@ -95,25 +96,24 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
                 goto fail;
 
         // this is the server type, if its not NTP we parse an additional field
-        
+
         type = str_to_transac_type(tok);
-        if(type == INVALID)
+        if (type == INVALID)
                 goto fail;
 
         // All of these protos require some extra information
         // Just add to the rest of the line
-        if (!strcmp("WEB",   tok) || !strncmp("DNS",  tok, 3))
+        if (!strcmp("WEB", tok) || !strncmp("DNS", tok, 3))
         {
                 tok = strtok(NULL, sep);
-                if(!tok)
+                if (!tok)
                         goto fail;
 
                 req = malloc(sizeof(char) * (strlen(tok) + 1));
-                if(!req)
+                if (!req)
                         goto fail;
 
                 strcpy(req, tok);
-                
         }
 
         ret = transaction_node_init();
@@ -126,9 +126,10 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
         ret->ctx->flags = 0;
         ret->ctx->additional = 0;
         ret->ctx->host = host;
-        ret->ctx->port = 6000;
-        if(req){
-                
+        ret->ctx->port = 0;
+        if (req)
+        {
+
                 ret->request = req;
         }
         return ret;
@@ -136,7 +137,7 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
 fail:
         transaction_node_free(ret);
         free(host);
-        if(req)
+        if (req)
                 free(req);
         return NULL;
 }
@@ -158,21 +159,13 @@ unit_static void transaction_list_insert(struct transaction_list_t *lst, struct 
         if (!lst || !node)
                 return;
 
-        // handle empty case
-        if (!lst->head && !lst->tail)
-        {
-
-                node->next = NULL;
-                lst->head = node;
-                lst->tail = node;
-
+        if (node->type == INVALID)
                 return;
-        }
 
-        // otherwise insert at tail
+        struct transaction_node_t **ptr = &lst->type_headers[node->type];
 
-        lst->tail->next = node;
-        lst->tail = node;
+        node->next = *ptr;
+        *ptr = node;
 
         return;
 }
@@ -203,13 +196,19 @@ void transaction_list_free(struct transaction_list_t *arg)
         if (!arg)
                 return;
 
-        struct transaction_node_t *cursor = arg->head;
-
-        while (cursor)
+        for (struct transaction_node_t **head = arg->type_headers;
+             head < &arg->type_headers[sizeof arg->type_headers / sizeof arg->type_headers[0]];
+             head++)
         {
-                struct transaction_node_t *nxt = cursor->next;
-                transaction_node_free(cursor);
-                cursor = nxt;
+
+                struct transaction_node_t *cursor = *head;
+
+                while (cursor)
+                {
+                        struct transaction_node_t *nxt = cursor->next;
+                        transaction_node_free(cursor);
+                        cursor = nxt;
+                }
         }
 
         free(arg);

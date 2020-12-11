@@ -4,6 +4,11 @@
 #include <stdint.h>
 
 // Make ordering clear because we use these in jump tables
+
+struct sock_conf_t {
+	int sock_type, sock_protocol;
+}
+
 enum conn_proto {
 	TCP  			= 0,
 	NTP_UDP  		= 1,
@@ -19,6 +24,20 @@ enum conn_proto {
 	QUIC_PROBE 		= 11
 };
 
+struct sock_conf_t socket_conf[] = {
+	{SOCK_STREAM, 0},
+	{SOCK_DGRAM, 0},
+	{SOCK_STREAM, 0},
+	{SOCK_DGRAM, 0},
+	{SOCK_STREAM, 0},
+	{SOCK_DGRAM, 0},
+	
+	{SOCK_RAW, IPPROTO_TCP},
+	{SOCK_RAW, IPPROTO_TCP},
+	{SOCK_RAW, IPPROTO_TCP},
+	{SOCK_DGRAM, },
+	
+}
 // flags for additional fields
 // TCP has slightly more complex interactions with
 // the network so we can poke and prod to see if anything interesting happens

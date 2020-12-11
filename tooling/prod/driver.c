@@ -94,7 +94,7 @@ int main(int argc, char **argv)
         struct pcap_controller_t *pc = pcap_init(alias, outdir);
         struct nf_controller_t *nf = nf_init();
 
-        struct transaction_node_t *cursor = transactions->head;
+        struct transaction_node_t *cursor = transactions->type_headers[];
         while (cursor)
         {
                 dispatch_req(cursor, nf, pc);
@@ -202,7 +202,7 @@ static int dispatch_dns(struct transaction_node_t *transac,
 {
         LOG_INFO("dispatch dns, to host %s\n", transac->ctx->host);
         int ecn;
-        // todo add tcp stuff
+        
         transac->ctx->proto = DNS_TCP;
         for (ecn = 0; ecn < 4; ecn++)
         {

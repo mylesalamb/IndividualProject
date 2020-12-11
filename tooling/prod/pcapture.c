@@ -238,6 +238,6 @@ static void *pcap_controller(void *arg)
                 pthread_mutex_unlock(&pc->mtx);
                 pcap_log_conn(pc);
         }
-        printf("pcap:thread leaving;\n");
+        LOG_INFO("thread leaving;\n");
         return NULL;
 }
