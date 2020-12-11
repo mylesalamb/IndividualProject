@@ -9,17 +9,15 @@ stages:
 
 build:tool:
   image: ubuntu
-  before_script:
-    - ./tooling/installer.sh
   script:
-    - cd tooling/prod
-    - make
+    - ./tooling/installer.sh
 
 test:tool:
   image: ubuntu
   before_script:
-    - ./tooling/installer.sh
+    - apt-get update --yes && apt install --yes libcunit1-dev
   script:
+    - ./tooling/installer.sh
     - cd tooling/prod
     - make clean
     - make test
@@ -43,4 +41,3 @@ build:dissertation:
   artifacts:
     paths:
       - "dissertation/*.pdf"
-

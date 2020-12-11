@@ -14,7 +14,8 @@
                 }                              \
         } while (0)
 
-void test_parse_gibberish_line(void){
+void test_parse_gibberish_line(void)
+{
         struct transaction_node_t *transac;
 
         char gibberish[] = "thisisnot A_ValidLine\n\n\n";
@@ -22,88 +23,74 @@ void test_parse_gibberish_line(void){
         CU_ASSERT_PTR_NULL(transac);
 }
 
-void test_parse_line_ntp(void) {
-        
+void test_parse_line_web(void)
+{
+
         struct transaction_node_t *transac;
-        
-        
-        char ntp_norm_buff[] = "192.168.0.1 02 NTP\n";
-        transac = parse_transaction(ntp_norm_buff);
+
+        char web_norm_buff[] = "192.168.0.1 WEB example.io\n";
+        transac = parse_transaction(web_norm_buff);
         CU_ASSERT_PTR_NOT_NULL(transac);
-        CU_ASSERT_TRUE(transac->ctx->flags == 0x02);
-        CU_ASSERT_STRING_EQUAL("NTP", transac->ctx->proto);
+        CU_ASSERT_EQUAL(WEB, transac->type)
         CU_ASSERT_STRING_EQUAL("192.168.0.1", transac->ctx->host);
-        CU_ASSERT_PTR_NULL(transac->request);
+        CU_ASSERT_PTR_NOT_NULL_FATAL(transac->request);
+        CU_ASSERT_STRING_EQUAL("example.io", transac->request);
         transaction_node_free(transac);
-        
 
-        char ntp_mal_buff[] = "192.168.0.1     02      NTP     ";
-        transac = parse_transaction(ntp_mal_buff);
+        char web_mal_buff[] = "192.168.0.1  WEB example.io     ";
+        transac = parse_transaction(web_mal_buff);
 
-        CU_ASSERT_PTR_NOT_NULL(transac);
-        CU_ASSERT_TRUE(transac->ctx->flags == 0x02);
-        CU_ASSERT_STRING_EQUAL("NTP", transac->ctx->proto);
+        CU_ASSERT_PTR_NOT_NULL_FATAL(transac);
+        CU_ASSERT_EQUAL(WEB, transac->type);
         CU_ASSERT_STRING_EQUAL("192.168.0.1", transac->ctx->host);
-        CU_ASSERT_PTR_NULL(transac->request);
+        CU_ASSERT_PTR_NOT_NULL_FATAL(transac->request);
+        CU_ASSERT_STRING_EQUAL("example.io", transac->request);
         transaction_node_free(transac);
 }
 
-void test_parse_line_dns(void) {
-        
+void test_parse_line_dns(void)
+{
         struct transaction_node_t *transac;
-        
 
-        char dns_norm_buff[] = "192.168.0.1 02 DNS bbc.co.uk\n";
+        char dns_norm_buff[] = "192.168.0.1 DNS example.io\n";
         transac = parse_transaction(dns_norm_buff);
-
         CU_ASSERT_PTR_NOT_NULL(transac);
-        CU_ASSERT_TRUE(transac->ctx->flags == 0x02);
-        CU_ASSERT_STRING_EQUAL("DNS", transac->ctx->proto);
+        CU_ASSERT_EQUAL(DNS, transac->type)
         CU_ASSERT_STRING_EQUAL("192.168.0.1", transac->ctx->host);
-        CU_ASSERT_STRING_EQUAL(transac->request, "bbc.co.uk");
-        
+        CU_ASSERT_PTR_NOT_NULL_FATAL(transac->request);
+        CU_ASSERT_STRING_EQUAL("example.io", transac->request);
         transaction_node_free(transac);
-        
 
-        char dns_mal_buff[] = "192.168.0.1     02      DNS   bbc.co.uk   ";
+        char dns_mal_buff[] = "192.168.0.1  DNS example.io     ";
         transac = parse_transaction(dns_mal_buff);
 
-        CU_ASSERT_PTR_NOT_NULL(transac);
-        CU_ASSERT_TRUE(transac->ctx->flags == 0x02);
-        CU_ASSERT_STRING_EQUAL("DNS", transac->ctx->proto);
+        CU_ASSERT_PTR_NOT_NULL_FATAL(transac);
+        CU_ASSERT_EQUAL(DNS, transac->type);
         CU_ASSERT_STRING_EQUAL("192.168.0.1", transac->ctx->host);
-        CU_ASSERT_STRING_EQUAL(transac->request, "bbc.co.uk");
+        CU_ASSERT_PTR_NOT_NULL_FATAL(transac->request);
+        CU_ASSERT_STRING_EQUAL("example.io", transac->request);
         transaction_node_free(transac);
-
-        char dns_missing_host[] = "192.168.0.1 02 DNS";
-        transac = parse_transaction(dns_missing_host);
-        CU_ASSERT_PTR_NULL(transac);
 }
 
-void test_parse_line_http(void) {
-        
+void test_parse_line_ntp(void)
+{
         struct transaction_node_t *transac;
-        
 
-        char tcp_norm_buff[] = "192.168.0.1 00 TCP www.bbc.co.uk\n";
-        transac = parse_transaction(tcp_norm_buff);
-
+        char dns_norm_buff[] = "192.168.0.1 NTP\n";
+        transac = parse_transaction(dns_norm_buff);
         CU_ASSERT_PTR_NOT_NULL(transac);
-        CU_ASSERT_TRUE(transac->ctx->flags == 0x00);
-        CU_ASSERT_STRING_EQUAL("TCP", transac->ctx->proto);
+        CU_ASSERT_EQUAL(NTP, transac->type)
         CU_ASSERT_STRING_EQUAL("192.168.0.1", transac->ctx->host);
-        CU_ASSERT_PTR_NOT_NULL(strstr(transac->request, "www.bbc.co.uk"));
+        CU_ASSERT_PTR_NULL(transac->request);
         transaction_node_free(transac);
-        
 
-        char tcp_mal_buff[] = "192.168.0.1   00      TCP   www.bbc.co.uk  ";
-        transac = parse_transaction(tcp_mal_buff);
+        char dns_mal_buff[] = "192.168.0.1  NTP     ";
+        transac = parse_transaction(dns_mal_buff);
 
-        CU_ASSERT_PTR_NOT_NULL(transac);
-        CU_ASSERT_TRUE(transac->ctx->flags == 0x00);
-        CU_ASSERT_STRING_EQUAL("TCP", transac->ctx->proto);
+        CU_ASSERT_PTR_NOT_NULL_FATAL(transac);
+        CU_ASSERT_EQUAL(NTP, transac->type);
         CU_ASSERT_STRING_EQUAL("192.168.0.1", transac->ctx->host);
-        CU_ASSERT_PTR_NOT_NULL(strstr(transac->request, "www.bbc.co.uk"));
+        CU_ASSERT_PTR_NULL(transac->request);
         transaction_node_free(transac);
 }
 
@@ -135,13 +122,13 @@ int main(void)
         }
 
         void *ret;
-        ret = CU_add_test(suite, "test of parse line (ntp)\n", test_parse_line_ntp);
+        ret = CU_add_test(suite, "test of parse line (web)\n", test_parse_line_web);
         CHECK_ERR(ret);
 
         ret = CU_add_test(suite, "test of parse line (dns)\n", test_parse_line_dns);
         CHECK_ERR(ret);
 
-        ret = CU_add_test(suite, "test of parse line (http)\n", test_parse_line_http);
+        ret = CU_add_test(suite, "test of parse line (ntp)\n", test_parse_line_ntp);
         CHECK_ERR(ret);
 
         ret = CU_add_test(suite, "test of parse line (comment)\n", test_parse_line_comment);
