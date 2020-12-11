@@ -25,7 +25,7 @@ test:tool:
 
 build:ethics:
   before_script:
-    - apt install unoconv
+    - apt-get update --yes && apt install unoconv
   script:
     - cd administriva/ethics
     - unoconv -f pdf *.odt

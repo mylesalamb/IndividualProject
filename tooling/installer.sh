@@ -15,8 +15,8 @@ GREPO_PATH=individualProject/tooling/prod
 
 # Update image to most recent version, and install
 # non crit dependencies
-sudo apt-get update -y
-sudo apt-get install -y clang git-lfs zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
+apt-get update -y
+apt-get install -y clang git-lfs zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
 git lfs install
 
 cd ~
@@ -30,7 +30,7 @@ tar -xvf "${NF_TGT}${NF_EXT}"
 cd $NF_TGT
 ./configure
 make
-sudo make install
+make install
 
 
 if echo "$LD_LIBRARY_PATH" | grep -q "$NF_PATH"; then
