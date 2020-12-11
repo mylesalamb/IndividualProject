@@ -1,23 +1,42 @@
-before_script:
-  - apt-get update && apt install --yes unoconv git-lfs
-
-stages:
-  - build
-  - test
+# Handle submodule and lfs dependencies
+.git_sub: &git_sub |
+  apt install --yes git-lfs
+  git submodule update
 
 # alter the behaviour of installer scripts
 variables:
   CI_BUILD: "1"
 
+stages:
+  - build
+  - test
+
+
+# Use ubuntu image to isolate build env
+# allow use of root and installing depends as
+# occurs in dpeloy env
 build:tool:
+  image: ubuntu
   before_script:
-    - git submodule update
-  image: gcc
+    - *git_sub
+    - ./tooling/installer.sh
   script:
     - cd tooling/prod
     - make
 
+test:tool:
+  image: ubuntu
+  before_script:
+    - ./tooling/installer.sh
+  script:
+    - cd tooling/prod
+    - make clean
+    - make test
+
 build:ethics:
+  before_script:
+    - *git_sub
+    - apt install unoconv
   script:
     - cd administriva/ethics
     - unoconv -f pdf *.odt
@@ -35,9 +54,3 @@ build:dissertation:
     paths:
       - "dissertation/*.pdf"
 
-test:tool:
-  image: gcc
-  script:
-    - cd tooling/prod
-    - make clean
-    - make test
