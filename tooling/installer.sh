@@ -43,8 +43,10 @@ else
 	. ~/.bashrc
 fi
 
+cd ~
+
 if [ -z $CI_BUILD ]; then
-	cd ~
+	
 	git clone --recurse-submodules $GREPO
 	cd individualProject/tooling/prod
 
