@@ -1,7 +1,3 @@
-# Handle submodule and lfs dependencies
-.git_sub: &git_sub |
-  git submodule update
-
 # alter the behaviour of installer scripts
 variables:
   CI_BUILD: "1"
@@ -10,14 +6,9 @@ stages:
   - build
   - test
 
-
-# Use ubuntu image to isolate build env
-# allow use of root and installing depends as
-# occurs in dpeloy env
 build:tool:
   image: ubuntu
   before_script:
-    - *git_sub
     - ./tooling/installer.sh
   script:
     - cd tooling/prod
@@ -34,7 +25,6 @@ test:tool:
 
 build:ethics:
   before_script:
-    - *git_sub
     - apt install unoconv
   script:
     - cd administriva/ethics

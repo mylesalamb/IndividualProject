@@ -45,6 +45,10 @@ if [ ! -z $CI_BUILD ]; then
 	cd ~
 	git clone --recurse-submodules $GREPO
 	cd individualProject/tooling/prod
+
+else
+	git submodule update --init --recursive
+	cd tooling/prod
 fi
 
 cd boringssl/
