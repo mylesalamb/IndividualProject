@@ -176,7 +176,6 @@ void nf_close_context(struct nf_controller_t *nfc)
 {
         pthread_mutex_lock(&nfc->mtx);
         nfc->connection_exit = true;
-        nfc->ctx = NULL;
         pthread_mutex_unlock(&nfc->mtx);
         pthread_cond_signal(&nfc->cv);
 }

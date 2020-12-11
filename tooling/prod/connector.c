@@ -43,7 +43,7 @@
 #define PORT_TLS 443
 
 #define MAX_TTL 50
-#define MAX_UDP 5
+#define MAX_UDP 3
 #define MAX_RAW 100
 
 // Tenth of a second is enough to wait between sending udp packets
@@ -54,7 +54,7 @@
 // Half second to ensure that tcp connections finish up
 // and that pcap component has collected the last of the packets to file
 #define CONN_DLY \
-        (struct timespec) {0, 300000000 }
+        (struct timespec) { 0, 300000000 }
 
 #define DNS_A_RECORD 1
 #define DNS_RECURSIVE 1
@@ -90,6 +90,32 @@ static int defer_tcp_connection(char *host, uint8_t *buff, ssize_t buff_len, int
 static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len, int locport, int extport);
 static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int locport, int extport, int proto);
 static int tcp_send_all(int fd, uint8_t *buff, size_t len);
+
+int bound_socket(char *host, enum conn_proto proto)
+{
+
+        int sock_family;
+        int ipver = ip_ver_str(host);
+
+        switch (ipver)
+        {
+        case 4:
+                sock_family = AF_INET;
+                break;
+        case 6:
+                sock_family = AF_INET6;
+                break;
+        default:
+                LOG_ERR("host is invalid\n");
+                return -1;
+        }
+
+        switch (proto)
+        {
+        
+        
+        }
+}
 
 int send_tcp_http_request(char *host, char *ws, int locport)
 {
@@ -894,7 +920,6 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len, int l
         }
         close(fd);
 
-
         nanosleep(&dly, &dly);
 
         return ret;
@@ -962,10 +987,9 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len, int lo
         socklen_t srv_addr_size;
         struct timespec rst = UDP_DLY;
         struct timespec dly = CONN_DLY;
-        
+
         uint8_t pkt[1024];
         memset(pkt, 0, sizeof pkt);
-
 
         if (!buff)
                 return 1;
