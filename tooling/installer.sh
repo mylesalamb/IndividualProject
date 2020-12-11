@@ -21,8 +21,6 @@ apt-get update -y
 apt-get install -y clang git-lfs zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
 git lfs install
 
-cd ~
-
 
 # pull netfilter 1.0.5
 wget "${NF_URL}/${NF_TGT}${NF_EXT}"
@@ -43,7 +41,7 @@ else
 	. ~/.bashrc
 fi
 
-cd ~
+cd ..
 
 if [ -z $CI_BUILD ]; then
 	
