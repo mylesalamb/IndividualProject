@@ -19,29 +19,6 @@ const char *str_proto[] = {
     "QUIC_PROBE",
 };
 
-int get_sock_type(enum conn_proto arg)
-{
-        switch
-                (arg)
-                {
-                case TCP:
-                        return SOCK_STREAM;
-                case NTP_UDP:
-                        return SOCK_DGRAM;
-                case NTP_TCP:
-                        return SOCK_STREAM;
-                case DNS_UDP:
-                        return SOCK_DGRAM;
-                case DNS_TCP:
-                case QUIC:
-                case TCP_PROBE:
-                case NTP_UDP_PROBE:
-                case NTP_TCP_PROBE:
-                case DNS_UDP_PROBE:
-                case DNS_TCP_PROBE:
-                case QUIC_PROBE:
-                }
-}
 /**
  * Get a string that represents a connection context
  * formatted wrt each protocol implemented

@@ -126,7 +126,7 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
         ret->ctx->flags = 0;
         ret->ctx->additional = 0;
         ret->ctx->host = host;
-        ret->ctx->port = 0;
+        ret->ctx->port = 6000;
         if (req)
         {
 

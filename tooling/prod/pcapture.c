@@ -164,7 +164,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
                 ip = 0;
                 subnet_mask = 0;
         }
-        pc->handle = pcap_open_live(pc->pcap_dev, BUFSIZ, 1, 1000, error_buffer);
+        pc->handle = pcap_open_live(pc->pcap_dev, BUFSIZ, 0, 1000, error_buffer);
         if (pc->handle == NULL)
         {
                 LOG_ERR("open wireless\n");

@@ -1,14 +1,17 @@
 #ifndef CONTEXT_H
 #define CONTEXT_H 1
 
+#include <sys/socket.h>
 #include <stdint.h>
+#include <arpa/inet.h>
 
-// Make ordering clear because we use these in jump tables
-
+// pair together the socket type and the protocol so that driver can create bound
+// sockets to pass to the firwalling component
 struct sock_conf_t {
 	int sock_type, sock_protocol;
-}
+};
 
+// Make ordering clear because we use these in jump tables
 enum conn_proto {
 	TCP  			= 0,
 	NTP_UDP  		= 1,
@@ -24,7 +27,10 @@ enum conn_proto {
 	QUIC_PROBE 		= 11
 };
 
-struct sock_conf_t socket_conf[] = {
+// Arguements for constructing different types of sockets
+// this does break some abstractions from connector.c
+// but allows us to 'un-tether' from a specific port
+static struct sock_conf_t socket_conf[] = {
 	{SOCK_STREAM, 0},
 	{SOCK_DGRAM, 0},
 	{SOCK_STREAM, 0},
@@ -33,11 +39,13 @@ struct sock_conf_t socket_conf[] = {
 	{SOCK_DGRAM, 0},
 	
 	{SOCK_RAW, IPPROTO_TCP},
+	{SOCK_RAW, IPPROTO_UDP},
 	{SOCK_RAW, IPPROTO_TCP},
+	{SOCK_RAW, IPPROTO_UDP},
 	{SOCK_RAW, IPPROTO_TCP},
-	{SOCK_DGRAM, },
+	{SOCK_DGRAM, 0},
 	
-}
+};
 // flags for additional fields
 // TCP has slightly more complex interactions with
 // the network so we can poke and prod to see if anything interesting happens
