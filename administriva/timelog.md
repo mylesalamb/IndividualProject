@@ -265,6 +265,23 @@
 * *3 hours* Fix CI pipeline (Was left broken for a while)
 * *1 hours* Tweaks to ethics documentation
 
+## Dec 12 2020
+
+* *3 hours* Make pcap component much faster with immediate mode
+* *2 hours* Begin to untether from specific ports
+
+## Dec 13 2020
+
+* *2 hours* research pcap parsing libs
+* *3 hours* Begin work on data analysis component
+* *2 hours* Resolve issues with parsing quic files
+
+
+## Dec 15 2020
+
+* *2 hours* Alter python polymorphism model to support file parsing model
+* *2 hours* Begin to implement strategies for calculating statistics  
+
 
 
 <!--- 
