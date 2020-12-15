@@ -54,7 +54,7 @@
 // Half second to ensure that tcp connections finish up
 // and that pcap component has collected the last of the packets to file
 #define CONN_DLY                                                               \
-  (struct timespec) { 0, 300000000 }
+  (struct timespec) { 0, 500000000 }
 
 #define DNS_A_RECORD 1
 #define DNS_RECURSIVE 1
@@ -114,15 +114,16 @@ int bound_socket(char *host, enum conn_proto proto) {
   socklen_t loc_len;
 
   switch (ipver) {
-  case 4:
+  case AF_INET:
     sock_family = AF_INET;
     struct sockaddr_in *loc4 = (struct sockaddr_in *)&loc_addr;
     loc4->sin_port = 0;
     inet_pton(sock_family, "0.0.0.0", &loc4->sin_addr);
     loc4->sin_family = AF_INET;
+    loc_len = sizeof (struct sockaddr_in);
 
     break;
-  case 6:
+  case AF_INET6:
     sock_family = AF_INET6;
     struct sockaddr_in6 *loc6 = (struct sockaddr_in6 *)&loc_addr;
     int ret = get_host_ipv6_addr(&loc6->sin6_addr);
@@ -130,6 +131,7 @@ int bound_socket(char *host, enum conn_proto proto) {
       return -1;
     loc6->sin6_port = 0;
     loc6->sin6_family = AF_INET6;
+    loc_len = sizeof (struct sockaddr_in6);
     break;
   default:
     LOG_ERR("host is invalid\n");
@@ -138,11 +140,26 @@ int bound_socket(char *host, enum conn_proto proto) {
 
   struct sock_conf_t *sock_conf = &socket_conf[proto];
 
-  int fd = socket(sock_family, sock_conf->sock_protocol, sock_conf->sock_type);
+  int fd = socket(sock_family, sock_conf->sock_type, sock_conf->sock_protocol);
   if (fd < 0) {
-    LOG_ERR("socket failed, returning %d", fd);
+    LOG_ERR("socket failed, returning %d\n", fd);
     return fd;
   }
+
+
+  if(bind(fd, (struct sockaddr *)&loc_addr, loc_len) < 0)
+  {
+    LOG_ERR("Bind failed\n");
+    close(fd);
+    return -1;
+  }
+
+  getsockname(fd, (struct sockaddr_in *)&loc_addr, &loc_len);
+  
+  struct sockaddr_in *loc4 = (struct sockaddr_in *)&loc_addr;
+  LOG_INFO("local port: %d\n", ntohs(loc4->sin_port));
+  
+  return fd;
 }
 
 int send_tcp_http_request(char *host, char *ws, int locport) {
@@ -845,6 +862,7 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len,
     }
     nanosleep(&rst, &rst);
     if (recv(fd, recv_buff, sizeof(recv_buff), 0) > 0) {
+      LOG_INFO("Got response\n");
       break;
     }
   }

@@ -3,6 +3,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <pwd.h>
+#include <unistd.h>
+#include <sys/capability.h>
+#include <sys/prctl.h>
 
 #include "connector.h"
 #include "context.h"
@@ -13,7 +18,12 @@
 
 #include "lsquic.h"
 
+// pseudo user to tidy up firewalling
+#define USER "ecnDetector_psuedo"
+
 static void print_usage();
+
+static int set_user();
 
 static int dispatch_web(struct transaction_node_t *transac,
                         struct nf_controller_t *nfc,
@@ -36,6 +46,8 @@ int main(int argc, char **argv) {
   char *infile = NULL;
   char *outdir = "data";
   char arg;
+
+  set_user();
 
   log_init();
 
@@ -383,4 +395,29 @@ static void print_usage() {
          "\t-a alias to prefix to outputted file names\n"
          "\t-f input file name containing transactions to carry out\n"
          "\t-d output directory name");
+}
+
+// Set the uid of the process
+static int set_user()
+{
+  struct passwd *pwd = getpwnam(USER);
+  if(!pwd)
+  {
+    LOG_ERR("getpwnam failed\n");
+    return -1;
+  }
+
+  if(setgid(pwd->pw_gid) != 0)
+  {
+    LOG_ERR("setgid failed\n");
+    return -1;
+  }
+
+  if(setuid(pwd->pw_uid) != 0)
+  {
+    LOG_ERR("setuid failed\n");
+    return -1;
+  }
+    
+  return 0;
 }
