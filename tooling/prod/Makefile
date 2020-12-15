@@ -5,7 +5,7 @@ EXECSOURCES=connector.o netinject.o connector.o pcapture.o driver.o parser.o con
 WORK_DIR=$(shell pwd)
 CC=clang
 CFLAGS= -Wall -I$(BSSL_DIR)/include -I$(LSQUIC_DIR)/include -I$(LSQUIC_DIR)/src/liblsquic
-LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink -lev -llsquic -lz -lm \
+LDLIBS=-lpcap -lcap -lpthread -lnetfilter_queue -lnfnetlink -lev -llsquic -lz -lm \
 		-L$(BSSL_DIR)/ssl -L$(BSSL_DIR)/crypto -lssl -lcrypto # link against boringssl defined
 
 

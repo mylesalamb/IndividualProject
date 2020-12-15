@@ -227,6 +227,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         struct nfqnl_msg_packet_hdr *ph;
         uint8_t *payload;
 
+        LOG_INFO("hit\n");
         ph = nfq_get_msg_packet_hdr(pkt);
         if (!ph)
         {

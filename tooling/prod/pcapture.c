@@ -39,7 +39,8 @@ struct pcap_controller_t *pcap_init(char *alias, char *dirname)
         struct stat st = {0};
         char cwd[PATH_MAX];
         char *outdir = malloc(PATH_MAX + strlen(dirname) + 1);
-        if(getcwd(cwd, sizeof(cwd)) == NULL){
+        if (getcwd(cwd, sizeof(cwd)) == NULL)
+        {
                 LOG_ERR("cwd\n");
                 return NULL;
         }
@@ -145,12 +146,12 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         char outfile[256];
         char context_str[128];
-        
+
         // Setup the name of the file from the controller context
         get_context_str(pc->ctx, context_str);
-        sprintf(outfile,"%s/%s", pc->outdir, context_str);
+        sprintf(outfile, "%s/%s", pc->outdir, context_str);
         LOG_INFO("outfile is %s\n", outfile);
-        
+
         pcap_dumper_t *pd;
         char filter_exp[64];
         sprintf(filter_exp, "port %d or dst port %d or icmp or icmp6", pc->ctx->port, pc->ctx->port);
@@ -164,12 +165,25 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
                 ip = 0;
                 subnet_mask = 0;
         }
-        pc->handle = pcap_open_live(pc->pcap_dev, BUFSIZ, 0, 1000, error_buffer);
-        if (pc->handle == NULL)
+
+        pc->handle = pcap_create(pc->pcap_dev, error_buffer);
+        if(!pc->handle)
         {
-                LOG_ERR("open wireless\n");
+                LOG_ERR("create handle\n");
                 return;
         }
+        if(pcap_set_immediate_mode(pc->handle, 1))
+        {
+                LOG_ERR("Immediate mode\n");
+                return;
+        }
+
+        if(pcap_activate(pc->handle))
+        {
+                LOG_ERR("pcap activate\n");
+                return;
+        }
+
         if (pcap_compile(pc->handle, &filter, filter_exp, 0, ip) == -1)
         {
                 LOG_ERR("compile filter\n");
@@ -187,22 +201,28 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
                 return;
         }
 
+        pcap_set_timeout(pc->handle, 10);
+
         // buffer is open -> we are capturing but not using packets
+
+        pd = pcap_dump_open(pc->handle, outfile);
+
         pthread_mutex_lock(&pc->mtx);
         pc->cap_rdy_flag = true;
         pthread_mutex_unlock(&pc->mtx);
         pthread_cond_signal(&pc->cap_rdy);
 
-        pd = pcap_dump_open(pc->handle, outfile);
-
-        if(pd == NULL){
+        if (pd == NULL)
+        {
                 LOG_ERR("dump open\n");
         }
 
         do
         {
-                pcap_dispatch(pc->handle, 1, &pcap_dump, (u_char *)pd);
+                pcap_dispatch(pc->handle, -1, &pcap_dump, (u_char *)pd);
         } while (!get_connection_exit(pc));
+
+        pcap_dispatch(pc->handle, -1, &pcap_dump, (u_char *)pd);
 
         // close dump file handle
         pcap_dump_close(pd);
