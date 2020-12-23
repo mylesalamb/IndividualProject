@@ -1,6 +1,7 @@
 import os
 import sys
 import argparse
+import pprint
 from lib import utils, parsers, strategies
 from typing import Any
 import logging
@@ -9,13 +10,24 @@ def resolve_instance(instance):
     print(f"resolving instance: {instance['name']}")
 
     factory = parsers.ParserFactory()
-
-    parser = factory.get_parser(os.path.basename(instance["traces"]["ntp_udp"][0]))
+    
      
-    for trace in instance["traces"]["ntp_udp"]:
-        print(trace)
-        conn_parser = parser(trace)
-        conn_parser.run()
+    for trace_type in instance["traces"]:
+        print(trace_type)
+
+        trace_files = instance["traces"][trace_type]
+
+        if not trace_files:
+            continue
+
+        parser_type = factory.get_parser(os.path.basename(trace_files[0]))
+
+        for trace in trace_files:
+            print(trace)
+            p = parser_type(trace)
+            result = p.run()
+            print(result)
+        
 
 
 
@@ -30,6 +42,7 @@ def parse_arguments(args:str = sys.argv[1:]):
 def main():
     in_args = parse_arguments()
     raw_data = utils.get_instance_traces(in_args["indir"])
+    pprint.pprint(raw_data)
     resolve_instance(raw_data[0])
 
     
