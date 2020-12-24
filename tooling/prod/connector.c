@@ -106,6 +106,28 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
                              int locport, int extport, int proto);
 static int tcp_send_all(int fd, uint8_t *buff, size_t len);
 
+int get_port_number(struct sockaddr_storage *addr)
+{
+  if(addr->ss_family == AF_INET)
+  {
+    struct sockaddr_in *addr4 = (struct sockaddr_in *)addr;
+    return ntohs(addr4->sin_port);
+  }
+  else if(addr->ss_family == AF_INET6)
+  {
+    struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)addr;
+    return ntohs(addr6->sin6_port);
+  }
+  else
+  {
+    LOG_ERR("Address family not supported\n");
+    return -1;
+  }
+
+  return -1;
+
+}
+
 int bound_socket(char *host, enum conn_proto proto) {
 
   int sock_family;
@@ -158,11 +180,43 @@ int bound_socket(char *host, enum conn_proto proto) {
   
   struct sockaddr_in *loc4 = (struct sockaddr_in *)&loc_addr;
   LOG_INFO("local port: %d\n", ntohs(loc4->sin_port));
-  
+
   return fd;
 }
 
-int send_tcp_http_request(char *host, char *ws, int locport) {
+
+int apply_sock_opts(int fd, int sock_type, struct sockaddr *addr, socklen_t addrlen)
+{
+  if(fd < 0 || !addr || addrlen < 0)
+  {
+    LOG_ERR("Invalid args\n");
+    return -1;
+  }
+
+  if(sock_type != SOCK_DGRAM && sock_type != SOCK_STREAM)
+  {
+    LOG_ERR("Invalid sock type\n");
+    return -1;
+  }
+
+  if(connect(fd, addr, addrlen) < 0)
+  {
+    LOG_ERR("Connect failed\n");
+    return -1;
+  }
+
+  if (sock_type == SOCK_DGRAM) {
+    if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
+      LOG_ERR("construct sock to host: non block\n");
+      return -1;
+    }
+  }
+
+
+  return 0;
+}
+
+int send_tcp_http_request(int fd, char *host, char *ws, int locport) {
   uint8_t buff[512];
 
   if (!host || !ws) {
@@ -175,7 +229,7 @@ int send_tcp_http_request(char *host, char *ws, int locport) {
                               PORT_HTTP);
 }
 
-int send_tcp_http_probe(char *host, int locport) {
+int send_tcp_http_probe(int fd, char *host, int locport) {
   if (!host) {
     LOG_ERR("bad arguments\n");
     return 1;
@@ -187,7 +241,7 @@ int send_tcp_http_probe(char *host, int locport) {
                            IPPROTO_TCP);
 }
 
-int send_tcp_dns_request(char *host, char *ws, int locport) {
+int send_tcp_dns_request(int fd, char *host, char *ws, int locport) {
   uint8_t buff[512];
   uint8_t *base_ptr, *end_ptr;
 
@@ -206,7 +260,7 @@ int send_tcp_dns_request(char *host, char *ws, int locport) {
   return defer_tcp_connection(host, buff, end_ptr - buff, locport, PORT_DNS);
 }
 
-int send_udp_dns_request(char *host, char *ws, int locport) {
+int send_udp_dns_request(int fd, char *host, char *ws, int locport) {
   uint8_t buff[512], *end_ptr;
 
   if (!host || !ws) {
@@ -218,7 +272,7 @@ int send_udp_dns_request(char *host, char *ws, int locport) {
   return defer_udp_exchnage(host, buff, end_ptr - buff, locport, PORT_DNS);
 }
 
-int send_tcp_dns_probe(char *host, char *ws, int locport) {
+int send_tcp_dns_probe(int fd, char *host, char *ws, int locport) {
 
   if (!host) {
     LOG_ERR("bad arguments\n");
@@ -230,7 +284,7 @@ int send_tcp_dns_probe(char *host, char *ws, int locport) {
                            IPPROTO_TCP);
 }
 
-int send_udp_dns_probe(char *host, char *ws, int locport) {
+int send_udp_dns_probe(int fd, char *host, char *ws, int locport) {
   uint8_t buff[512], *end_ptr;
   if (!host || !ws) {
     LOG_ERR("bad arguments\n");
@@ -245,7 +299,7 @@ int send_udp_dns_probe(char *host, char *ws, int locport) {
                            IPPROTO_UDP);
 }
 
-int send_udp_ntp_request(char *host, int locport) {
+int send_udp_ntp_request(int fd, char *host, int locport) {
   uint8_t buff[512], *end_ptr;
   if (!host) {
     LOG_ERR("bad arguments\n");
@@ -256,7 +310,7 @@ int send_udp_ntp_request(char *host, int locport) {
   return defer_udp_exchnage(host, buff, end_ptr - buff, locport, PORT_NTP);
 }
 
-int send_tcp_ntp_request(char *host, int locport) {
+int send_tcp_ntp_request(int fd, char *host, int locport) {
   uint8_t buff[512];
 
   if (!host) {
@@ -269,7 +323,7 @@ int send_tcp_ntp_request(char *host, int locport) {
                               PORT_HTTP);
 }
 
-int send_udp_ntp_probe(char *host, int locport) {
+int send_udp_ntp_probe(int fd, char *host, int locport) {
   uint8_t buff[512], *end_ptr;
 
   if (!host) {
@@ -284,7 +338,7 @@ int send_udp_ntp_probe(char *host, int locport) {
                            IPPROTO_UDP);
 }
 
-int send_tcp_ntp_probe(char *host, int locport) {
+int send_tcp_ntp_probe(int fd, char *host, int locport) {
   if (!host) {
     LOG_ERR("bad arguments\n");
     return 1;

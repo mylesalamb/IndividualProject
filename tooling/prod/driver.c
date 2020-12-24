@@ -217,6 +217,12 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
 
   transac->ctx->proto = DNS_TCP;
   for (ecn = 0; ecn < 4; ecn++) {
+    struct sockaddr_storage remote_addr;
+    int fd = bound_socket(transac->ctx->host, transac->ctx->proto);
+    getsockname(fd, &remote_addr, sizeof remote_addr);
+    int loc_port = get_port_number(&remote_addr);
+
+
     transac->ctx->flags = ecn;
 
     pcap_push_context(pc, transac->ctx);
