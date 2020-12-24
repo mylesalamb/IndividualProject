@@ -113,6 +113,8 @@
 * *0.5 hours* implement solution to ntp/udp checksum issue
 * *4 hours* working on iterative dns
 
+# Week 6
+
 ### 5 Nov 2020
 
 * *1 hour* Meeting with advisor
@@ -133,6 +135,8 @@
 * *1.5 hour* tinkering with provisioning systems (terraform, vagrant)
 * *1 hour* work with image proviosiong (docker, vm images) -> docker images are not fun to work with
 * *1.5 hours* work on terraform and packer
+
+# Week 7
 
 ### 9 Nov 2020
 
@@ -165,6 +169,8 @@
 * *3 hours* Attempt to adapt ntp tracert code to IPv6
 * *1.5 hours* Various refactorings
 
+# Week 8
+
 ### 16 Nov 2020
 * *2 hours* Refactorings in connector.c (protocol client code)
 * *1.5 hours* Attempt to resolve issue with IPv6 raw sockets
@@ -191,9 +197,67 @@
 * *1 hour* resolve issue with AWS (tx boxes are only useful for burst loads)
 * *1 hour* Further research on terraform deploy script (jit vpc creation)
 
+### 21 Nov 2020
 
+* *2 hours* Resolve issues with IPv6 rawsock not sending
+* *1.5 hours* Minor refactorings
 
+# Week 9
 
+## 25 Nov 2020
+
+* *1 hour* Reading lsquic documentation
+* *3 hours* Work on intial version of Quic connections
+* *2 hour* Begin to integrate lsquic into installer script for cloud machines
+
+## 26 Nov 2020
+
+* *2 hours* Continue work with integrating quic
+* *2 hours* Debug issues with wireshark and quic
+
+## 27 Nov 2020
+
+* *1.5 hours* Install wireshark from source
+
+## 28 Nov 2020
+
+* *1.5 hours* Change repo to submodule style
+* *2 hours* Use lsquic tutorial to supplement connection code
+* *2 hour* Identify bug introduced in lsquic, revert to previous lsquic release
+* *2 hours* Begin work on integrating cron jobs onto amazon machine
+
+## 29 Nov 2020
+
+* *4 hours* Work on multi instance terraform
+* *2 hours* Integrate packer output with terraform input 
+
+## 1 Dec 2020
+
+* *4 hours* Work on Quic tracert
+
+## 4 Dec 2020
+
+* *3 hours* Work on ethics approval files
+
+## 6 Dec 2020
+
+* *3 hours* Refactor use of strcmp to jump tables + Various minor refactorings
+* *2 hours* Attempt to resolve bug with udp + tcp rawsockets
+
+## 7 Dec 2020
+
+* *3.5 hours* Solve bug with raw tracerts / switch compiler to clang
+
+## 8 Dec 2020
+
+* *3 hours* Refactor / tidy up tool output
+* *3 hours* Tidy up installer script for deploy
+* *1.5 hours* Resolve issues from preflight deploy
+
+## Dec 9 2020
+
+* *1 hours* Tidy up delays -> make tool faster
+* *2 hours* Resolve timing issue that caused segfault with tool
 
 <!--- 
 ### 19 Oct 2019
