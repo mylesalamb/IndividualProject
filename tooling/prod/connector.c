@@ -98,10 +98,8 @@ static int send_generic_quic_request(char *host, char *sni, int locport,
                                      int ecn, int ttl);
 
 /* underlying request handlers to take care of repeated socket interactions */
-static int defer_tcp_connection(char *host, uint8_t *buff, ssize_t buff_len,
-                                int locport, int extport);
-static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len,
-                              int locport, int extport);
+static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport);
+static int defer_udp_exchnage(int fd, char *host,uint8_t *buff, ssize_t buff_len,int extport);
 static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
                              int locport, int extport, int proto);
 static int tcp_send_all(int fd, uint8_t *buff, size_t len);
@@ -176,7 +174,7 @@ int bound_socket(char *host, enum conn_proto proto, socklen_t *addr_len) {
     return -1;
   }
 
-  socklen_t len;
+  socklen_t len = sizeof(struct sockaddr_storage);
   getsockname(fd, (struct sockaddr_in *)&loc_addr, &len);
   
   struct sockaddr_in *loc4 = (struct sockaddr_in *)&loc_addr;
@@ -226,7 +224,7 @@ int send_tcp_http_request(int fd, char *host, char *ws, int locport) {
   }
 
   sprintf((char *)buff, HTTP_REQ, ws);
-  return defer_tcp_connection(host, buff, strlen((char *)buff), locport,
+  return defer_tcp_connection(fd, host, buff, strlen((char *)buff),
                               PORT_HTTP);
 }
 
@@ -258,7 +256,7 @@ int send_tcp_dns_request(int fd, char *host, char *ws, int locport) {
   end_ptr = format_dns_request(ws, base_ptr);
   *len = htons((uint16_t)(end_ptr - base_ptr));
 
-  return defer_tcp_connection(host, buff, end_ptr - buff, locport, PORT_DNS);
+  return defer_tcp_connection(fd, host, buff, end_ptr - buff, PORT_DNS);
 }
 
 int send_udp_dns_request(int fd, char *host, char *ws, int locport) {
@@ -270,7 +268,7 @@ int send_udp_dns_request(int fd, char *host, char *ws, int locport) {
   }
 
   end_ptr = format_dns_request(ws, buff);
-  return defer_udp_exchnage(host, buff, end_ptr - buff, locport, PORT_DNS);
+  return defer_udp_exchnage(fd, host, buff, end_ptr - buff, PORT_DNS);
 }
 
 int send_tcp_dns_probe(int fd, char *host, char *ws, int locport) {
@@ -308,7 +306,7 @@ int send_udp_ntp_request(int fd, char *host, int locport) {
   }
 
   end_ptr = format_ntp_request(buff);
-  return defer_udp_exchnage(host, buff, end_ptr - buff, locport, PORT_NTP);
+  return defer_udp_exchnage(fd, host, buff, end_ptr - buff, PORT_NTP);
 }
 
 int send_tcp_ntp_request(int fd, char *host, int locport) {
@@ -319,8 +317,9 @@ int send_tcp_ntp_request(int fd, char *host, int locport) {
     return 1;
   }
 
+  // servers in ntp pool are recomended to host a webserver pointing to here
   sprintf((char *)buff, HTTP_REQ, "ntp.pool.org");
-  return defer_tcp_connection(host, buff, strlen((char *)buff), locport,
+  return defer_tcp_connection(fd, host, buff, strlen((char *)buff),
                               PORT_HTTP);
 }
 
@@ -885,9 +884,8 @@ static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr,
 }
 
 /* ensure that the end host receives the datagram, up to somepoint */
-static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len,
-                              int locport, int extport) {
-  int fd;
+static int defer_udp_exchnage(int fd, char *host,uint8_t *buff, ssize_t buff_len, int extport) {
+
   struct timespec rst = UDP_DLY;
   struct timespec dly = CONN_DLY;
   struct sockaddr_storage srv_addr;
@@ -899,8 +897,7 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len,
     return 1;
 
   host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len);
-
-  fd = construct_sock_to_host(&srv_addr, &srv_addr_len, locport, SOCK_DGRAM);
+  apply_sock_opts(fd, SOCK_DGRAM, &srv_addr, srv_addr_len);
 
   if (fd < 0) {
     LOG_ERR("bad fd\n");
@@ -930,7 +927,7 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len,
 
 static int defer_tcp_connection(int fd, char *host,uint8_t *buff, ssize_t buff_len,
                                 int extport) {
-  int fd;
+  
   struct timespec dly = CONN_DLY;
   struct sockaddr_storage srv_addr;
   socklen_t srv_addr_len;
@@ -940,9 +937,10 @@ static int defer_tcp_connection(int fd, char *host,uint8_t *buff, ssize_t buff_l
   if (!host || !buff)
     return 1;
 
-  // get host to some sort of address, we dont really care
+  // get host to some sort of address
   host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len);
-  fd = construct_sock_to_host(&srv_addr, &srv_addr_len, locport, SOCK_STREAM);
+  apply_sock_opts(fd, SOCK_STREAM, &srv_addr, srv_addr_len);
+
   if (fd < 0) {
     LOG_ERR("defer_tcp: bad fd\n");
     return 1;
