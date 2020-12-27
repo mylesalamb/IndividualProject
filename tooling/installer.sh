@@ -13,12 +13,17 @@ NF_PATH=/usr/local/lib
 GREPO=https://github.com/mylesalamb/individualProject.git
 GREPO_PATH=individualProject/tooling/prod
 
-DEBIAN_FRONTEND=noninteractive
+#DEBIAN_FRONTEND=noninteractive
+
+while ! grep "Cloud-init .* finished" /var/log/cloud-init.log; do
+    echo "$(date -Ins) Waiting for cloud-init to finish"
+    sleep 2
+done
 
 # Update image to most recent version, and install
 # non crit dependencies
-apt-get update -y
-apt-get install -y clang git-lfs zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
+sudo apt-get update -y
+sudo apt-get install -y clang gcc git-lfs zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
 git lfs install
 
 
@@ -30,7 +35,7 @@ tar -xvf "${NF_TGT}${NF_EXT}"
 cd $NF_TGT
 ./configure
 make
-make install
+sudo make install
 
 
 if echo "$LD_LIBRARY_PATH" | grep -q "$NF_PATH"; then
@@ -61,10 +66,12 @@ cd ..
 
 cd lsquic/
 cmake -DBORINGSSL_DIR=$BORINGSSL -DBORINGSSL_INCLUDE=$BORINGSSL/include . && make
-make install
+sudo make install
 cd ..
 
+# Allow the alternate user to create files for the ouput directory
 make
+chmod o+rwx .
 
 
 if [ -z $CI_BUILD ]; then
