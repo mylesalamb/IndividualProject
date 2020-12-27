@@ -988,7 +988,7 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
   if (!buff)
     return 1;
 
-  err = host_to_sockaddr(host, extport, &srv_addr, &srv_addr_size);
+  err = host_to_sockaddr(host, 0, &srv_addr, &srv_addr_size);
   if (err) {
     LOG_ERR("host_to_sockaddr\n");
     return 1;

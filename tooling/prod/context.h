@@ -38,11 +38,11 @@ static struct sock_conf_t socket_conf[] = {
 	{SOCK_STREAM, 0},
 	{SOCK_DGRAM, 0},
 	
-	{SOCK_RAW, IPPROTO_TCP},
-	{SOCK_RAW, IPPROTO_UDP},
-	{SOCK_RAW, IPPROTO_TCP},
-	{SOCK_RAW, IPPROTO_UDP},
-	{SOCK_RAW, IPPROTO_TCP},
+	{SOCK_STREAM, 0},
+	{SOCK_DGRAM, 0},
+	{SOCK_STREAM, 0},
+	{SOCK_DGRAM, 0},
+	{SOCK_STREAM, 0},
 	{SOCK_DGRAM, 0},
 	
 };

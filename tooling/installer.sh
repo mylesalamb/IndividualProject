@@ -68,7 +68,8 @@ make
 
 
 if [ -z $CI_BUILD ]; then
-	sudo setcap cap_net_raw,cap_net_admin=eip ecnDetector
+	sudo useradd ecnDetector_psuedo
+	sudo setcap cap_net_raw,cap_net_admin,cap_setuid,cap_setgid=eip ecnDetector
 	sudo ldconfig
 
 	# setup the experiement to run in fixed intervals

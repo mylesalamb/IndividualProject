@@ -305,41 +305,48 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
     nf_close_context(nfc);
   }
 
-  // transac->ctx->proto = DNS_UDP_PROBE;
-  // for (uint8_t ecn = 0; ecn < 4; ecn++) {
-  //   transac->ctx->flags = ecn;
-  //   int fd = 0;
+  transac->ctx->proto = DNS_UDP_PROBE;
+  for (uint8_t ecn = 0; ecn < 4; ecn++) {
+    
+    int fd;
+    init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
+    
+    transac->ctx->flags = ecn;
+    
 
-  //   pcap_push_context(pc, transac->ctx);
-  //   pcap_wait_until_rdy(pc);
+    pcap_push_context(pc, transac->ctx);
+    pcap_wait_until_rdy(pc);
 
-  //   nf_push_context(nfc, transac->ctx);
-  //   nf_wait_until_rdy(nfc);
+    nf_push_context(nfc, transac->ctx);
+    nf_wait_until_rdy(nfc);
 
-  //   send_udp_dns_probe(fd, transac->ctx->host, transac->request,
-  //                      transac->ctx->port);
-  //   pcap_close_context(pc);
-  //   nf_close_context(nfc);
-  // }
+    send_udp_dns_probe(fd, transac->ctx->host, transac->request,
+                       transac->ctx->port);
+    pcap_close_context(pc);
+    nf_close_context(nfc);
+    close(fd);
+  }
 
-  // transac->ctx->proto = DNS_TCP_PROBE;
-  // for (ecn = 0; ecn < 3; ecn++) {
-  //   transac->ctx->flags = ecn;
+  transac->ctx->proto = DNS_TCP_PROBE;
+  for (ecn = 0; ecn < 3; ecn++) {
+    transac->ctx->flags = ecn;
 
-  //   int fd = 0;
+    int fd;
+    init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
 
-  //   pcap_push_context(pc, transac->ctx);
-  //   pcap_wait_until_rdy(pc);
+    pcap_push_context(pc, transac->ctx);
+    pcap_wait_until_rdy(pc);
 
-  //   nf_push_context(nfc, transac->ctx);
-  //   nf_wait_until_rdy(nfc);
+    nf_push_context(nfc, transac->ctx);
+    nf_wait_until_rdy(nfc);
 
-  //   send_tcp_dns_probe(fd, transac->ctx->host, transac->request,
-  //                      transac->ctx->port);
+    send_tcp_dns_probe(fd, transac->ctx->host, transac->request,
+                       transac->ctx->port);
 
-  //   pcap_close_context(pc);
-  //   nf_close_context(nfc);
-  // }
+    pcap_close_context(pc);
+    nf_close_context(nfc);
+    close(fd);
+  }
 
   return 0;
 }
