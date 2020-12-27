@@ -1,9 +1,12 @@
 #ifndef CONNECTOR_H
 #define CONNECTOR_H 1
 
+#include <sys/socket.h>
 #include "context.h"
 
-int bound_socket(char *host, enum conn_proto proto);
+int bound_socket(char *host, enum conn_proto proto, socklen_t *addr_len);
+int get_port_number(struct sockaddr_storage *addr);
+
 
 int send_tcp_http_request(int fd, char *host, char *ws, int locport);
 int send_tcp_http_probe(int fd, char *host, int locport);

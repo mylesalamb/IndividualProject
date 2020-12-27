@@ -6,7 +6,6 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <unistd.h>
-#include <sys/capability.h>
 #include <sys/prctl.h>
 
 #include "connector.h"
@@ -135,70 +134,70 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
                                  struct pcap_controller_t *pc) {
   LOG_INFO("dispatch web, to host %s\n", transac->ctx->host);
   int ecn;
-  transac->ctx->proto = TCP;
-  for (ecn = 0; ecn < 4; ecn++) {
-    transac->ctx->flags = ecn;
+  // transac->ctx->proto = TCP;
+  // for (ecn = 0; ecn < 4; ecn++) {
+  //   transac->ctx->flags = ecn;
 
-    pcap_push_context(pc, transac->ctx);
-    pcap_wait_until_rdy(pc);
+  //   pcap_push_context(pc, transac->ctx);
+  //   pcap_wait_until_rdy(pc);
 
-    nf_push_context(nfc, transac->ctx);
-    nf_wait_until_rdy(nfc);
+  //   nf_push_context(nfc, transac->ctx);
+  //   nf_wait_until_rdy(nfc);
 
-    send_tcp_http_request(transac->ctx->host, transac->request,
-                          transac->ctx->port);
+  //   send_tcp_http_request(transac->ctx->host, transac->request,
+  //                         transac->ctx->port);
 
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-  }
+  //   pcap_close_context(pc);
+  //   nf_close_context(nfc);
+  // }
 
-  transac->ctx->proto = QUIC;
-  for (ecn = 0; ecn < 4; ecn++) {
-    transac->ctx->flags = ecn;
+  // transac->ctx->proto = QUIC;
+  // for (ecn = 0; ecn < 4; ecn++) {
+  //   transac->ctx->flags = ecn;
 
-    pcap_push_context(pc, transac->ctx);
-    pcap_wait_until_rdy(pc);
+  //   pcap_push_context(pc, transac->ctx);
+  //   pcap_wait_until_rdy(pc);
 
-    nf_push_context(nfc, transac->ctx);
-    nf_wait_until_rdy(nfc);
+  //   nf_push_context(nfc, transac->ctx);
+  //   nf_wait_until_rdy(nfc);
 
-    send_quic_http_request(transac->ctx->host, transac->request,
-                           transac->ctx->port, ecn);
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-  }
+  //   send_quic_http_request(transac->ctx->host, transac->request,
+  //                          transac->ctx->port, ecn);
+  //   pcap_close_context(pc);
+  //   nf_close_context(nfc);
+  // }
 
-  transac->ctx->proto = TCP_PROBE;
-  for (uint8_t ecn = 0; ecn < 4; ecn++) {
-    transac->ctx->flags = ecn;
+  // transac->ctx->proto = TCP_PROBE;
+  // for (uint8_t ecn = 0; ecn < 4; ecn++) {
+  //   transac->ctx->flags = ecn;
 
-    pcap_push_context(pc, transac->ctx);
-    pcap_wait_until_rdy(pc);
+  //   pcap_push_context(pc, transac->ctx);
+  //   pcap_wait_until_rdy(pc);
 
-    nf_push_context(nfc, transac->ctx);
-    nf_wait_until_rdy(nfc);
+  //   nf_push_context(nfc, transac->ctx);
+  //   nf_wait_until_rdy(nfc);
 
-    send_tcp_http_probe(transac->ctx->host, transac->ctx->port);
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-  }
+  //   send_tcp_http_probe(transac->ctx->host, transac->ctx->port);
+  //   pcap_close_context(pc);
+  //   nf_close_context(nfc);
+  // }
 
-  transac->ctx->proto = QUIC_PROBE;
-  for (ecn = 0; ecn < 3; ecn++) {
-    transac->ctx->flags = ecn;
+  // transac->ctx->proto = QUIC_PROBE;
+  // for (ecn = 0; ecn < 3; ecn++) {
+  //   transac->ctx->flags = ecn;
 
-    pcap_push_context(pc, transac->ctx);
-    pcap_wait_until_rdy(pc);
+  //   pcap_push_context(pc, transac->ctx);
+  //   pcap_wait_until_rdy(pc);
 
-    nf_push_context(nfc, transac->ctx);
-    nf_wait_until_rdy(nfc);
+  //   nf_push_context(nfc, transac->ctx);
+  //   nf_wait_until_rdy(nfc);
 
-    send_quic_http_probe(transac->ctx->host, transac->request,
-                         transac->ctx->port, ecn);
+  //   send_quic_http_probe(transac->ctx->host, transac->request,
+  //                        transac->ctx->port, ecn);
 
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-  }
+  //   pcap_close_context(pc);
+  //   nf_close_context(nfc);
+  // }
 
   return 0;
 }
@@ -217,10 +216,13 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
 
   transac->ctx->proto = DNS_TCP;
   for (ecn = 0; ecn < 4; ecn++) {
+
+    socklen_t len;
     struct sockaddr_storage remote_addr;
-    int fd = bound_socket(transac->ctx->host, transac->ctx->proto);
-    getsockname(fd, &remote_addr, sizeof remote_addr);
+    int fd = bound_socket(transac->ctx->host, transac->ctx->proto, &len);
+    getsockname(fd, &remote_addr, &len);
     int loc_port = get_port_number(&remote_addr);
+    transac->ctx->port = loc_port;
 
 
     transac->ctx->flags = ecn;
@@ -231,62 +233,75 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
     nf_push_context(nfc, transac->ctx);
     nf_wait_until_rdy(nfc);
 
-    send_tcp_dns_request(transac->ctx->host, transac->request,
+    send_tcp_dns_request(fd, transac->ctx->host, transac->request,
                          transac->ctx->port);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
   }
 
-  transac->ctx->proto = DNS_UDP;
-  for (ecn = 0; ecn < 4; ecn++) {
-    transac->ctx->flags = ecn;
+  // transac->ctx->proto = DNS_UDP;
+  // for (ecn = 0; ecn < 4; ecn++) {
 
-    pcap_push_context(pc, transac->ctx);
-    pcap_wait_until_rdy(pc);
 
-    nf_push_context(nfc, transac->ctx);
-    nf_wait_until_rdy(nfc);
+  //   socklen_t len;
+  //   struct sockaddr_storage remote_addr;
+  //   int fd = bound_socket(transac->ctx->host, transac->ctx->proto);
+  //   getsockname(fd, &remote_addr, &len);
+  //   int loc_port = get_port_number(&remote_addr);
+  //   transac->ctx->port = loc_port;
 
-    send_udp_dns_request(transac->ctx->host, transac->request,
-                         transac->ctx->port);
 
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-  }
+  //   transac->ctx->flags = ecn;
 
-  transac->ctx->proto = DNS_UDP_PROBE;
-  for (uint8_t ecn = 0; ecn < 4; ecn++) {
-    transac->ctx->flags = ecn;
+  //   pcap_push_context(pc, transac->ctx);
+  //   pcap_wait_until_rdy(pc);
 
-    pcap_push_context(pc, transac->ctx);
-    pcap_wait_until_rdy(pc);
+  //   nf_push_context(nfc, transac->ctx);
+  //   nf_wait_until_rdy(nfc);
 
-    nf_push_context(nfc, transac->ctx);
-    nf_wait_until_rdy(nfc);
+  //   send_udp_dns_request(fd, transac->ctx->host, transac->request,
+  //                        transac->ctx->port);
 
-    send_udp_dns_probe(transac->ctx->host, transac->request,
-                       transac->ctx->port);
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-  }
+  //   pcap_close_context(pc);
+  //   nf_close_context(nfc);
+  // }
 
-  transac->ctx->proto = DNS_TCP_PROBE;
-  for (ecn = 0; ecn < 3; ecn++) {
-    transac->ctx->flags = ecn;
+  // transac->ctx->proto = DNS_UDP_PROBE;
+  // for (uint8_t ecn = 0; ecn < 4; ecn++) {
+  //   transac->ctx->flags = ecn;
+  //   int fd = 0;
 
-    pcap_push_context(pc, transac->ctx);
-    pcap_wait_until_rdy(pc);
+  //   pcap_push_context(pc, transac->ctx);
+  //   pcap_wait_until_rdy(pc);
 
-    nf_push_context(nfc, transac->ctx);
-    nf_wait_until_rdy(nfc);
+  //   nf_push_context(nfc, transac->ctx);
+  //   nf_wait_until_rdy(nfc);
 
-    send_tcp_dns_probe(transac->ctx->host, transac->request,
-                       transac->ctx->port);
+  //   send_udp_dns_probe(fd, transac->ctx->host, transac->request,
+  //                      transac->ctx->port);
+  //   pcap_close_context(pc);
+  //   nf_close_context(nfc);
+  // }
 
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-  }
+  // transac->ctx->proto = DNS_TCP_PROBE;
+  // for (ecn = 0; ecn < 3; ecn++) {
+  //   transac->ctx->flags = ecn;
+
+  //   int fd = 0;
+
+  //   pcap_push_context(pc, transac->ctx);
+  //   pcap_wait_until_rdy(pc);
+
+  //   nf_push_context(nfc, transac->ctx);
+  //   nf_wait_until_rdy(nfc);
+
+  //   send_tcp_dns_probe(fd, transac->ctx->host, transac->request,
+  //                      transac->ctx->port);
+
+  //   pcap_close_context(pc);
+  //   nf_close_context(nfc);
+  // }
 
   return 0;
 }
@@ -305,92 +320,92 @@ static int dispatch_ntp(struct transaction_node_t *transac,
   uint8_t ecn;
 
   
-  for (ecn = 0; ecn < 4; ecn++) {
+  // for (ecn = 0; ecn < 4; ecn++) {
 
-    struct transaction_node_t *cursor = transac;
-    while (cursor) {
-      cursor->ctx->proto = NTP_TCP;
-      cursor->ctx->flags = ecn;
+  //   struct transaction_node_t *cursor = transac;
+  //   while (cursor) {
+  //     cursor->ctx->proto = NTP_TCP;
+  //     cursor->ctx->flags = ecn;
 
-      pcap_push_context(pc, cursor->ctx);
-      pcap_wait_until_rdy(pc);
+  //     pcap_push_context(pc, cursor->ctx);
+  //     pcap_wait_until_rdy(pc);
 
-      nf_push_context(nfc, cursor->ctx);
-      nf_wait_until_rdy(nfc);
+  //     nf_push_context(nfc, cursor->ctx);
+  //     nf_wait_until_rdy(nfc);
 
-      send_tcp_ntp_request(cursor->ctx->host, cursor->ctx->port);
+  //     send_tcp_ntp_request(cursor->ctx->host, cursor->ctx->port);
 
-      pcap_close_context(pc);
-      nf_close_context(nfc);
-      cursor = cursor->next;
-    }
-  }
-
-  
-  for (ecn = 0; ecn < 4; ecn++) {
-
-    struct transaction_node_t *cursor = transac;
-    while (cursor) {
-    cursor->ctx->proto = NTP_UDP;
-    cursor->ctx->flags = ecn;
-
-    pcap_push_context(pc, cursor->ctx);
-    pcap_wait_until_rdy(pc);
-
-    nf_push_context(nfc, cursor->ctx);
-    nf_wait_until_rdy(nfc);
-
-    send_udp_ntp_request(cursor->ctx->host, cursor->ctx->port);
-
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-    cursor = cursor->next;
-    }
-  }
+  //     pcap_close_context(pc);
+  //     nf_close_context(nfc);
+  //     cursor = cursor->next;
+  //   }
+  // }
 
   
-  for (ecn = 0; ecn < 3; ecn++) {
-    struct transaction_node_t *cursor = transac;
-    while (cursor) {
-    cursor->ctx->proto = NTP_UDP_PROBE;
-    cursor->ctx->flags = ecn;
+  // for (ecn = 0; ecn < 4; ecn++) {
 
-    pcap_push_context(pc, cursor->ctx);
-    pcap_wait_until_rdy(pc);
+  //   struct transaction_node_t *cursor = transac;
+  //   while (cursor) {
+  //   cursor->ctx->proto = NTP_UDP;
+  //   cursor->ctx->flags = ecn;
 
-    nf_push_context(nfc, cursor->ctx);
-    nf_wait_until_rdy(nfc);
+  //   pcap_push_context(pc, cursor->ctx);
+  //   pcap_wait_until_rdy(pc);
 
-    send_udp_ntp_probe(cursor->ctx->host, cursor->ctx->port);
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-    cursor = cursor->next;
-    }
-  }
+  //   nf_push_context(nfc, cursor->ctx);
+  //   nf_wait_until_rdy(nfc);
+
+  //   send_udp_ntp_request(cursor->ctx->host, cursor->ctx->port);
+
+  //   pcap_close_context(pc);
+  //   nf_close_context(nfc);
+  //   cursor = cursor->next;
+  //   }
+  // }
 
   
-  for (ecn = 0; ecn < 3; ecn++) {
+  // for (ecn = 0; ecn < 3; ecn++) {
+  //   struct transaction_node_t *cursor = transac;
+  //   while (cursor) {
+  //   cursor->ctx->proto = NTP_UDP_PROBE;
+  //   cursor->ctx->flags = ecn;
+
+  //   pcap_push_context(pc, cursor->ctx);
+  //   pcap_wait_until_rdy(pc);
+
+  //   nf_push_context(nfc, cursor->ctx);
+  //   nf_wait_until_rdy(nfc);
+
+  //   send_udp_ntp_probe(cursor->ctx->host, cursor->ctx->port);
+  //   pcap_close_context(pc);
+  //   nf_close_context(nfc);
+  //   cursor = cursor->next;
+  //   }
+  // }
+
+  
+  // for (ecn = 0; ecn < 3; ecn++) {
     
-    struct transaction_node_t *cursor = transac;
-    while (cursor) {
+  //   struct transaction_node_t *cursor = transac;
+  //   while (cursor) {
     
-    cursor->ctx->flags = ecn;
-    cursor->ctx->proto = NTP_TCP_PROBE;
+  //   cursor->ctx->flags = ecn;
+  //   cursor->ctx->proto = NTP_TCP_PROBE;
 
 
-    pcap_push_context(pc, cursor->ctx);
-    pcap_wait_until_rdy(pc);
+  //   pcap_push_context(pc, cursor->ctx);
+  //   pcap_wait_until_rdy(pc);
 
-    nf_push_context(nfc, cursor->ctx);
-    nf_wait_until_rdy(nfc);
+  //   nf_push_context(nfc, cursor->ctx);
+  //   nf_wait_until_rdy(nfc);
 
-    send_tcp_ntp_probe(cursor->ctx->host, cursor->ctx->port);
+  //   send_tcp_ntp_probe(cursor->ctx->host, cursor->ctx->port);
 
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-    cursor = cursor->next;
-    }
-  }
+  //   pcap_close_context(pc);
+  //   nf_close_context(nfc);
+  //   cursor = cursor->next;
+  //   }
+  // }
 
   return 0;
 }

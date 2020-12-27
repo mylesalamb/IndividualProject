@@ -128,7 +128,7 @@ int get_port_number(struct sockaddr_storage *addr)
 
 }
 
-int bound_socket(char *host, enum conn_proto proto) {
+int bound_socket(char *host, enum conn_proto proto, socklen_t *addr_len) {
 
   int sock_family;
   int ipver = ip_ver_str(host);
@@ -143,7 +143,7 @@ int bound_socket(char *host, enum conn_proto proto) {
     inet_pton(sock_family, "0.0.0.0", &loc4->sin_addr);
     loc4->sin_family = AF_INET;
     loc_len = sizeof (struct sockaddr_in);
-
+    *addr_len = loc_len;
     break;
   case AF_INET6:
     sock_family = AF_INET6;
@@ -176,7 +176,8 @@ int bound_socket(char *host, enum conn_proto proto) {
     return -1;
   }
 
-  getsockname(fd, (struct sockaddr_in *)&loc_addr, &loc_len);
+  socklen_t len;
+  getsockname(fd, (struct sockaddr_in *)&loc_addr, &len);
   
   struct sockaddr_in *loc4 = (struct sockaddr_in *)&loc_addr;
   LOG_INFO("local port: %d\n", ntohs(loc4->sin_port));
@@ -927,8 +928,8 @@ static int defer_udp_exchnage(char *host, uint8_t *buff, ssize_t buff_len,
   return ret;
 }
 
-static int defer_tcp_connection(char *host, uint8_t *buff, ssize_t buff_len,
-                                int locport, int extport) {
+static int defer_tcp_connection(int fd, char *host,uint8_t *buff, ssize_t buff_len,
+                                int extport) {
   int fd;
   struct timespec dly = CONN_DLY;
   struct sockaddr_storage srv_addr;
