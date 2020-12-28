@@ -81,7 +81,7 @@ if [ -z $CI_BUILD ]; then
 
 	# setup the experiement to run in fixed intervals
 	sudo service cron stop
-	sudo bash -c "echo \"10 2 * * * ubuntu /bin/bash $PWD/test.sh\" >> /etc/crontab"
+	sudo bash -c "echo \"30 3 * * * ubuntu /bin/bash $PWD/test.sh\" >> /etc/crontab"
 
 	# Stop the kernel negotiating ecn on our behalf
 	# Alter retry behaviour, a fair number of NTP hosts will be done
