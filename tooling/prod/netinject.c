@@ -171,6 +171,7 @@ static void nf_handle_conn(struct nf_controller_t *nfc)
         pthread_mutex_lock(&nfc->mtx);
         nfc->ctx = NULL;
         pthread_mutex_unlock(&nfc->mtx);
+        pthread_cond_signal(&nfc->cv);
 }
 void nf_close_context(struct nf_controller_t *nfc)
 {

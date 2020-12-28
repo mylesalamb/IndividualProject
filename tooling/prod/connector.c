@@ -68,10 +68,6 @@ static int ip_ver_str(char *host);
 static int host_to_sockaddr(char *host, int extport,
                             struct sockaddr_storage *addr,
                             socklen_t *addr_size);
-
-static int construct_sock_to_host(struct sockaddr_storage *addr,
-                                  socklen_t *addr_size, int locport,
-                                  int sock_type);
 static int contruct_rawsock_to_host(struct sockaddr_storage *addr,
                                     int socktype);
 static int construct_icmp_sock(struct sockaddr_storage *addr);
@@ -394,65 +390,6 @@ static int host_to_sockaddr(char *host, int extport,
   }
 
   return 0;
-}
-
-static int construct_sock_to_host(struct sockaddr_storage *addr,
-                                  socklen_t *addr_size, int locport,
-                                  int sock_type) {
-  int fd;
-  int opt = 1;
-
-  struct sockaddr_storage host_addr;
-
-  fd = socket(addr->ss_family, sock_type, 0);
-  if (fd < 0) {
-    LOG_ERR("construct sock to host\n");
-    goto fail;
-  }
-
-  if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-    LOG_ERR("construct sock to host: reuse port\n");
-    goto fail;
-  }
-
-  if (addr->ss_family == AF_INET) {
-    struct sockaddr_in *addr4 = (struct sockaddr_in *)&host_addr;
-    addr4->sin_port = htons(locport);
-    addr4->sin_family = addr->ss_family;
-    addr4->sin_addr.s_addr = INADDR_ANY;
-  } else if (addr->ss_family == AF_INET6) {
-    struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&host_addr;
-    addr6->sin6_port = htons(locport);
-    addr6->sin6_family = addr->ss_family;
-    addr6->sin6_addr = in6addr_any;
-  } else {
-    LOG_ERR("socket family not supported\n");
-    goto fail;
-  }
-  // give the same pre conditions to all sending functions
-  // We dont change hosts on sending, so this is fine
-  if (bind(fd, (struct sockaddr *)&host_addr, *addr_size)) {
-    LOG_ERR("failed to bind\n");
-    goto fail;
-  }
-
-  if (connect(fd, (struct sockaddr *)addr, *addr_size) == -1) {
-    LOG_ERR("connect\n");
-    goto fail;
-  }
-
-  if (sock_type == SOCK_DGRAM) {
-    if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
-      LOG_ERR("construct sock to host: non block\n");
-      goto fail;
-    }
-  }
-
-  return fd;
-
-fail:
-  close(fd);
-  return -1;
 }
 
 static int construct_icmp_sock(struct sockaddr_storage *addr) {
@@ -897,7 +834,7 @@ static int defer_udp_exchnage(int fd, char *host,uint8_t *buff, ssize_t buff_len
     return 1;
 
   host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len);
-  apply_sock_opts(fd, SOCK_DGRAM, &srv_addr, srv_addr_len);
+  apply_sock_opts(fd, SOCK_DGRAM, (struct sockaddr *)&srv_addr, srv_addr_len);
 
   if (fd < 0) {
     LOG_ERR("bad fd\n");
@@ -939,7 +876,7 @@ static int defer_tcp_connection(int fd, char *host,uint8_t *buff, ssize_t buff_l
 
   // get host to some sort of address
   host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len);
-  apply_sock_opts(fd, SOCK_STREAM, &srv_addr, srv_addr_len);
+  apply_sock_opts(fd, SOCK_STREAM, (struct sockaddr *)&srv_addr, srv_addr_len);
 
   if (fd < 0) {
     LOG_ERR("defer_tcp: bad fd\n");
