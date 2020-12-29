@@ -21,11 +21,12 @@ static void pcap_log_conn(struct pcap_controller_t *pc);
 void pcap_push_context(struct pcap_controller_t *pc, struct connection_context_t *ctx)
 {
         pthread_mutex_lock(&pc->mtx);
-        while (pc->ctx)
-                pthread_cond_wait(&pc->cv, &pc->mtx);
-
+        while (!pc->ctx_rdy_flag)
+        {
+                pthread_cond_wait(&pc->ctx_rdy, &pc->mtx);
+        }
         pc->ctx = ctx;
-
+        pc->ctx_rdy_flag = false;
         pthread_mutex_unlock(&pc->mtx);
         pthread_cond_signal(&pc->cv);
 }
@@ -75,6 +76,7 @@ struct pcap_controller_t *pcap_init(char *alias, char *dirname)
         pthread_mutex_init(&pc->mtx, NULL);
         pthread_cond_init(&pc->cv, NULL);
         pthread_cond_init(&pc->cap_rdy, NULL);
+        pthread_cond_init(&pc->ctx_rdy, NULL);
 
         // start the controller and wait for the connection information to be recived
         if (pthread_create(&th, NULL, pcap_controller, pc))
@@ -87,6 +89,7 @@ struct pcap_controller_t *pcap_init(char *alias, char *dirname)
         pc->pcap_dev = dev;
         pc->alias = alias;
         pc->outdir = outdir;
+        pc->ctx_rdy_flag = true;
         return pc;
 }
 
@@ -112,6 +115,7 @@ void pcap_free(struct pcap_controller_t *pc)
 
         pthread_mutex_destroy(&pc->mtx);
         pthread_cond_destroy(&pc->cap_rdy);
+        pthread_cond_destroy(&pc->ctx_rdy);
         pthread_cond_destroy(&pc->cv);
 
         free(pc->pcap_dev);
@@ -133,9 +137,9 @@ void pcap_wait_until_rdy(struct pcap_controller_t *pc)
 
 static bool get_connection_exit(struct pcap_controller_t *pc)
 {
-
+        bool ret;
         pthread_mutex_lock(&pc->mtx);
-        bool ret = pc->connection_exit;
+        ret = pc->connection_exit;
         pthread_mutex_unlock(&pc->mtx);
         return ret;
 }
@@ -166,18 +170,18 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         }
 
         pc->handle = pcap_create(pc->pcap_dev, error_buffer);
-        if(!pc->handle)
+        if (!pc->handle)
         {
                 LOG_ERR("create handle\n");
                 return;
         }
-        if(pcap_set_immediate_mode(pc->handle, 1))
+        if (pcap_set_immediate_mode(pc->handle, 1))
         {
                 LOG_ERR("Immediate mode\n");
                 return;
         }
 
-        if(pcap_activate(pc->handle))
+        if (pcap_activate(pc->handle))
         {
                 LOG_ERR("pcap activate\n");
                 return;
@@ -200,14 +204,15 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
                 return;
         }
 
-        pcap_set_timeout(pc->handle, 10);
-
         // buffer is open -> we are capturing but not using packets
 
         pd = pcap_dump_open(pc->handle, outfile);
 
+        // ready to capture
+
         pthread_mutex_lock(&pc->mtx);
         pc->cap_rdy_flag = true;
+        pc->connection_exit = false;
         pthread_mutex_unlock(&pc->mtx);
         pthread_cond_signal(&pc->cap_rdy);
 
@@ -221,18 +226,11 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
                 pcap_dispatch(pc->handle, -1, &pcap_dump, (u_char *)pd);
         } while (!get_connection_exit(pc));
 
-        pcap_dispatch(pc->handle, -1, &pcap_dump, (u_char *)pd);
-
         // close dump file handle
         pcap_dump_close(pd);
         pcap_freecode(&filter);
         // close network interface handle
         pcap_close(pc->handle);
-
-        pthread_mutex_lock(&pc->mtx);
-        pc->ctx = NULL;
-        pthread_mutex_unlock(&pc->mtx);
-        pthread_cond_signal(&pc->cv);
 }
 
 /**
@@ -246,10 +244,7 @@ static void *pcap_controller(void *arg)
 
         while (1)
         {
-
-                // wait until exit or context pushed
                 pthread_mutex_lock(&pc->mtx);
-                pc->connection_exit = false;
                 while (!pc->controller_exit && !pc->ctx)
                         pthread_cond_wait(&pc->cv, &pc->mtx);
 
@@ -260,8 +255,37 @@ static void *pcap_controller(void *arg)
                 }
 
                 pthread_mutex_unlock(&pc->mtx);
+
                 pcap_log_conn(pc);
+
+                pthread_mutex_lock(&pc->mtx);
+                pc->ctx = NULL;
+                pc->ctx_rdy_flag = true;
+                pthread_mutex_unlock(&pc->mtx);
+                pthread_cond_signal(&pc->ctx_rdy);
         }
-        LOG_INFO("thread leaving;\n");
+
         return NULL;
+
+        // while (1)
+        // {
+
+        //         // wait until exit or context pushed
+        //         pthread_mutex_lock(&pc->mtx);
+        //         pc->connection_exit = false;
+        //         pc->ctx_rdy = true;
+        //         while (!pc->controller_exit && !pc->ctx)
+        //                 pthread_cond_wait(&pc->cv, &pc->mtx);
+
+        //         if (pc->controller_exit)
+        //         {
+        //                 pthread_mutex_unlock(&pc->mtx);
+        //                 break;
+        //         }
+
+        //         pthread_mutex_unlock(&pc->mtx);
+        //         pcap_log_conn(pc);
+        // }
+        // LOG_INFO("thread leaving;\n");
+        // return NULL;
 }
