@@ -11,7 +11,7 @@ fi
 cd "$(dirname "$0")"
 
 mkdir keystore
-chmod o+rwx keystore
+sudo chown ecnDetector_psuedo keystore 
 
 if [ ! -f $CONF ]; then
     echo "RUNS=0" >> $CONF

@@ -97,7 +97,6 @@ void pcap_close_context(struct pcap_controller_t *pc)
 {
         pthread_mutex_lock(&pc->mtx);
         pc->connection_exit = true;
-        pc->ctx = NULL;
         pthread_mutex_unlock(&pc->mtx);
 }
 
@@ -229,6 +228,11 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         pcap_freecode(&filter);
         // close network interface handle
         pcap_close(pc->handle);
+
+        pthread_mutex_lock(&pc->mtx);
+        pc->ctx = NULL;
+        pthread_mutex_unlock(&pc->mtx);
+        pthread_cond_signal(&pc->cv);
 }
 
 /**
