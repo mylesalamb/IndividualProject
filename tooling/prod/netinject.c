@@ -36,21 +36,22 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
 
 static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 static int nf_handle_gen_udp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
+static int nf_handle_quic_probe(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 static int nf_nop(struct connection_context_t *ctx, uint8_t *payload, size_t len) { return 0; }
 
 static int (*dispatch_table[])(struct connection_context_t *ctx, uint8_t *payload, size_t len) = {
-    &nf_handle_tcp,     // TCP
-    &nf_handle_gen_udp, // NTP UDP
-    &nf_handle_tcp,     // NTP TCP
-    &nf_handle_gen_udp, // DNS UDP
-    &nf_handle_tcp,     // DNS TCP
-    &nf_nop,            // QUIC
-    &nf_handle_tcp,     // TCP PROBE
-    &nf_handle_gen_udp, // NTP UDP PROBE
-    &nf_handle_tcp,     // NTP TCP PROBE
-    &nf_handle_gen_udp, // DNS UDP PROBE
-    &nf_handle_tcp,     // DNS TCP PROBE
-    &nf_nop             // QUIC PROBE
+    &nf_handle_tcp,       // TCP
+    &nf_handle_gen_udp,   // NTP UDP
+    &nf_handle_tcp,       // NTP TCP
+    &nf_handle_gen_udp,   // DNS UDP
+    &nf_handle_tcp,       // DNS TCP
+    &nf_nop,              // QUIC
+    &nf_handle_tcp,       // TCP PROBE
+    &nf_handle_gen_udp,   // NTP UDP PROBE
+    &nf_handle_tcp,       // NTP TCP PROBE
+    &nf_handle_gen_udp,   // DNS UDP PROBE
+    &nf_handle_tcp,       // DNS TCP PROBE
+    &nf_handle_quic_probe // QUIC PROBE
 };
 
 struct nf_controller_t *nf_init()
@@ -367,12 +368,59 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
 
 #pragma GCC diagnostic pop
 
+static int nf_handle_quic_probe(struct connection_context_t *ctx, uint8_t *payload, size_t len)
+{
+        struct pkt_buff *pkt;
+        struct udphdr *udp;
+        uint8_t *udp_payload;
+        ssize_t payload_len;
+
+        pkt = pktb_alloc(ip_ver_str(ctx->host), payload, len, 0);
+        gen_ip_handler(pkt, ctx);
+        udp = nfq_udp_get_hdr(pkt);
+        if (!udp)
+        {
+                LOG_ERR("Could not get udp header\n");
+                return -1;
+        }
+
+        if (!ctx->pkt_relay)
+        {
+                LOG_INFO("Buffer outgoing probe\n");
+                udp_payload = nfq_udp_get_payload(udp, pkt);
+                if (!udp_payload)
+                {
+                        LOG_ERR("Could not get udp payload\n");
+                        return -1;
+                }
+
+                payload_len = nfq_udp_get_payload_len(udp, pkt);
+
+                uint8_t *payload_replay = malloc(payload_len);
+                if (!payload_replay)
+                {
+                        LOG_ERR("replay payload malloc failed\n");
+                        return -1;
+                }
+                memcpy(payload_replay, udp_payload, payload_len);
+                ctx->pkt_relay = payload_replay;
+                ctx->pky_relay_len = payload_len;
+        }
+
+        gen_ip_udp_checksum(ctx, pkt, udp);
+
+        memcpy(payload, pktb_data(pkt), len);
+        pktb_free(pkt);
+
+        return 0;
+}
+
 static int nf_handle_gen_udp(struct connection_context_t *ctx, uint8_t *payload, size_t len)
 {
         struct pkt_buff *pkt;
         struct udphdr *udp;
 
-        pkt = pktb_alloc(AF_INET, payload, len, 0);
+        pkt = pktb_alloc(ip_ver_str(ctx->host), payload, len, 0);
 
         gen_ip_handler(pkt, ctx);
         udp = nfq_udp_get_hdr(pkt);

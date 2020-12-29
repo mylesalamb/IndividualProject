@@ -15,7 +15,7 @@ default: $(EXEC)
 $(EXEC): $(EXECSOURCES)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
-debug: CFLAGS += -g -O1 -fno-omit-frame-pointer
+debug: CFLAGS += -g -O1 -fno-omit-frame-pointer -DDEBUG
 debug: $(EXEC)
 
 .PHONY: clean rmd cleanall test

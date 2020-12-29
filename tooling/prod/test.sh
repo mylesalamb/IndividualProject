@@ -3,13 +3,6 @@ EXEC=ecnDetector
 DATASET=../datasets/pre-flight.dataset
 CONF="runs.conf"
 
-
-# sudo service cron stop
-
-# if [ ! $? -eq 0 ]; then 
-#     echo "could not stop cron" >> experiment.log
-# fi
-
 if `pgrep ecnDetector`; then
     echo "already running" >> cron.log
 fi
@@ -18,6 +11,7 @@ fi
 cd "$(dirname "$0")"
 
 mkdir keystore
+chmod o+rwx keystore
 
 if [ ! -f $CONF ]; then
     echo "RUNS=0" >> $CONF
@@ -33,5 +27,3 @@ echo "### Start run $RUNS ###" >> experiment.log
 RUNS=$((RUNS+1))
 
 sed -i "s~^\(RUNS=\).*~\1$RUNS~" $CONF
-
-

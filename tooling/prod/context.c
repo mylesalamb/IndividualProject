@@ -19,6 +19,13 @@ const char *str_proto[] = {
     "QUIC_PROBE",
 };
 
+int ip_ver_str(char *host) {
+  if (!host)
+    return 0;
+
+  return strchr(host, '.') ? AF_INET : AF_INET6;
+}
+
 /**
  * Get a string that represents a connection context
  * formatted wrt each protocol implemented

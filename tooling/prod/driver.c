@@ -40,8 +40,6 @@ static int (*transac_disaptch[])(struct transaction_node_t *transac,
                                  struct pcap_controller_t *pc) = {
     &dispatch_web, &dispatch_dns, &dispatch_ntp};
 
-static int init_conn(char * host, enum conn_proto proto, int *fd, int *port);
-
 int main(int argc, char **argv)
 {
 
@@ -50,7 +48,10 @@ int main(int argc, char **argv)
   char *outdir = "data";
   char arg;
 
+  // memory sanitizers have a hard tme with this
+  #ifndef DEBUG
   set_user();
+  #endif
 
   log_init();
 
@@ -121,34 +122,7 @@ int main(int argc, char **argv)
   return EXIT_SUCCESS;
 }
 
-/**
- * Just create a socket of the correct type, and return the correct port number
- */
-static int init_conn(char * host, enum conn_proto proto, int *fd, int *port)
-{
-  socklen_t len = sizeof(struct sockaddr_storage);
-  struct sockaddr_storage remote_addr;
 
-  int fd_ret = bound_socket(host, proto, &len);
-  if(fd_ret < 0)
-  {
-    LOG_ERR("create bound socket\n");
-    return -1;
-  }
-
-  *fd = fd_ret;
-  
-  int ret = getsockname(*fd, (struct sockaddr *)&remote_addr, &len);
-  if(ret < 0)
-  {
-    LOG_ERR("getsockname: %s\n", strerror(errno));
-  }
-  
-  int loc_port = get_port_number(&remote_addr);
-
-  *port = loc_port;
-  return 0;
-}
 
 // call the underlying singular dispatch function
 // for each transac, suitable for web and dns
@@ -210,7 +184,7 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     nf_push_context(nfc, transac->ctx);
     nf_wait_until_rdy(nfc);
 
-    send_quic_http_request(transac->ctx->host, transac->request,
+    send_quic_http_request(fd, transac->ctx->host, transac->request,
                            transac->ctx->port, ecn);
     pcap_close_context(pc);
     nf_close_context(nfc);
@@ -239,14 +213,17 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
   for (ecn = 0; ecn < 3; ecn++) {
     transac->ctx->flags = ecn;
 
+    int fd;
+    init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
+
     pcap_push_context(pc, transac->ctx);
     pcap_wait_until_rdy(pc);
 
     nf_push_context(nfc, transac->ctx);
     nf_wait_until_rdy(nfc);
 
-    send_quic_http_probe(transac->ctx->host, transac->request,
-                         transac->ctx->port, ecn);
+    send_quic_http_probe(fd, transac->ctx->host, transac->request,transac->ctx->port,
+                         ecn, &transac->ctx->pkt_relay, &transac->ctx->pky_relay_len);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
@@ -381,7 +358,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
       cursor->ctx->proto = NTP_TCP;
 
       int fd;
-      init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
+      init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
 
       cursor->ctx->flags = ecn;
 
@@ -408,7 +385,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
     cursor->ctx->proto = NTP_UDP;
     
     int fd;
-    init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
+    init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
     
     cursor->ctx->flags = ecn;
 
@@ -433,7 +410,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
     cursor->ctx->flags = ecn;
 
     int fd;
-    init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
+    init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
 
     pcap_push_context(pc, cursor->ctx);
     pcap_wait_until_rdy(pc);
@@ -457,7 +434,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
     cursor->ctx->proto = NTP_TCP_PROBE;
 
     int fd;
-    init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
+    init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
 
     pcap_push_context(pc, cursor->ctx);
     pcap_wait_until_rdy(pc);
