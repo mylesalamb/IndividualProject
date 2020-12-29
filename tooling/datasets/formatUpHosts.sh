@@ -6,7 +6,6 @@ if (( $# != 1 )); then
 fi
 
 while read line; do
-        echo "checking host: $line"
         if [[ `ntpdate -q $line` ]] &> /dev/null; then
                 echo $line
         fi
