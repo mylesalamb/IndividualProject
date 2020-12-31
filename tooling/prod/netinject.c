@@ -64,9 +64,11 @@ struct nf_controller_t *nf_init()
 
         pthread_mutex_init(&nfc->mtx, NULL);
         pthread_cond_init(&nfc->cv, NULL);
-        pthread_cond_init(&nfc->rdy, NULL);
+        pthread_cond_init(&nfc->cap_rdy, NULL);
+        pthread_cond_init(&nfc->ctx_rdy, NULL);
 
         nfc->ctx = NULL;
+        nfc->ctx_rdy_flag = true;
         nfc->connection_exit = false;
         nfc->controller_exit = false;
         nfc->queue = NULL;
@@ -121,10 +123,6 @@ static void *nf_controller(void *arg)
 {
         struct nf_controller_t *nfc = (struct nf_controller_t *)arg;
 
-        pthread_mutex_lock(&nfc->mtx);
-        nfc->rdy_flag = true;
-        pthread_mutex_unlock(&nfc->mtx);
-        pthread_cond_signal(&nfc->rdy);
 
         while (1)
         {
@@ -139,18 +137,20 @@ static void *nf_controller(void *arg)
                         pthread_mutex_unlock(&nfc->mtx);
                         break;
                 }
-                else if (nfc->ctx)
-                {
-                        nfc->rdy_flag = true;
-                        nfc->connection_exit = false;
-                }
                 pthread_mutex_unlock(&nfc->mtx);
-                pthread_cond_signal(&nfc->cv);
+                
 
                 // connection_exit false -> we definitely know that the conneciton
                 // is done because requests have been sent/modified
 
                 nf_handle_conn(nfc);
+
+                pthread_mutex_lock(&nfc->mtx);
+                nfc->ctx = NULL;
+                nfc->ctx_rdy_flag = true;
+                nfc->connection_exit = false;
+                pthread_mutex_unlock(&nfc->mtx);
+                pthread_cond_signal(&nfc->ctx_rdy);
         }
 
         return NULL;
@@ -161,6 +161,12 @@ static void nf_handle_conn(struct nf_controller_t *nfc)
         int res;
         char buf[4096];
 
+        pthread_mutex_lock(&nfc->mtx);
+        nfc->cap_rdy_flag = true;
+        nfc->controller_exit = false;
+        pthread_mutex_unlock(&nfc->mtx);
+        pthread_cond_signal(&nfc->cap_rdy);
+
         while (!nf_get_connection_exit(nfc))
         {
                 while ((res = recv(nfc->fd, buf, sizeof(buf), 0)) && res > 0)
@@ -168,27 +174,22 @@ static void nf_handle_conn(struct nf_controller_t *nfc)
                         nfq_handle_packet(nfc->nfq_handle, buf, res);
                 }
         }
-
-        pthread_mutex_lock(&nfc->mtx);
-        nfc->ctx = NULL;
-        pthread_mutex_unlock(&nfc->mtx);
-        pthread_cond_signal(&nfc->cv);
 }
 void nf_close_context(struct nf_controller_t *nfc)
 {
         pthread_mutex_lock(&nfc->mtx);
         nfc->connection_exit = true;
         pthread_mutex_unlock(&nfc->mtx);
-        pthread_cond_signal(&nfc->cv);
 }
 
 void nf_push_context(struct nf_controller_t *nfc, struct connection_context_t *ctx)
 {
         // this is exactly the same as netcap, possibillity to refactor? struct component {synchro, pcap || netfilter}?
         pthread_mutex_lock(&nfc->mtx);
-        while (nfc->ctx)
-                pthread_cond_wait(&nfc->cv, &nfc->mtx);
+        while (!nfc->ctx_rdy_flag)
+                pthread_cond_wait(&nfc->ctx_rdy, &nfc->mtx);
         nfc->ctx = ctx;
+        nfc->ctx_rdy_flag = false;
         pthread_mutex_unlock(&nfc->mtx);
         pthread_cond_signal(&nfc->cv);
 }
@@ -196,9 +197,9 @@ void nf_push_context(struct nf_controller_t *nfc, struct connection_context_t *c
 void nf_wait_until_rdy(struct nf_controller_t *nfc)
 {
         pthread_mutex_lock(&nfc->mtx);
-        while (!nfc->rdy_flag)
-                pthread_cond_wait(&nfc->cv, &nfc->mtx);
-        nfc->rdy_flag = false;
+        while (!nfc->cap_rdy_flag)
+                pthread_cond_wait(&nfc->cap_rdy, &nfc->mtx);
+        nfc->cap_rdy_flag = false;
         pthread_mutex_unlock(&nfc->mtx);
 }
 
@@ -214,9 +215,9 @@ void nf_free(struct nf_controller_t *nfc)
         pthread_join(nfc->th, NULL);
 
         pthread_mutex_destroy(&nfc->mtx);
-        pthread_cond_destroy(&nfc->rdy);
         pthread_cond_destroy(&nfc->cv);
-
+        pthread_cond_destroy(&nfc->cap_rdy);
+        pthread_cond_destroy(&nfc->ctx_rdy);
         nfq_destroy_queue(nfc->queue);
         nfq_close(nfc->nfq_handle);
         free(nfc);
@@ -328,6 +329,11 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
 {
         struct iphdr *ip4;
         struct ipv6hdr *ip6;
+        int return_value = -1;
+
+
+        bool mark_tos = (IS_ECN(ctx->flags) && nfq_tcp_get_payload(hdr, pkt)) || ctx->additional & TCP_MARK_CONTROL;
+        bool relay_pkt = !hdr->syn && (ctx->additional & TCP_TEST_ECE) && ctx->pkt_relay;
 
         if (!pkt)
                 return -1;
@@ -342,27 +348,47 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
 
         if (ip4)
         {
-                if ((IS_ECN(ctx->flags)) && nfq_tcp_get_payload(hdr, pkt))
+                ip4->tos = 0;
+
+                if (mark_tos)
                         ip4->tos = ctx->flags;
+
+                // buffer the packet like quick so we can echo through a raw sock to avoid the tcp stack doing annoying things
                 nfq_ip_set_checksum(ip4);
                 nfq_tcp_compute_checksum_ipv4(hdr, ip4);
-                return 0;
+                return_value = 0;
         }
 
         ip6 = nfq_ip6_get_hdr(pkt);
 
         if (ip6)
         {
-                if (IS_ECN(ctx->flags) && nfq_tcp_get_payload(hdr, pkt))
+                if (mark_tos)
                 {
                         ip6->priority = ctx->flags >> 4;
                         ip6->flow_lbl[0] = ctx->flags << 4;
                 }
                 nfq_tcp_compute_checksum_ipv6(hdr, ip6);
-                return 0;
+                return_value = 0;
         }
 
-        return -1;
+        if(relay_pkt)
+        {
+                // nop wip
+                // ssize_t pkt_len = sizeof(struct tcphdr) + nfq_tcp_get_payload_len(hdr, pkt);
+                // uint8_t *pkt_relay = malloc(pkt_len);
+                // if(!pkt_relay)
+                // {
+                //         LOG_ERR("malloc packet failed\n");
+                //         return return_value;
+                // }
+
+                // memcpy(pkt_relay, hdr, pkt_len);
+                // ctx->pkt_relay = pkt_relay;
+                // ctx->pky_relay_len = pkt_len;
+        }
+
+        return return_value;
 }
 
 #pragma GCC diagnostic pop
@@ -385,7 +411,7 @@ static int nf_handle_quic_probe(struct connection_context_t *ctx, uint8_t *paylo
 
         if (!ctx->pkt_relay)
         {
-                LOG_INFO("Buffer outgoing probe\n");
+                
                 udp_payload = nfq_udp_get_payload(udp, pkt);
                 if (!udp_payload)
                 {

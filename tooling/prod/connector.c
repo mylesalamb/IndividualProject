@@ -49,7 +49,10 @@
 
 // Any lower seems to cause the pcap capture to freak it
 #define UDP_DLY \
-  (struct timespec) { 0, 50000000 }
+  (struct timespec) { 0, 70000000 }
+
+#define TCP_DLY \
+  (struct timespec) {0, 100000000 }
 
 // Half second to ensure that tcp connections finish up
 // and that pcap component has collected the last of the packets to file
@@ -240,7 +243,7 @@ int apply_sock_opts(int fd, int sock_type, struct sockaddr *addr, socklen_t addr
     return -1;
   }
 
-  if (sock_type == SOCK_DGRAM)
+  if (sock_type == SOCK_DGRAM || 1)
   {
     if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0)
     {
@@ -538,8 +541,28 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr,
 
 static int get_host_ipv6_addr(struct in6_addr *host)
 {
+  static int cache = 0;
+  static struct in6_addr addr;
   int ret = 1;
   struct ifaddrs *ifa;
+
+  if(cache)
+  {
+    LOG_INFO("cache hit\n");
+    struct in6_addr cmp;
+    memset(&cmp, 0, sizeof cmp);
+
+    if(!memcmp(&cmp, &addr, sizeof cmp))
+    {
+      LOG_INFO("return one\n");
+      return 1;
+    }
+    memcpy(host, &addr, sizeof(struct in6_addr));
+    return 0;
+  }
+  else{
+    LOG_INFO("miss\n");
+  }
 
   if (getifaddrs(&ifa) == -1)
   {
@@ -565,12 +588,20 @@ static int get_host_ipv6_addr(struct in6_addr *host)
       continue;
     }
 
+    LOG_INFO("Found addr?\n");
     memcpy(host, &in6->sin6_addr, sizeof(struct in6_addr));
+    memcpy(&addr, &in6->sin6_addr, sizeof(struct in6_addr));
+    cache = 1;
     ret = 0;
     break;
   }
-
   freeifaddrs(ifa);
+  
+  if(!cache){
+    memset(&addr, 0 ,sizeof addr);
+    cache = 1;
+  }
+  
   return ret;
 }
 /**
@@ -855,7 +886,7 @@ static uint8_t *format_udp_header(uint8_t *buff, uint16_t len, uint16_t sport,
 
   hdr = (struct udphdr *)buff;
   hdr->uh_dport = htons(dport);
-  hdr->uh_sport = htons(6000);
+  hdr->uh_sport = htons(sport);
   hdr->uh_ulen = htons(len + sizeof(struct udphdr));
   hdr->check = 0;
 
@@ -913,10 +944,10 @@ static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr,
   }
   else if (addr->ss_family == AF_INET6)
   {
-    // replace with a memcpy
+    LOG_INFO("ip6 path\n");
     memcpy(&ip6->daddr, &((struct sockaddr_in6 *)addr)->sin6_addr,
            sizeof(struct in6_addr));
-    if (get_host_ipv6_addr(&ip6->saddr) == 1)
+    if (get_host_ipv6_addr(&ip6->saddr) != 0)
     {
       LOG_ERR("get ipv6 addr\n");
       return NULL;
@@ -990,12 +1021,18 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
 {
 
   struct timespec dly = CONN_DLY;
+  struct timespec rst = TCP_DLY;
   struct sockaddr_storage srv_addr;
   socklen_t srv_addr_len;
 
   uint8_t recv_buff[100];
 
-  host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len);
+  if(host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len))
+  {
+    LOG_INFO("Host to sockaddr failed\n");
+    close(fd);
+    return 1;
+  }
 
   if (!host || !buff)
     return 1;
@@ -1015,7 +1052,7 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
   }
   tcp_send_all(fd, buff, buff_len);
   while (recv(fd, recv_buff, sizeof(recv_buff), 0) > 0)
-    ;
+    nanosleep(&rst,&rst);
 
   close(fd);
   nanosleep(&dly, &dly);

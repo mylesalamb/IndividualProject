@@ -216,6 +216,8 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         pthread_mutex_unlock(&pc->mtx);
         pthread_cond_signal(&pc->cap_rdy);
 
+        LOG_INFO("start packet capture\n");
+
         if (pd == NULL)
         {
                 LOG_ERR("dump open\n");
@@ -223,6 +225,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         do
         {
+                
                 pcap_dispatch(pc->handle, -1, &pcap_dump, (u_char *)pd);
         } while (!get_connection_exit(pc));
 
@@ -261,31 +264,11 @@ static void *pcap_controller(void *arg)
                 pthread_mutex_lock(&pc->mtx);
                 pc->ctx = NULL;
                 pc->ctx_rdy_flag = true;
+                pc->connection_exit = false;
                 pthread_mutex_unlock(&pc->mtx);
                 pthread_cond_signal(&pc->ctx_rdy);
         }
 
         return NULL;
 
-        // while (1)
-        // {
-
-        //         // wait until exit or context pushed
-        //         pthread_mutex_lock(&pc->mtx);
-        //         pc->connection_exit = false;
-        //         pc->ctx_rdy = true;
-        //         while (!pc->controller_exit && !pc->ctx)
-        //                 pthread_cond_wait(&pc->cv, &pc->mtx);
-
-        //         if (pc->controller_exit)
-        //         {
-        //                 pthread_mutex_unlock(&pc->mtx);
-        //                 break;
-        //         }
-
-        //         pthread_mutex_unlock(&pc->mtx);
-        //         pcap_log_conn(pc);
-        // }
-        // LOG_INFO("thread leaving;\n");
-        // return NULL;
 }

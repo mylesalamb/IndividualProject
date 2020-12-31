@@ -152,6 +152,7 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
   LOG_INFO("dispatch web, to host %s\n", transac->ctx->host);
   int ecn;
   transac->ctx->proto = TCP;
+  //transac->ctx->additional = TCP_TEST_ECE;
   for (ecn = 0; ecn < 4; ecn++) {
     int fd;
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
@@ -192,8 +193,9 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
   }
 
   transac->ctx->proto = TCP_PROBE;
-  for (uint8_t ecn = 0; ecn < 4; ecn++) {
+  for (uint8_t ecn = 0; ecn < 2; ecn++) {
     transac->ctx->flags = ecn;
+    
 
     int fd;
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
@@ -248,6 +250,7 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
   int ecn;
 
   transac->ctx->proto = DNS_TCP;
+  //transac->ctx->additional = TCP_TEST_ECE;
   for (ecn = 0; ecn < 4; ecn++)
   {
     int fd;
@@ -294,6 +297,7 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
     
     int fd;
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
+    LOG_INFO("dns port is %d\n", transac->ctx->port);
     
     transac->ctx->flags = ecn;
     
@@ -312,7 +316,7 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
   }
 
   transac->ctx->proto = DNS_TCP_PROBE;
-  for (ecn = 0; ecn < 3; ecn++) {
+  for (ecn = 0; ecn < 2; ecn++) {
     transac->ctx->flags = ecn;
 
     int fd;
@@ -403,7 +407,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
     }
   }
 
-  for (ecn = 0; ecn < 3; ecn++) {
+  for (ecn = 0; ecn < 4; ecn++) {
     struct transaction_node_t *cursor = transac;
     while (cursor) {
     cursor->ctx->proto = NTP_UDP_PROBE;
@@ -425,7 +429,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
     }
   }
 
-  for (ecn = 0; ecn < 3; ecn++) {
+  for (ecn = 0; ecn < 2; ecn++) {
 
     struct transaction_node_t *cursor = transac;
     while (cursor) {

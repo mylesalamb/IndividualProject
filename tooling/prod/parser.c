@@ -132,7 +132,6 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
 
                 ret->request = req;
         }
-        LOG_INFO("Parse transac success\n");
         return ret;
 
 fail:
