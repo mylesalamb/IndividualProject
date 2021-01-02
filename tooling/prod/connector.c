@@ -52,7 +52,7 @@
   (struct timespec) { 0, 70000000 }
 
 #define TCP_DLY \
-  (struct timespec) {0, 100000000 }
+  (struct timespec) { 0, 100000000 }
 
 // Half second to ensure that tcp connections finish up
 // and that pcap component has collected the last of the packets to file
@@ -272,6 +272,7 @@ int send_tcp_http_request(int fd, char *host, char *ws, int locport)
 
 int send_tcp_http_probe(int fd, char *host, int locport)
 {
+  int ret;
   if (!host)
   {
     LOG_ERR("bad arguments\n");
@@ -280,8 +281,10 @@ int send_tcp_http_probe(int fd, char *host, int locport)
 
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_HTTP, 0x01);
-  return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
-                           IPPROTO_TCP);
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
+                          IPPROTO_TCP);
+  close(fd);
+  return ret;
 }
 
 int send_tcp_dns_request(int fd, char *host, char *ws, int locport)
@@ -321,7 +324,7 @@ int send_udp_dns_request(int fd, char *host, char *ws, int locport)
 
 int send_tcp_dns_probe(int fd, char *host, char *ws, int locport)
 {
-
+  int ret;
   if (!host)
   {
     LOG_ERR("bad arguments\n");
@@ -329,12 +332,15 @@ int send_tcp_dns_probe(int fd, char *host, char *ws, int locport)
   }
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_DNS, 0x01);
-  return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
-                           IPPROTO_TCP);
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
+                          IPPROTO_TCP);
+  close(fd);
+  return ret;
 }
 
 int send_udp_dns_probe(int fd, char *host, char *ws, int locport)
 {
+  int ret;
   uint8_t buff[512], *end_ptr;
   if (!host || !ws)
   {
@@ -346,8 +352,10 @@ int send_udp_dns_probe(int fd, char *host, char *ws, int locport)
   end_ptr = format_dns_request(ws, payload);
   format_udp_header(buff, end_ptr - payload, locport, PORT_DNS);
 
-  return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
-                           IPPROTO_UDP);
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
+                          IPPROTO_UDP);
+  close(fd);
+  return ret;
 }
 
 int send_udp_ntp_request(int fd, char *host, int locport)
@@ -381,6 +389,7 @@ int send_tcp_ntp_request(int fd, char *host, int locport)
 
 int send_udp_ntp_probe(int fd, char *host, int locport)
 {
+  int ret;
   uint8_t buff[512], *end_ptr;
 
   if (!host)
@@ -392,12 +401,15 @@ int send_udp_ntp_probe(int fd, char *host, int locport)
   end_ptr = format_ntp_request(buff + sizeof(struct udphdr));
   format_udp_header(buff, 48, locport, PORT_NTP);
 
-  return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_NTP,
-                           IPPROTO_UDP);
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_NTP,
+                          IPPROTO_UDP);
+  close(fd);
+  return ret;
 }
 
 int send_tcp_ntp_probe(int fd, char *host, int locport)
 {
+  int ret;
   if (!host)
   {
     LOG_ERR("bad arguments\n");
@@ -405,8 +417,10 @@ int send_tcp_ntp_probe(int fd, char *host, int locport)
   }
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_HTTP, 0x01);
-  return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
-                           IPPROTO_TCP);
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
+                          IPPROTO_TCP);
+  close(fd);
+  return ret;
 }
 
 /* Generic socket abstractions */
@@ -546,13 +560,13 @@ static int get_host_ipv6_addr(struct in6_addr *host)
   int ret = 1;
   struct ifaddrs *ifa;
 
-  if(cache)
+  if (cache)
   {
     LOG_INFO("cache hit\n");
     struct in6_addr cmp;
     memset(&cmp, 0, sizeof cmp);
 
-    if(!memcmp(&cmp, &addr, sizeof cmp))
+    if (!memcmp(&cmp, &addr, sizeof cmp))
     {
       LOG_INFO("return one\n");
       return 1;
@@ -560,7 +574,8 @@ static int get_host_ipv6_addr(struct in6_addr *host)
     memcpy(host, &addr, sizeof(struct in6_addr));
     return 0;
   }
-  else{
+  else
+  {
     LOG_INFO("miss\n");
   }
 
@@ -596,12 +611,13 @@ static int get_host_ipv6_addr(struct in6_addr *host)
     break;
   }
   freeifaddrs(ifa);
-  
-  if(!cache){
-    memset(&addr, 0 ,sizeof addr);
+
+  if (!cache)
+  {
+    memset(&addr, 0, sizeof addr);
     cache = 1;
   }
-  
+
   return ret;
 }
 /**
@@ -1027,7 +1043,7 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
 
   uint8_t recv_buff[100];
 
-  if(host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len))
+  if (host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len))
   {
     LOG_INFO("Host to sockaddr failed\n");
     close(fd);
@@ -1038,7 +1054,7 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
     return 1;
 
   // get host to some sort of address
-  if(apply_sock_opts(fd, SOCK_STREAM, (struct sockaddr *)&srv_addr, srv_addr_len))
+  if (apply_sock_opts(fd, SOCK_STREAM, (struct sockaddr *)&srv_addr, srv_addr_len))
   {
     LOG_ERR("Apply sock opts failed\n");
     close(fd);
@@ -1052,7 +1068,7 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
   }
   tcp_send_all(fd, buff, buff_len);
   while (recv(fd, recv_buff, sizeof(recv_buff), 0) > 0)
-    nanosleep(&rst,&rst);
+    nanosleep(&rst, &rst);
 
   close(fd);
   nanosleep(&dly, &dly);
@@ -1092,7 +1108,6 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
 
   uint8_t pkt[1024];
   memset(pkt, 0, sizeof pkt);
-  
 
   if (!buff)
     return 1;
@@ -1621,6 +1636,11 @@ int send_quic_http_probe(int fd, char *host, char *sni, int locport, int ecn, ui
   uint8_t buff[1024];
 
   icmpfd = construct_icmp_sock(&addr);
+  if (icmpfd < 0)
+  {
+    LOG_ERR("icmp fd\n");
+    close(fd);
+  }
 
   if (!*pkt_relay)
   {
@@ -1655,11 +1675,15 @@ int send_quic_http_probe(int fd, char *host, char *sni, int locport, int ecn, ui
       if (send(fd, *pkt_relay, *pkt_relay_len, 0) < 0)
       {
         LOG_ERR("send failed: %s\n", strerror(errno));
+        close(fd);
+        close(icmpfd);
         return -1;
       }
       nanosleep(&dly, &dly);
       if (recv(fd, buff, sizeof buff, 0) > 0)
       {
+        close(fd);
+        close(icmpfd);
         return 0;
       }
 
@@ -1694,6 +1718,8 @@ int send_quic_http_probe(int fd, char *host, char *sni, int locport, int ecn, ui
     }
   }
 fail:
+  close(fd);
+  close(icmpfd);
   return 1;
 }
 
@@ -1797,7 +1823,7 @@ static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
     return 1;
   }
   h3cli_process_conns(&h3cli);
-  
+
   ev_run(h3cli.h3cli_loop, 0);
   lsquic_engine_destroy(h3cli.h3cli_engine);
   sleep(1);

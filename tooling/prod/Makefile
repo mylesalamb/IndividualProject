@@ -9,7 +9,7 @@ LDLIBS=-lpcap -lpthread -lnetfilter_queue -lnfnetlink -lev -llsquic -lz -lm \
 		-L$(BSSL_DIR)/ssl -L$(BSSL_DIR)/crypto -lssl -lcrypto # link against boringssl defined
 
 
-default: CFLAGS += -O2
+default: CFLAGS += -O1
 default: $(EXEC)
 
 $(EXEC): $(EXECSOURCES)
