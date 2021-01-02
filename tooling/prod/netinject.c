@@ -340,9 +340,16 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
 
         if (IS_ECN(ctx->flags) && hdr->syn)
         {
+                
                 hdr->ece = 1;
                 hdr->cwr = 1;
         }
+        else
+        {
+                hdr->ece = 0;
+                hdr->cwr = 0;
+        }
+        
 
         ip4 = nfq_ip_get_hdr(pkt);
 
@@ -375,17 +382,17 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
         if(relay_pkt)
         {
                 // nop wip
-                // ssize_t pkt_len = sizeof(struct tcphdr) + nfq_tcp_get_payload_len(hdr, pkt);
-                // uint8_t *pkt_relay = malloc(pkt_len);
-                // if(!pkt_relay)
-                // {
-                //         LOG_ERR("malloc packet failed\n");
-                //         return return_value;
-                // }
+                ssize_t pkt_len = sizeof(struct tcphdr);
+                uint8_t *pkt_relay = malloc(pkt_len);
+                if(!pkt_relay)
+                {
+                        LOG_ERR("malloc packet failed\n");
+                        return return_value;
+                }
 
-                // memcpy(pkt_relay, hdr, pkt_len);
-                // ctx->pkt_relay = pkt_relay;
-                // ctx->pky_relay_len = pkt_len;
+                memcpy(pkt_relay, hdr, pkt_len);
+                ctx->pkt_relay = pkt_relay;
+                ctx->pky_relay_len = pkt_len;
         }
 
         return return_value;

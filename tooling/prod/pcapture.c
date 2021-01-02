@@ -17,6 +17,8 @@
 
 static void *pcap_controller(void *arg);
 static void pcap_log_conn(struct pcap_controller_t *pc);
+//static void dump_wrapper(u_char *user, struct pcap)
+
 
 void pcap_push_context(struct pcap_controller_t *pc, struct connection_context_t *ctx)
 {

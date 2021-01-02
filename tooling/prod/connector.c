@@ -47,12 +47,15 @@
 #define MAX_UDP 3
 #define MAX_RAW 100
 
+//netinet doesnt define this for some reason
+#define TH_ECE 0x40
+
 // Any lower seems to cause the pcap capture to freak it
 #define UDP_DLY \
   (struct timespec) { 0, 70000000 }
 
 #define TCP_DLY \
-  (struct timespec) {0, 100000000 }
+  (struct timespec) { 0, 100000000 }
 
 // Half second to ensure that tcp connections finish up
 // and that pcap component has collected the last of the packets to file
@@ -98,7 +101,7 @@ static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
 
 /* underlying request handlers to take care of repeated socket interactions */
 static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport);
-static int defer_udp_exchnage(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport);
+static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport) static int defer_udp_exchnage(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport);
 static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
                              int locport, int extport, int proto);
 static int tcp_send_all(int fd, uint8_t *buff, size_t len);
@@ -255,7 +258,7 @@ int apply_sock_opts(int fd, int sock_type, struct sockaddr *addr, socklen_t addr
   return 0;
 }
 
-int send_tcp_http_request(int fd, char *host, char *ws, int locport)
+int send_tcp_http_request(int fd, char *host, char *ws, int locport, int ecn)
 {
   uint8_t buff[512];
 
@@ -266,12 +269,20 @@ int send_tcp_http_request(int fd, char *host, char *ws, int locport)
   }
 
   sprintf((char *)buff, HTTP_REQ, ws);
-  return defer_tcp_connection(fd, host, buff, strlen((char *)buff),
-                              PORT_HTTP);
+  if (!ecn)
+  {
+    return defer_tcp_connection(fd, host, buff, strlen((char *)buff),
+                                PORT_HTTP);
+  }
+  else
+  {
+    return defer_tcp_path_probe(fd, host, buff, strlen((char *)buff), PORT_HTTP);
+  }
 }
 
 int send_tcp_http_probe(int fd, char *host, int locport)
 {
+  int ret;
   if (!host)
   {
     LOG_ERR("bad arguments\n");
@@ -280,8 +291,10 @@ int send_tcp_http_probe(int fd, char *host, int locport)
 
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_HTTP, 0x01);
-  return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
+   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
                            IPPROTO_TCP);
+  close(fd);
+  return ret;
 }
 
 int send_tcp_dns_request(int fd, char *host, char *ws, int locport)
@@ -321,7 +334,7 @@ int send_udp_dns_request(int fd, char *host, char *ws, int locport)
 
 int send_tcp_dns_probe(int fd, char *host, char *ws, int locport)
 {
-
+  int ret;
   if (!host)
   {
     LOG_ERR("bad arguments\n");
@@ -329,12 +342,16 @@ int send_tcp_dns_probe(int fd, char *host, char *ws, int locport)
   }
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_DNS, 0x01);
-  return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
+
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
                            IPPROTO_TCP);
+  close(fd);
+  return ret;
 }
 
 int send_udp_dns_probe(int fd, char *host, char *ws, int locport)
 {
+  int ret;
   uint8_t buff[512], *end_ptr;
   if (!host || !ws)
   {
@@ -345,9 +362,10 @@ int send_udp_dns_probe(int fd, char *host, char *ws, int locport)
   uint8_t *payload = buff + sizeof(struct udphdr);
   end_ptr = format_dns_request(ws, payload);
   format_udp_header(buff, end_ptr - payload, locport, PORT_DNS);
-
-  return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
                            IPPROTO_UDP);
+  close(fd);
+  return ret;
 }
 
 int send_udp_ntp_request(int fd, char *host, int locport)
@@ -363,7 +381,7 @@ int send_udp_ntp_request(int fd, char *host, int locport)
   return defer_udp_exchnage(fd, host, buff, end_ptr - buff, PORT_NTP);
 }
 
-int send_tcp_ntp_request(int fd, char *host, int locport)
+int send_tcp_ntp_request(int fd, char *host, int locport, int ecn)
 {
   uint8_t buff[512];
 
@@ -381,6 +399,7 @@ int send_tcp_ntp_request(int fd, char *host, int locport)
 
 int send_udp_ntp_probe(int fd, char *host, int locport)
 {
+  int ret;
   uint8_t buff[512], *end_ptr;
 
   if (!host)
@@ -392,8 +411,11 @@ int send_udp_ntp_probe(int fd, char *host, int locport)
   end_ptr = format_ntp_request(buff + sizeof(struct udphdr));
   format_udp_header(buff, 48, locport, PORT_NTP);
 
-  return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_NTP,
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_NTP,
                            IPPROTO_UDP);
+  close(fd);
+
+  return ret;
 }
 
 int send_tcp_ntp_probe(int fd, char *host, int locport)
@@ -521,7 +543,8 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr,
     LOG_ERR("nonblock\n");
     return -1;
   }
-  if (setsockopt(fd, sock_opt, sock_hdr, &one, sizeof(one)) < 0)
+  // dont include headers if we are probing the path
+  if (socktype != IPPROTO_TCP && setsockopt(fd, sock_opt, sock_hdr, &one, sizeof(one)) < 0)
   {
     LOG_ERR("IP(V6)_HDRINCL\n");
     return -1;
@@ -539,6 +562,7 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr,
   return fd;
 }
 
+/* Cache the result, ifaddrs seems to exceptionally fail if called alot raising SIGABRT */
 static int get_host_ipv6_addr(struct in6_addr *host)
 {
   static int cache = 0;
@@ -546,22 +570,17 @@ static int get_host_ipv6_addr(struct in6_addr *host)
   int ret = 1;
   struct ifaddrs *ifa;
 
-  if(cache)
+  if (cache)
   {
-    LOG_INFO("cache hit\n");
     struct in6_addr cmp;
     memset(&cmp, 0, sizeof cmp);
 
-    if(!memcmp(&cmp, &addr, sizeof cmp))
+    if (!memcmp(&cmp, &addr, sizeof cmp))
     {
-      LOG_INFO("return one\n");
       return 1;
     }
     memcpy(host, &addr, sizeof(struct in6_addr));
     return 0;
-  }
-  else{
-    LOG_INFO("miss\n");
   }
 
   if (getifaddrs(&ifa) == -1)
@@ -588,7 +607,6 @@ static int get_host_ipv6_addr(struct in6_addr *host)
       continue;
     }
 
-    LOG_INFO("Found addr?\n");
     memcpy(host, &in6->sin6_addr, sizeof(struct in6_addr));
     memcpy(&addr, &in6->sin6_addr, sizeof(struct in6_addr));
     cache = 1;
@@ -596,12 +614,13 @@ static int get_host_ipv6_addr(struct in6_addr *host)
     break;
   }
   freeifaddrs(ifa);
-  
-  if(!cache){
-    memset(&addr, 0 ,sizeof addr);
+
+  if (!cache)
+  {
+    memset(&addr, 0, sizeof addr);
     cache = 1;
   }
-  
+
   return ret;
 }
 /**
@@ -1016,6 +1035,79 @@ static int defer_udp_exchnage(int fd, char *host, uint8_t *buff, ssize_t buff_le
   return ret;
 }
 
+static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport, uint8_t **pkt_relay, ssize_t *pkt_relay_len)
+{
+  struct timespec dly = CONN_DLY;
+  struct timespec rst = TCP_DLY;
+  struct sockaddr_storage srv_addr;
+  socklen_t srv_addr_len;
+  int rawfd;
+
+  uint8_t recv_buff[100];
+  uint8_t raw_buff[sizeof(struct tcphdr) + buff_len];
+
+   if (!host || !buff)
+    return 1;
+
+  if (host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len))
+  {
+    LOG_INFO("Host to sockaddr failed\n");
+    close(fd);
+    return 1;
+  }
+
+  if(!(rawfd = contruct_rawsock_to_host(&srv_addr, IPPROTO_TCP)))
+  {
+    LOG_ERR("create probe fd\n");
+    close(fd);
+    return 1;
+  }
+
+  // get host to some sort of address
+  if (apply_sock_opts(fd, SOCK_STREAM, (struct sockaddr *)&srv_addr, srv_addr_len))
+  {
+    LOG_ERR("Apply sock opts failed\n");
+    close(fd);
+    return -1;
+  }
+
+  if(!*pkt_relay || !*pkt_relay_len)
+  {
+    LOG_ERR("did not get packet from relay / or pkt len\n");
+    return 1;
+  }
+
+  // copy in packet and request
+  memcpy(raw_buff, *pkt_relay, sizeof(struct tcphdr));
+  memcpy(raw_buff + sizeof(struct tcphdr), buff, buff_len);
+
+
+  // quickly format the header to look like the next tcp header we should expect
+  struct tcphdr *hdr = (struct tcphdr*)buff;
+  hdr->syn = 0;
+  hdr->seq = htons(ntohs(hdr->seq) + 1);
+  hdr->th_flags = hdr->th_flags & ~TH_ECE;
+
+
+  for(int i = 1; i < MAX_TTL; i++)
+  {
+    if (srv_addr.ss_family == AF_INET)
+    {
+      setsockopt(fd, IPPROTO_IP, IP_TTL, &i, sizeof i);
+    }
+    else
+    {
+      setsockopt(fd, IPPROTO_IPV6, IPV6_HOPLIMIT, &i, sizeof i);
+    }
+    for(int j = 0; j < MAX_UDP; j++)
+    {
+
+    }
+    nanosleep(&rst, &rst);
+  }
+
+}
+
 static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_len,
                                 int extport)
 {
@@ -1027,7 +1119,7 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
 
   uint8_t recv_buff[100];
 
-  if(host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len))
+  if (host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len))
   {
     LOG_INFO("Host to sockaddr failed\n");
     close(fd);
@@ -1038,7 +1130,7 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
     return 1;
 
   // get host to some sort of address
-  if(apply_sock_opts(fd, SOCK_STREAM, (struct sockaddr *)&srv_addr, srv_addr_len))
+  if (apply_sock_opts(fd, SOCK_STREAM, (struct sockaddr *)&srv_addr, srv_addr_len))
   {
     LOG_ERR("Apply sock opts failed\n");
     close(fd);
@@ -1052,7 +1144,7 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
   }
   tcp_send_all(fd, buff, buff_len);
   while (recv(fd, recv_buff, sizeof(recv_buff), 0) > 0)
-    nanosleep(&rst,&rst);
+    nanosleep(&rst, &rst);
 
   close(fd);
   nanosleep(&dly, &dly);
@@ -1092,7 +1184,6 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
 
   uint8_t pkt[1024];
   memset(pkt, 0, sizeof pkt);
-  
 
   if (!buff)
     return 1;
@@ -1797,7 +1888,7 @@ static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
     return 1;
   }
   h3cli_process_conns(&h3cli);
-  
+
   ev_run(h3cli.h3cli_loop, 0);
   lsquic_engine_destroy(h3cli.h3cli_engine);
   sleep(1);
