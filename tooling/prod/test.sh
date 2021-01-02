@@ -5,6 +5,7 @@ CONF="runs.conf"
 
 if `pgrep ecnDetector`; then
     echo "already running" >> cron.log
+    exit 0
 fi
 
 # change directory to where the script is being called from

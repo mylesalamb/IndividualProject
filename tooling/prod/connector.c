@@ -291,8 +291,13 @@ int send_tcp_http_probe(int fd, char *host, int locport)
 
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_HTTP, 0x01);
+<<<<<<< HEAD
    ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
                            IPPROTO_TCP);
+=======
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
+                          IPPROTO_TCP);
+>>>>>>> 584457a73e8141f65712a71caff56b77228b9b41
   close(fd);
   return ret;
 }
@@ -342,9 +347,14 @@ int send_tcp_dns_probe(int fd, char *host, char *ws, int locport)
   }
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_DNS, 0x01);
+<<<<<<< HEAD
 
   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
                            IPPROTO_TCP);
+=======
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
+                          IPPROTO_TCP);
+>>>>>>> 584457a73e8141f65712a71caff56b77228b9b41
   close(fd);
   return ret;
 }
@@ -362,8 +372,14 @@ int send_udp_dns_probe(int fd, char *host, char *ws, int locport)
   uint8_t *payload = buff + sizeof(struct udphdr);
   end_ptr = format_dns_request(ws, payload);
   format_udp_header(buff, end_ptr - payload, locport, PORT_DNS);
+<<<<<<< HEAD
   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
                            IPPROTO_UDP);
+=======
+
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
+                          IPPROTO_UDP);
+>>>>>>> 584457a73e8141f65712a71caff56b77228b9b41
   close(fd);
   return ret;
 }
@@ -412,14 +428,20 @@ int send_udp_ntp_probe(int fd, char *host, int locport)
   format_udp_header(buff, 48, locport, PORT_NTP);
 
   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_NTP,
+<<<<<<< HEAD
                            IPPROTO_UDP);
   close(fd);
 
+=======
+                          IPPROTO_UDP);
+  close(fd);
+>>>>>>> 584457a73e8141f65712a71caff56b77228b9b41
   return ret;
 }
 
 int send_tcp_ntp_probe(int fd, char *host, int locport)
 {
+  int ret;
   if (!host)
   {
     LOG_ERR("bad arguments\n");
@@ -427,8 +449,10 @@ int send_tcp_ntp_probe(int fd, char *host, int locport)
   }
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_HTTP, 0x01);
-  return defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
-                           IPPROTO_TCP);
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
+                          IPPROTO_TCP);
+  close(fd);
+  return ret;
 }
 
 /* Generic socket abstractions */
@@ -582,6 +606,13 @@ static int get_host_ipv6_addr(struct in6_addr *host)
     memcpy(host, &addr, sizeof(struct in6_addr));
     return 0;
   }
+<<<<<<< HEAD
+=======
+  else
+  {
+    LOG_INFO("miss\n");
+  }
+>>>>>>> 584457a73e8141f65712a71caff56b77228b9b41
 
   if (getifaddrs(&ifa) == -1)
   {
@@ -1712,6 +1743,11 @@ int send_quic_http_probe(int fd, char *host, char *sni, int locport, int ecn, ui
   uint8_t buff[1024];
 
   icmpfd = construct_icmp_sock(&addr);
+  if (icmpfd < 0)
+  {
+    LOG_ERR("icmp fd\n");
+    close(fd);
+  }
 
   if (!*pkt_relay)
   {
@@ -1746,11 +1782,15 @@ int send_quic_http_probe(int fd, char *host, char *sni, int locport, int ecn, ui
       if (send(fd, *pkt_relay, *pkt_relay_len, 0) < 0)
       {
         LOG_ERR("send failed: %s\n", strerror(errno));
+        close(fd);
+        close(icmpfd);
         return -1;
       }
       nanosleep(&dly, &dly);
       if (recv(fd, buff, sizeof buff, 0) > 0)
       {
+        close(fd);
+        close(icmpfd);
         return 0;
       }
 
@@ -1785,6 +1825,8 @@ int send_quic_http_probe(int fd, char *host, char *sni, int locport, int ecn, ui
     }
   }
 fail:
+  close(fd);
+  close(icmpfd);
   return 1;
 }
 

@@ -189,7 +189,7 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
                            transac->ctx->port, ecn);
     pcap_close_context(pc);
     nf_close_context(nfc);
-    close(fd);
+    
   }
 
   transac->ctx->proto = TCP_PROBE;
@@ -230,6 +230,8 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     pcap_close_context(pc);
     nf_close_context(nfc);
   }
+  free(transac->ctx->pkt_relay);
+  transac->ctx->pkt_relay = NULL;
 
   return 0;
 }
@@ -312,7 +314,6 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
                        transac->ctx->port);
     pcap_close_context(pc);
     nf_close_context(nfc);
-    close(fd);
   }
 
   transac->ctx->proto = DNS_TCP_PROBE;
@@ -333,7 +334,6 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
 
     pcap_close_context(pc);
     nf_close_context(nfc);
-    close(fd);
   }
 
   return 0;
