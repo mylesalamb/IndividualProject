@@ -101,7 +101,8 @@ static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
 
 /* underlying request handlers to take care of repeated socket interactions */
 static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport);
-static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport) static int defer_udp_exchnage(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport);
+static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport, uint8_t **pkt_relay, ssize_t *pkt_relay_len);
+static int defer_udp_exchnage(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport);
 static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
                              int locport, int extport, int proto);
 static int tcp_send_all(int fd, uint8_t *buff, size_t len);
@@ -258,7 +259,7 @@ int apply_sock_opts(int fd, int sock_type, struct sockaddr *addr, socklen_t addr
   return 0;
 }
 
-int send_tcp_http_request(int fd, char *host, char *ws, int locport, int ecn)
+int send_tcp_http_request(int fd, char *host, char *ws, int locport, int ecn, uint8_t **pkt_relay, ssize_t *pkt_relay_len)
 {
   uint8_t buff[512];
 
@@ -276,7 +277,7 @@ int send_tcp_http_request(int fd, char *host, char *ws, int locport, int ecn)
   }
   else
   {
-    return defer_tcp_path_probe(fd, host, buff, strlen((char *)buff), PORT_HTTP);
+    return defer_tcp_path_probe(fd, host, buff, strlen((char *)buff), PORT_HTTP, pkt_relay, pkt_relay_len);
   }
 }
 
@@ -291,13 +292,8 @@ int send_tcp_http_probe(int fd, char *host, int locport)
 
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_HTTP, 0x01);
-<<<<<<< HEAD
    ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
                            IPPROTO_TCP);
-=======
-  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
-                          IPPROTO_TCP);
->>>>>>> 584457a73e8141f65712a71caff56b77228b9b41
   close(fd);
   return ret;
 }
@@ -347,14 +343,9 @@ int send_tcp_dns_probe(int fd, char *host, char *ws, int locport)
   }
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_DNS, 0x01);
-<<<<<<< HEAD
 
   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
                            IPPROTO_TCP);
-=======
-  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
-                          IPPROTO_TCP);
->>>>>>> 584457a73e8141f65712a71caff56b77228b9b41
   close(fd);
   return ret;
 }
@@ -372,14 +363,8 @@ int send_udp_dns_probe(int fd, char *host, char *ws, int locport)
   uint8_t *payload = buff + sizeof(struct udphdr);
   end_ptr = format_dns_request(ws, payload);
   format_udp_header(buff, end_ptr - payload, locport, PORT_DNS);
-<<<<<<< HEAD
   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
                            IPPROTO_UDP);
-=======
-
-  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
-                          IPPROTO_UDP);
->>>>>>> 584457a73e8141f65712a71caff56b77228b9b41
   close(fd);
   return ret;
 }
@@ -428,14 +413,9 @@ int send_udp_ntp_probe(int fd, char *host, int locport)
   format_udp_header(buff, 48, locport, PORT_NTP);
 
   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_NTP,
-<<<<<<< HEAD
                            IPPROTO_UDP);
   close(fd);
 
-=======
-                          IPPROTO_UDP);
-  close(fd);
->>>>>>> 584457a73e8141f65712a71caff56b77228b9b41
   return ret;
 }
 
@@ -606,13 +586,6 @@ static int get_host_ipv6_addr(struct in6_addr *host)
     memcpy(host, &addr, sizeof(struct in6_addr));
     return 0;
   }
-<<<<<<< HEAD
-=======
-  else
-  {
-    LOG_INFO("miss\n");
-  }
->>>>>>> 584457a73e8141f65712a71caff56b77228b9b41
 
   if (getifaddrs(&ifa) == -1)
   {
@@ -1065,6 +1038,7 @@ static int defer_udp_exchnage(int fd, char *host, uint8_t *buff, ssize_t buff_le
 
   return ret;
 }
+
 
 static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport, uint8_t **pkt_relay, ssize_t *pkt_relay_len)
 {

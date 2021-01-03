@@ -166,7 +166,7 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     nf_wait_until_rdy(nfc);
 
     send_tcp_http_request(fd, transac->ctx->host, transac->request,
-                          transac->ctx->port, ecn);
+                          transac->ctx->port, ecn, &transac->ctx->pkt_relay, &transac->ctx->pky_relay_len);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
@@ -267,7 +267,7 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
     nf_wait_until_rdy(nfc);
 
     send_tcp_dns_request(fd, transac->ctx->host, transac->request,
-                         transac->ctx->port, ecn);
+                         transac->ctx->port, ecn, &transac->ctx->pkt_relay, &transac->ctx->pky_relay_len);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
@@ -372,7 +372,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
       nf_push_context(nfc, cursor->ctx);
       nf_wait_until_rdy(nfc);
 
-      send_tcp_ntp_request(fd, cursor->ctx->host, cursor->ctx->port, ecn);
+      send_tcp_ntp_request(fd, cursor->ctx->host, cursor->ctx->port, ecn, &transac->ctx->pkt_relay, &transac->ctx->pky_relay_len);
 
       pcap_close_context(pc);
       nf_close_context(nfc);

@@ -17,8 +17,7 @@
 
 static void *pcap_controller(void *arg);
 static void pcap_log_conn(struct pcap_controller_t *pc);
-//static void dump_wrapper(u_char *user, struct pcap)
-
+static void dump_wrapper(unsigned char *user_arg, const struct pcap_pkthdr *hdr, const unsigned char *bytes);
 
 void pcap_push_context(struct pcap_controller_t *pc, struct connection_context_t *ctx)
 {
@@ -227,7 +226,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         do
         {
-                
+
                 pcap_dispatch(pc->handle, -1, &pcap_dump, (u_char *)pd);
         } while (!get_connection_exit(pc));
 
@@ -272,5 +271,13 @@ static void *pcap_controller(void *arg)
         }
 
         return NULL;
+}
 
+static void dump_wrapper(unsigned char *user_arg, const struct pcap_pkthdr *hdr, const unsigned char *bytes)
+{
+
+        if (hdr)
+                LOG_INFO("Packet capped, nop\n");
+
+        pcap_dump(user_arg, hdr, bytes);
 }
