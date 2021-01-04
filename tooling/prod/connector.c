@@ -343,7 +343,7 @@ int send_tcp_dns_probe(int fd, char *host, char *ws, int locport)
   }
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_DNS, 0x01);
-
+  printf("length of header is %ul, length of header is %p\n", sizeof(struct tcphdr), end_ptr - buff);
   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
                            IPPROTO_TCP);
   close(fd);
@@ -919,6 +919,7 @@ static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport,
                                   uint8_t flags)
 {
   struct tcphdr *hdr;
+  //memset(buff, 0, sizeof(struct tcphdr));
 
   srand(time(NULL));
 
@@ -926,15 +927,16 @@ static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport,
     return NULL;
 
   hdr = (struct tcphdr *)buff;
-  hdr->source = htons(sport);
+  hdr->source = htons(sport + 10);
   hdr->dest = htons(dport);
   hdr->seq = rand();
-  hdr->ack_seq = (flags & 0x02) ? 1 : 0;
+  hdr->ack_seq = htonl((flags & 0x02) ? 1 : 0);
   hdr->doff = 5;
   hdr->syn = flags & 0x01;
   hdr->rst = (flags & 0x02) ? 1 : 0;
   hdr->ack = (flags & 0x02) ? 1 : 0;
   hdr->window = htons(1000);
+  hdr->th_off = 5;
 
   return buff + sizeof(struct tcphdr);
 }
@@ -1188,12 +1190,12 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
   struct timespec dly = CONN_DLY;
 
   uint8_t pkt[1024];
-  memset(pkt, 0, sizeof pkt);
+  //memset(pkt, 0, sizeof pkt);
 
   if (!buff)
     return 1;
 
-  err = host_to_sockaddr(host, 0, &srv_addr, &srv_addr_size);
+  err = host_to_sockaddr(host, extport, &srv_addr, &srv_addr_size);
   if (err)
   {
     LOG_ERR("host_to_sockaddr\n");

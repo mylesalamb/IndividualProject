@@ -230,6 +230,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         struct nfqnl_msg_packet_hdr *ph;
         uint8_t *payload;
 
+        printf("packet callback\n");
         ph = nfq_get_msg_packet_hdr(pkt);
         if (!ph)
         {
@@ -331,8 +332,9 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
         struct ipv6hdr *ip6;
         int return_value = -1;
 
+        LOG_INFO("generic tcp handler\n");
 
-        bool mark_tos = (IS_ECN(ctx->flags) && nfq_tcp_get_payload(hdr, pkt)) || ctx->additional & TCP_MARK_CONTROL;
+        bool mark_tos = false && ((IS_ECN(ctx->flags) && nfq_tcp_get_payload(hdr, pkt)) || ctx->additional & TCP_MARK_CONTROL);
         bool relay_pkt = !hdr->syn && (ctx->additional & TCP_TEST_ECE) && ctx->pkt_relay;
 
         if (!pkt)

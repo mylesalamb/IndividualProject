@@ -62,6 +62,8 @@ struct pcap_controller_t *pcap_init(char *alias, char *dirname)
                 return NULL;
         }
 
+        printf("dev name: %s", devs->name);
+
         char *dev = malloc(sizeof(char) * strlen(devs->name) + 1);
         if (!dev)
         {
@@ -158,7 +160,9 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         pcap_dumper_t *pd;
         char filter_exp[64];
+        
         sprintf(filter_exp, "port %d or dst port %d or icmp or icmp6", pc->ctx->port, pc->ctx->port);
+        printf("filter exp is %s\n", filter_exp);
         char error_buffer[PCAP_ERRBUF_SIZE];
         struct bpf_program filter;
         bpf_u_int32 subnet_mask, ip;
@@ -227,9 +231,9 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         do
         {
 
-                pcap_dispatch(pc->handle, -1, &pcap_dump, (u_char *)pd);
+                pcap_dispatch(pc->handle, -1, &dump_wrapper, (u_char *)pd);
         } while (!get_connection_exit(pc));
-
+        LOG_INFO("pcap exit\n");
         // close dump file handle
         pcap_dump_close(pd);
         pcap_freecode(&filter);
@@ -275,7 +279,7 @@ static void *pcap_controller(void *arg)
 
 static void dump_wrapper(unsigned char *user_arg, const struct pcap_pkthdr *hdr, const unsigned char *bytes)
 {
-
+        LOG_INFO("callback?\n");
         if (hdr)
                 LOG_INFO("Packet capped, nop\n");
 
