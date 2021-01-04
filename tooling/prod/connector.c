@@ -548,7 +548,7 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr,
     return -1;
   }
   // dont include headers if we are probing the path
-  if (socktype != IPPROTO_TCP && setsockopt(fd, sock_opt, sock_hdr, &one, sizeof(one)) < 0)
+  if (setsockopt(fd, sock_opt, sock_hdr, &one, sizeof(one)) < 0)
   {
     LOG_ERR("IP(V6)_HDRINCL\n");
     return -1;
@@ -927,7 +927,7 @@ static uint8_t *format_tcp_header(uint8_t *buff, uint16_t sport, uint16_t dport,
     return NULL;
 
   hdr = (struct tcphdr *)buff;
-  hdr->source = htons(sport + 10);
+  hdr->source = htons(sport);
   hdr->dest = htons(dport);
   hdr->seq = rand();
   hdr->ack_seq = htonl((flags & 0x02) ? 1 : 0);

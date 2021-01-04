@@ -231,7 +231,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         do
         {
 
-                pcap_dispatch(pc->handle, -1, &dump_wrapper, (u_char *)pd);
+                pcap_dispatch(pc->handle, -1, &pcap_dump, (u_char *)pd);
         } while (!get_connection_exit(pc));
         LOG_INFO("pcap exit\n");
         // close dump file handle
