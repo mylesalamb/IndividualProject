@@ -247,7 +247,7 @@ int apply_sock_opts(int fd, int sock_type, struct sockaddr *addr, socklen_t addr
     return -1;
   }
 
-  if (sock_type == SOCK_DGRAM || 1)
+  if (sock_type == SOCK_DGRAM)
   {
     if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0)
     {
@@ -1120,9 +1120,16 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
 {
 
   struct timespec dly = CONN_DLY;
-  struct timespec rst = TCP_DLY;
   struct sockaddr_storage srv_addr;
   socklen_t srv_addr_len;
+
+  struct timeval tv;
+  tv.tv_sec = 0;
+  tv.tv_usec = 250000;
+  if(setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv))
+  {
+    LOG_ERR("recv timeout\n");
+  }
 
   uint8_t recv_buff[100];
 
@@ -1150,8 +1157,14 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
     return 1;
   }
   tcp_send_all(fd, buff, buff_len);
+  
+  
   while (recv(fd, recv_buff, sizeof(recv_buff), 0) > 0)
-    nanosleep(&rst, &rst);
+  {
+    LOG_INFO("read socket\n");
+    // no op
+    // just keep reading and timeout on a quarter second
+  }
 
   close(fd);
   nanosleep(&dly, &dly);

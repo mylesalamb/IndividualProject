@@ -55,7 +55,7 @@ int main(int argc, char **argv)
 
   log_init();
 
-  while ((arg = getopt(argc, argv, "a:f:d:hv")) != -1 && arg != 255)
+  while ((arg = getopt(argc, argv, "a:f:d:hv")) != -1)
   {
     switch (arg)
     {
