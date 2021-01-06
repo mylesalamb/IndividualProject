@@ -289,7 +289,7 @@ static void dump_wrapper(unsigned char *args, const struct pcap_pkthdr *hdr, con
 
         pthread_mutex_lock(&pc->ctx->tcp_conn.mtx);
         // should we try to capture the ack from the connection setup
-        if (hdr && (pc->ctx->proto == TCP || pc->ctx->proto == DNS_TCP || pc->ctx->proto == NTP_TCP) && 1 // pc->ctx->additional & TCP_PROBE_PATH
+        if (hdr && (pc->ctx->proto == TCP || pc->ctx->proto == DNS_TCP || pc->ctx->proto == NTP_TCP) && pc->ctx->additional & TCP_PROBE_PATH // pc->ctx->additional & TCP_PROBE_PATH
         )
         {
                 

@@ -81,7 +81,7 @@ static int construct_icmp_sock(struct sockaddr_storage *addr);
 static int get_host_ipv6_addr(struct in6_addr *dst);
 
 static int check_raw_response(int fd, int ttlfd,
-                              struct sockaddr_storage *srv_addr, int locport,int pkt_type);
+                              struct sockaddr_storage *srv_addr, int locport, int pkt_type);
 static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr, int locport, int pkt_type);
 static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr, int locport, int pkt_type);
 
@@ -750,7 +750,7 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr, i
       port_number = udp->dest;
     }
 
-    if(ntohs(port_number) == locport)
+    if (ntohs(port_number) == locport)
     {
       LOG_INFO("Matched port numbers");
       return 0;
@@ -764,7 +764,8 @@ static int check_ip6_response(int fd, int ttlfd,
 {
   uint8_t buff[512];
   struct icmp6_hdr *icmp;
-
+  bool match_port = false;
+  bool match_host = false;
   // check if we got an icmp ttl exceeded
   if (recvfrom(ttlfd, buff, sizeof buff, 0, NULL, NULL) > 0)
   {
@@ -784,7 +785,7 @@ static int check_ip6_response(int fd, int ttlfd,
 
   // Otherwise check if we got a response from the host
 
-  struct sockaddr_in6 cname;
+  uint8_t cname[256];
   memset(&cname, 0, sizeof(cname));
 
   char cmbuf[0x200];
@@ -798,28 +799,27 @@ static int check_ip6_response(int fd, int ttlfd,
     return -1;
   }
 
-  for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mh); cmsg != NULL;
+  for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mh);
+       cmsg != NULL;
        cmsg = CMSG_NXTHDR(&mh, cmsg))
   {
+    if (cmsg->cmsg_level == IPPROTO_TCP)
+    {
+      LOG_INFO("got something");
+    }
+
     // ignore the control headers that don't match what we want
-    if (cmsg->cmsg_level != IPPROTO_IPV6 || cmsg->cmsg_type != IPV6_PKTINFO)
+    if (cmsg->cmsg_level == IPPROTO_IPV6 || cmsg->cmsg_type == IPV6_PKTINFO)
     {
-      continue;
+      CMSG_DATA(cmsg);
+      struct sockaddr_in6 *addr = (struct sockaddr_in6 *)cname;
+      // at this point, peeraddr is the source sockaddr
+      if (memcmp(&addr->sin6_addr, &srv_addr->sin6_addr,
+                 sizeof(struct in6_addr)))
+      {
+        return -1;
+      }
     }
-    CMSG_DATA(cmsg);
-
-    // at this point, peeraddr is the source sockaddr
-    if (memcmp(&cname.sin6_addr, &srv_addr->sin6_addr,
-                sizeof(struct in6_addr)))
-    {
-      return -1;
-    }
-
-    if(memcmp(&cname.sin6_port, &srv_addr->sin6_port, sizeof(cname.sin6_port)))
-    {
-      return -1;
-    }
-    LOG_INFO("Matched on port");
     return 0;
   }
 
