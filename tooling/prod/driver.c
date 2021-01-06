@@ -172,7 +172,10 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
 
     pcap_close_context(pc);
     nf_close_context(nfc);
+    transac->ctx->tcp_conn.tcp_seq = 0;
+    transac->ctx->tcp_conn.tcp_ack = 0;
   }
+
 
   transac->ctx->proto = QUIC;
   for (ecn = 0; ecn < 4; ecn++) {

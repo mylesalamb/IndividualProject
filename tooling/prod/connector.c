@@ -5,6 +5,7 @@
 #include <ev.h>
 #include <fcntl.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -803,6 +804,8 @@ static int check_ip6_response(int fd, int ttlfd,
        cmsg != NULL;
        cmsg = CMSG_NXTHDR(&mh, cmsg))
   {
+
+      CMSG_DATA(cmsg);
     if (cmsg->cmsg_level == IPPROTO_TCP)
     {
       LOG_INFO("got something");
@@ -811,16 +814,16 @@ static int check_ip6_response(int fd, int ttlfd,
     // ignore the control headers that don't match what we want
     if (cmsg->cmsg_level == IPPROTO_IPV6 || cmsg->cmsg_type == IPV6_PKTINFO)
     {
-      CMSG_DATA(cmsg);
+	    LOG_INFO("got something in ipproto clause\n");
       struct sockaddr_in6 *addr = (struct sockaddr_in6 *)cname;
       // at this point, peeraddr is the source sockaddr
-      if (memcmp(&addr->sin6_addr, &srv_addr->sin6_addr,
+      if (!memcmp(&addr->sin6_addr, &srv_addr->sin6_addr,
                  sizeof(struct in6_addr)))
       {
-        return -1;
+	LOG_INFO("port was %d", ntohs(addr->sin6_port));
+	LOG_INFO("matched host");
       }
     }
-    return 0;
   }
 
   return -1;
@@ -1165,7 +1168,7 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
     }
     else
     {
-      setsockopt(rawfd, IPPROTO_IPV6, IPV6_HOPLIMIT, &i, sizeof i);
+      setsockopt(rawfd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &i, sizeof i);
     }
     for (int j = 0; j < 1; j++)
     {
