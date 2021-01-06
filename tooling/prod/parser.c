@@ -132,6 +132,19 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
 
                 ret->request = req;
         }
+        // init the addtional members of the ctx struct
+        if (type == WEB)
+        {
+                pthread_cond_init(&ret->ctx->quic_conn.cv, NULL);
+                pthread_mutex_init(&ret->ctx->quic_conn.mtx, NULL);
+                ret->ctx->quic_conn.pkt_relay = NULL;
+                ret->ctx->quic_conn.pky_relay_len = 0;
+        }
+        pthread_cond_init(&ret->ctx->tcp_conn.cv, NULL);
+        pthread_mutex_init(&ret->ctx->tcp_conn.mtx, NULL);
+        ret->ctx->tcp_conn.tcp_ack = 0;
+        ret->ctx->tcp_conn.tcp_seq = 0;
+
         return ret;
 
 fail:
@@ -222,5 +235,15 @@ void transaction_node_free(struct transaction_node_t *arg)
         free(arg->ctx->host);
         free(arg->ctx);
         free(arg->request);
+
+        if (arg->type == WEB)
+        {
+                pthread_mutex_destroy(&arg->ctx->quic_conn.mtx);
+                pthread_cond_destroy(&arg->ctx->quic_conn.cv);
+        }
+
+        pthread_mutex_destroy(&arg->ctx->tcp_conn.mtx);
+        pthread_cond_destroy(&arg->ctx->tcp_conn.cv);
+
         free(arg);
 }

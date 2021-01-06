@@ -37,6 +37,7 @@ struct pcap_controller_t
 
     struct connection_context_t *ctx;
     pcap_t *handle;
+    pcap_dumper_t *dump;
     char *pcap_dev, *alias, *outdir;
 
 

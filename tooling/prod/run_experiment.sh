@@ -3,7 +3,7 @@ EXEC=ecnDetector
 DATASET=../datasets/pre-flight.dataset
 CONF="runs.conf"
 
-if `pgrep ecnDetector`; then
+if pgrep ecnDetector >> /dev/null; then
     echo "already running" >> cron.log
     exit 0
 fi
@@ -14,12 +14,14 @@ cd "$(dirname "$0")"
 mkdir keystore
 sudo chown ecnDetector_psuedo keystore 
 
+#conf shouldnt exist if we are running for the first time
 if [ ! -f $CONF ]; then
     echo "RUNS=0" >> $CONF
 fi
 
 source $CONF
 
+# we should be able to use sudo from scipts from installer.user.sh
 sudo ./setup.sh
 
 echo "### Start run $RUNS ###" >> experiment.log

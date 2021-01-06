@@ -152,11 +152,13 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
   LOG_INFO("dispatch web, to host %s\n", transac->ctx->host);
   int ecn;
   transac->ctx->proto = TCP;
-  //transac->ctx->additional = TCP_TEST_ECE;
   for (ecn = 0; ecn < 4; ecn++) {
     int fd;
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
     
+    if(ecn)
+      transac->ctx->additional = TCP_PROBE_PATH;
+
     transac->ctx->flags = ecn;
 
     pcap_push_context(pc, transac->ctx);
@@ -166,7 +168,7 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     nf_wait_until_rdy(nfc);
 
     send_tcp_http_request(fd, transac->ctx->host, transac->request,
-                          transac->ctx->port, ecn, &transac->ctx->pkt_relay, &transac->ctx->pky_relay_len);
+                          transac->ctx->port, ecn, &transac->ctx->tcp_conn);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
@@ -225,13 +227,13 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     nf_wait_until_rdy(nfc);
 
     send_quic_http_probe(fd, transac->ctx->host, transac->request,transac->ctx->port,
-                         ecn, &transac->ctx->pkt_relay, &transac->ctx->pky_relay_len);
+                         ecn, &transac->ctx->quic_conn);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
   }
-  free(transac->ctx->pkt_relay);
-  transac->ctx->pkt_relay = NULL;
+  free(transac->ctx->quic_conn.pkt_relay);
+  transac->ctx->quic_conn.pkt_relay = NULL;
 
   return 0;
 }
@@ -267,7 +269,7 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
     nf_wait_until_rdy(nfc);
 
     send_tcp_dns_request(fd, transac->ctx->host, transac->request,
-                         transac->ctx->port, ecn, &transac->ctx->pkt_relay, &transac->ctx->pky_relay_len);
+                         transac->ctx->port, ecn, &transac->ctx->tcp_conn);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
@@ -372,7 +374,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
       nf_push_context(nfc, cursor->ctx);
       nf_wait_until_rdy(nfc);
 
-      send_tcp_ntp_request(fd, cursor->ctx->host, cursor->ctx->port, ecn, &transac->ctx->pkt_relay, &transac->ctx->pky_relay_len);
+      send_tcp_ntp_request(fd, cursor->ctx->host, cursor->ctx->port, ecn, &transac->ctx->tcp_conn);
 
       pcap_close_context(pc);
       nf_close_context(nfc);

@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <pcap.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <pthread.h>
@@ -11,6 +10,13 @@
 #include <unistd.h>
 #include <limits.h>
 
+// parser incoming packets to inspect for initial ack value
+#include <netinet/in.h>
+#include <netinet/if_ether.h>
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
+#include <netinet/tcp.h>
+
 #include "pcapture.h"
 #include "context.h"
 #include "log.h"
@@ -18,6 +24,7 @@
 static void *pcap_controller(void *arg);
 static void pcap_log_conn(struct pcap_controller_t *pc);
 static void dump_wrapper(unsigned char *user_arg, const struct pcap_pkthdr *hdr, const unsigned char *bytes);
+static struct tcphdr *parse_ipv6_headers(void *hdr, int hdr_type);
 
 void pcap_push_context(struct pcap_controller_t *pc, struct connection_context_t *ctx)
 {
@@ -61,8 +68,6 @@ struct pcap_controller_t *pcap_init(char *alias, char *dirname)
                 LOG_ERR("pcap_init:no devices\n");
                 return NULL;
         }
-
-        printf("dev name: %s", devs->name);
 
         char *dev = malloc(sizeof(char) * strlen(devs->name) + 1);
         if (!dev)
@@ -160,7 +165,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         pcap_dumper_t *pd;
         char filter_exp[64];
-        
+
         sprintf(filter_exp, "port %d or dst port %d or icmp or icmp6", pc->ctx->port, pc->ctx->port);
         printf("filter exp is %s\n", filter_exp);
         char error_buffer[PCAP_ERRBUF_SIZE];
@@ -228,12 +233,12 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
                 LOG_ERR("dump open\n");
         }
 
+        pc->dump = pd;
+
         do
         {
-
-                pcap_dispatch(pc->handle, -1, &pcap_dump, (u_char *)pd);
+                pcap_dispatch(pc->handle, -1, &dump_wrapper, pc);
         } while (!get_connection_exit(pc));
-        LOG_INFO("pcap exit\n");
         // close dump file handle
         pcap_dump_close(pd);
         pcap_freecode(&filter);
@@ -277,11 +282,93 @@ static void *pcap_controller(void *arg)
         return NULL;
 }
 
-static void dump_wrapper(unsigned char *user_arg, const struct pcap_pkthdr *hdr, const unsigned char *bytes)
+/* wrapper around pcap dump, so we can capture tcp acks to probe the network path for tcp segements */
+static void dump_wrapper(unsigned char *args, const struct pcap_pkthdr *hdr, const unsigned char *pd)
 {
-        LOG_INFO("callback?\n");
-        if (hdr)
-                LOG_INFO("Packet capped, nop\n");
+        struct pcap_controller_t *pc = (struct pcap_controller_t *)args;
 
-        pcap_dump(user_arg, hdr, bytes);
+        pthread_mutex_lock(&pc->ctx->tcp_conn.mtx);
+        // should we try to capture the ack from the connection setup
+        if (hdr && (pc->ctx->proto == TCP || pc->ctx->proto == DNS_TCP || pc->ctx->proto == NTP_TCP) && 1 // pc->ctx->additional & TCP_PROBE_PATH
+        )
+        {
+                
+                
+                struct ether_header *ether;
+                struct iphdr *iphdr;
+                struct ip6_hdr *ip6hdr;
+                struct tcphdr *tcphdr;
+
+                //we know this is ethernet, but check network protocol, and calculate offset to tcp header
+                ether = (struct ether_header *)pd;
+                switch (ntohs(ether->ether_type))
+                {
+                case ETHERTYPE_IP:
+                        iphdr = (struct iphdr *)(ether + 1);
+                        if (iphdr->protocol != IPPROTO_TCP)
+                                goto abrt;
+
+                        tcphdr = (struct tcphdr *)(iphdr + 1);
+                        
+                        if (tcphdr->syn && tcphdr->ack)
+                        {
+                                LOG_INFO("Seen syn");
+                                pc->ctx->tcp_conn.tcp_ack = htonl(ntohl(tcphdr->seq) + 1);
+                                LOG_INFO("cached ack was %d\n", ntohl(pc->ctx->tcp_conn.tcp_ack));
+                        }
+
+                        break;
+                case ETHERTYPE_IPV6:
+                        ip6hdr = (struct ip6_hdr *)(ether + 1);
+                        tcphdr = (struct tcphdr *)parse_ipv6_headers(ip6hdr, IPPROTO_IPV6);
+                        if(tcphdr && (tcphdr->syn && tcphdr->ack))
+                        {
+                                LOG_INFO("Seen syn");
+                                pc->ctx->tcp_conn.tcp_ack = htonl(ntohl(tcphdr->seq) + 1);
+                                LOG_INFO("cached ack was %d\n", ntohl(pc->ctx->tcp_conn.tcp_ack));        
+                        }
+                        break;
+                default:
+                        LOG_INFO("Not ip or ipv6\n");
+                        goto abrt;
+                }
+        }
+
+abrt:
+        pthread_mutex_unlock(&pc->ctx->tcp_conn.mtx);
+        pthread_cond_signal(&pc->ctx->tcp_conn.cv);
+
+        pcap_dump(pc->dump, hdr, pd);
+}
+
+static struct tcphdr *parse_ipv6_headers(void *hdr, int hdr_type)
+{
+        struct ip6_hdr *ip6hdr;
+        uint8_t *byte_offset;
+        struct ip6_ext *ext;
+
+        switch (hdr_type)
+        {
+        case IPPROTO_TCP:
+                return (struct tcphdr *)hdr;
+                break;
+        case IPPROTO_IPV6:
+                ip6hdr = hdr;
+                return parse_ipv6_headers(ip6hdr + 1, ip6hdr->ip6_nxt);
+        case IPPROTO_HOPOPTS:
+        case IPPROTO_ROUTING:
+        case IPPROTO_FRAGMENT:
+        case IPPROTO_AH:
+        case IPPROTO_ESP:
+        case IPPROTO_DSTOPTS:
+        case IPPROTO_MH:
+        case 139:
+        case 140:
+                byte_offset = (uint8_t *)hdr;
+                ext = (struct ip6_ext *)hdr;
+                return parse_ipv6_headers(byte_offset + ext->ip6e_len, ext->ip6e_nxt);
+        case IPPROTO_NONE:
+        default:
+                return NULL;
+        }
 }

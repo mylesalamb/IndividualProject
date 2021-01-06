@@ -74,16 +74,16 @@ static int bound_socket(char *host, enum conn_proto proto, socklen_t *addr_len, 
 static int host_to_sockaddr(char *host, int extport,
                             struct sockaddr_storage *addr,
                             socklen_t *addr_size);
-static int contruct_rawsock_to_host(struct sockaddr_storage *addr,
-                                    int socktype);
+static int construct_rawsock_to_host(struct sockaddr_storage *addr,
+                                     int socktype, uint8_t flags);
 static int construct_icmp_sock(struct sockaddr_storage *addr);
 
 static int get_host_ipv6_addr(struct in6_addr *dst);
 
 static int check_raw_response(int fd, int ttlfd,
-                              struct sockaddr_storage *srv_addr);
-static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr);
-static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr);
+                              struct sockaddr_storage *srv_addr, int locport,int pkt_type);
+static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr, int locport, int pkt_type);
+static int check_ip6_response(int fd, int ttlfd, struct sockaddr_in6 *srv_addr, int locport, int pkt_type);
 
 /* request formatters so we can nicely stack requests together */
 static uint8_t *format_dns_request(char *ws, uint8_t *buff);
@@ -101,7 +101,7 @@ static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
 
 /* underlying request handlers to take care of repeated socket interactions */
 static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport);
-static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport, uint8_t **pkt_relay, ssize_t *pkt_relay_len);
+static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_len, int locport, int extport, struct tcp_conn_t *conn);
 static int defer_udp_exchnage(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport);
 static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
                              int locport, int extport, int proto);
@@ -221,9 +221,6 @@ static int bound_socket(char *host, enum conn_proto proto, socklen_t *addr_len, 
   socklen_t len = sizeof(struct sockaddr_storage);
   getsockname(fd, (struct sockaddr_in *)&loc_addr, &len);
 
-  struct sockaddr_in *loc4 = (struct sockaddr_in *)&loc_addr;
-  LOG_INFO("local port: %d\n", ntohs(loc4->sin_port));
-
   return fd;
 }
 
@@ -259,7 +256,7 @@ int apply_sock_opts(int fd, int sock_type, struct sockaddr *addr, socklen_t addr
   return 0;
 }
 
-int send_tcp_http_request(int fd, char *host, char *ws, int locport, int ecn, uint8_t **pkt_relay, ssize_t *pkt_relay_len)
+int send_tcp_http_request(int fd, char *host, char *ws, int locport, int ecn, struct tcp_conn_t *conn)
 {
   uint8_t buff[512];
 
@@ -277,7 +274,7 @@ int send_tcp_http_request(int fd, char *host, char *ws, int locport, int ecn, ui
   }
   else
   {
-    return defer_tcp_path_probe(fd, host, buff, strlen((char *)buff), PORT_HTTP, pkt_relay, pkt_relay_len);
+    return defer_tcp_path_probe(fd, host, buff, strlen((char *)buff), locport, PORT_HTTP, conn);
   }
 }
 
@@ -292,13 +289,13 @@ int send_tcp_http_probe(int fd, char *host, int locport)
 
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_HTTP, 0x01);
-   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
-                           IPPROTO_TCP);
+  ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_HTTP,
+                          IPPROTO_TCP);
   close(fd);
   return ret;
 }
 
-int send_tcp_dns_request(int fd, char *host, char *ws, int locport)
+int send_tcp_dns_request(int fd, char *host, char *ws, int locport, int ecn, struct tcp_conn_t *conn)
 {
   uint8_t buff[512];
   uint8_t *base_ptr, *end_ptr;
@@ -316,7 +313,14 @@ int send_tcp_dns_request(int fd, char *host, char *ws, int locport)
   end_ptr = format_dns_request(ws, base_ptr);
   *len = htons((uint16_t)(end_ptr - base_ptr));
 
-  return defer_tcp_connection(fd, host, buff, end_ptr - buff, PORT_DNS);
+  if (!ecn)
+  {
+    return defer_tcp_connection(fd, host, buff, end_ptr - buff, PORT_DNS);
+  }
+  else
+  {
+    defer_tcp_path_probe(fd, host, buff, end_ptr - buff, locport, PORT_DNS, conn);
+  }
 }
 
 int send_udp_dns_request(int fd, char *host, char *ws, int locport)
@@ -343,9 +347,8 @@ int send_tcp_dns_probe(int fd, char *host, char *ws, int locport)
   }
   uint8_t buff[64], *end_ptr;
   end_ptr = format_tcp_header(buff, locport, PORT_DNS, 0x01);
-  printf("length of header is %ul, length of header is %p\n", sizeof(struct tcphdr), end_ptr - buff);
   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
-                           IPPROTO_TCP);
+                          IPPROTO_TCP);
   close(fd);
   return ret;
 }
@@ -364,7 +367,7 @@ int send_udp_dns_probe(int fd, char *host, char *ws, int locport)
   end_ptr = format_dns_request(ws, payload);
   format_udp_header(buff, end_ptr - payload, locport, PORT_DNS);
   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_DNS,
-                           IPPROTO_UDP);
+                          IPPROTO_UDP);
   close(fd);
   return ret;
 }
@@ -382,7 +385,7 @@ int send_udp_ntp_request(int fd, char *host, int locport)
   return defer_udp_exchnage(fd, host, buff, end_ptr - buff, PORT_NTP);
 }
 
-int send_tcp_ntp_request(int fd, char *host, int locport, int ecn)
+int send_tcp_ntp_request(int fd, char *host, int locport, int ecn, struct tcp_conn_t *conn)
 {
   uint8_t buff[512];
 
@@ -394,8 +397,15 @@ int send_tcp_ntp_request(int fd, char *host, int locport, int ecn)
 
   // servers in ntp pool are recomended to host a webserver pointing to here
   sprintf((char *)buff, HTTP_REQ, "ntp.pool.org");
-  return defer_tcp_connection(fd, host, buff, strlen((char *)buff),
-                              PORT_HTTP);
+  if (!ecn)
+  {
+    return defer_tcp_connection(fd, host, buff, strlen((char *)buff),
+                                PORT_HTTP);
+  }
+  else
+  {
+    return defer_tcp_path_probe(fd, host, buff, strlen((char *)buff), locport, PORT_NTP, conn);
+  }
 }
 
 int send_udp_ntp_probe(int fd, char *host, int locport)
@@ -413,7 +423,7 @@ int send_udp_ntp_probe(int fd, char *host, int locport)
   format_udp_header(buff, 48, locport, PORT_NTP);
 
   ret = defer_raw_tracert(host, buff, end_ptr - buff, locport, PORT_NTP,
-                           IPPROTO_UDP);
+                          IPPROTO_UDP);
   close(fd);
 
   return ret;
@@ -507,8 +517,8 @@ static int construct_icmp_sock(struct sockaddr_storage *addr)
   return fd;
 }
 
-static int contruct_rawsock_to_host(struct sockaddr_storage *addr,
-                                    int socktype)
+static int construct_rawsock_to_host(struct sockaddr_storage *addr,
+                                     int socktype, uint8_t flags)
 {
   int fd;
   int one = 1;
@@ -548,7 +558,7 @@ static int contruct_rawsock_to_host(struct sockaddr_storage *addr,
     return -1;
   }
   // dont include headers if we are probing the path
-  if (setsockopt(fd, sock_opt, sock_hdr, &one, sizeof(one)) < 0)
+  if (!(flags & 0x01) && setsockopt(fd, sock_opt, sock_hdr, &one, sizeof(one)) < 0)
   {
     LOG_ERR("IP(V6)_HDRINCL\n");
     return -1;
@@ -636,7 +646,7 @@ static int get_host_ipv6_addr(struct in6_addr *host)
  *      -1: otherwise errored
  */
 static int check_raw_response(int fd, int ttlfd,
-                              struct sockaddr_storage *addr)
+                              struct sockaddr_storage *addr, int locport, int pkt_type)
 {
 
   if (!addr)
@@ -654,11 +664,11 @@ static int check_raw_response(int fd, int ttlfd,
     int ret = -1;
     if (addr->ss_family == AF_INET)
     {
-      ret = check_ip4_response(fd, ttlfd, (struct sockaddr_in *)addr);
+      ret = check_ip4_response(fd, ttlfd, (struct sockaddr_in *)addr, locport, pkt_type);
     }
     else if (addr->ss_family == AF_INET6)
     {
-      ret = check_ip6_response(fd, ttlfd, (struct sockaddr_in6 *)addr);
+      ret = check_ip6_response(fd, ttlfd, (struct sockaddr_in6 *)addr, locport, pkt_type);
     }
     else
     {
@@ -683,13 +693,13 @@ static int check_raw_response(int fd, int ttlfd,
  *      1  -> Got icmp ttl exceeded
  *     -1  -> Error response on an fd, or no valued responses
  */
-static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr)
+static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr, int locport, int pkt_type)
 {
-  uint8_t buff[512];
+  uint8_t buff[1024];
   struct iphdr *ip;
   struct icmphdr *icmp;
 
-  if (recvfrom(ttlfd, buff, sizeof buff, 0, NULL, NULL) > 0)
+  if (ttlfd > 0 && recvfrom(ttlfd, buff, sizeof buff, 0, NULL, NULL) > 0)
   {
     ip = (struct iphdr *)buff;
     icmp = (struct icmphdr *)(buff + sizeof(struct iphdr));
@@ -708,12 +718,41 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr)
     }
   }
 
-  if (recvfrom(fd, buff, sizeof buff, 0, NULL, NULL) > 0)
+  if (fd > 0 && recvfrom(fd, buff, sizeof buff, 0, NULL, NULL) > 0)
   {
+    struct tcphdr *tcp;
+    struct udphdr *udp;
+
+    if (ip->protocol != pkt_type)
+    {
+      return -1;
+    }
+
+    // calculate the offset to the data of the ip packet
+    ssize_t len = ip->ihl;
+    uint8_t *data_offset = (len * 4) + buff;
+    uint16_t port_number;
 
     ip = (struct iphdr *)buff;
-    if (!memcmp(&ip->saddr, &srv_addr->sin_addr, sizeof(struct in_addr)))
+    if (memcmp(&ip->saddr, &srv_addr->sin_addr, sizeof(struct in_addr)))
     {
+      return -1;
+    }
+    LOG_INFO("Matched host addr\n");
+    if (pkt_type == IPPROTO_TCP)
+    {
+      tcp = (struct tcphdr *)data_offset;
+      port_number = tcp->dest;
+    }
+    else if (pkt_type == IPPROTO_UDP)
+    {
+      udp = (struct udphdr *)data_offset;
+      port_number = udp->dest;
+    }
+
+    if(ntohs(port_number) == locport)
+    {
+      LOG_INFO("Matched port numbers");
       return 0;
     }
   }
@@ -721,7 +760,7 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr)
   return -1;
 }
 static int check_ip6_response(int fd, int ttlfd,
-                              struct sockaddr_in6 *srv_addr)
+                              struct sockaddr_in6 *srv_addr, int locport, int pkt_type)
 {
   uint8_t buff[512];
   struct icmp6_hdr *icmp;
@@ -770,11 +809,18 @@ static int check_ip6_response(int fd, int ttlfd,
     CMSG_DATA(cmsg);
 
     // at this point, peeraddr is the source sockaddr
-    if (!memcmp(&cname.sin6_addr, &srv_addr->sin6_addr,
+    if (memcmp(&cname.sin6_addr, &srv_addr->sin6_addr,
                 sizeof(struct in6_addr)))
     {
-      return 0;
+      return -1;
     }
+
+    if(memcmp(&cname.sin6_port, &srv_addr->sin6_port, sizeof(cname.sin6_port)))
+    {
+      return -1;
+    }
+    LOG_INFO("Matched on port");
+    return 0;
   }
 
   return -1;
@@ -1041,19 +1087,20 @@ static int defer_udp_exchnage(int fd, char *host, uint8_t *buff, ssize_t buff_le
   return ret;
 }
 
-
-static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport, uint8_t **pkt_relay, ssize_t *pkt_relay_len)
+static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_len, int locport, int extport, struct tcp_conn_t *conn)
 {
-  struct timespec dly = CONN_DLY;
+  struct timespec dly = {1, 0}; //CONN_DLY;
   struct timespec rst = TCP_DLY;
   struct sockaddr_storage srv_addr;
   socklen_t srv_addr_len;
   int rawfd;
 
+  // seq, and ack for hijacking live tcp conn
+  uint32_t tcp_seq, tcp_ack;
   uint8_t recv_buff[100];
   uint8_t raw_buff[sizeof(struct tcphdr) + buff_len];
 
-   if (!host || !buff)
+  if (!host || !buff)
     return 1;
 
   if (host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len))
@@ -1063,56 +1110,85 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
     return 1;
   }
 
-  if(!(rawfd = contruct_rawsock_to_host(&srv_addr, IPPROTO_TCP)))
-  {
-    LOG_ERR("create probe fd\n");
-    close(fd);
-    return 1;
-  }
-
-  // get host to some sort of address
+  // get host to some sort of address, connect call, so we should at least have
+  // the seq value for the rawsock
   if (apply_sock_opts(fd, SOCK_STREAM, (struct sockaddr *)&srv_addr, srv_addr_len))
   {
     LOG_ERR("Apply sock opts failed\n");
     close(fd);
     return -1;
   }
+  fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 
-  if(!*pkt_relay || !*pkt_relay_len)
+  if (!(rawfd = construct_rawsock_to_host(&srv_addr, IPPROTO_TCP, 0x01)))
   {
-    LOG_ERR("did not get packet from relay / or pkt len\n");
+    LOG_ERR("create probe fd\n");
+    close(fd);
     return 1;
   }
 
-  // copy in packet and request
-  memcpy(raw_buff, *pkt_relay, sizeof(struct tcphdr));
-  memcpy(raw_buff + sizeof(struct tcphdr), buff, buff_len);
+  pthread_mutex_lock(&conn->mtx);
+  if (conn->tcp_ack && conn->tcp_seq)
+  {
+    tcp_seq = conn->tcp_seq;
+    tcp_ack = conn->tcp_ack;
+  }
+  else
+  {
+    LOG_INFO("proper wait to be implemented\n");
+    return -1;
+  }
 
+  pthread_mutex_unlock(&conn->mtx);
 
   // quickly format the header to look like the next tcp header we should expect
-  struct tcphdr *hdr = (struct tcphdr*)buff;
+  struct tcphdr *hdr = (struct tcphdr *)raw_buff;
+  memset(hdr, 0, sizeof(struct tcphdr));
   hdr->syn = 0;
-  hdr->seq = htons(ntohs(hdr->seq) + 1);
-  hdr->th_flags = hdr->th_flags & ~TH_ECE;
+  hdr->ack = 1;
+  hdr->window = htons(10000);
+  hdr->doff = 5;
+  hdr->seq = tcp_seq;
+  hdr->ack_seq = tcp_ack;
+  hdr->source = htons(locport);
+  hdr->dest = htons(extport);
+  memcpy(raw_buff + sizeof(struct tcphdr), buff, buff_len);
 
+  ssize_t raw_buff_len = sizeof(struct tcphdr) + buff_len;
 
-  for(int i = 1; i < MAX_TTL; i++)
+  for (int i = 1; i < MAX_TTL; i++)
   {
     if (srv_addr.ss_family == AF_INET)
     {
-      setsockopt(fd, IPPROTO_IP, IP_TTL, &i, sizeof i);
+      setsockopt(rawfd, IPPROTO_IP, IP_TTL, &i, sizeof i);
     }
     else
     {
-      setsockopt(fd, IPPROTO_IPV6, IPV6_HOPLIMIT, &i, sizeof i);
+      setsockopt(rawfd, IPPROTO_IPV6, IPV6_HOPLIMIT, &i, sizeof i);
     }
-    for(int j = 0; j < MAX_UDP; j++)
+    for (int j = 0; j < 1; j++)
     {
-
+      if (sendto(rawfd, raw_buff, raw_buff_len, 0, (struct sockaddr *)&srv_addr, srv_addr_len) < 0)
+      {
+        LOG_INFO("send failed with: %s", strerror(errno));
+      }
+      else
+      {
+        LOG_INFO("send succeeded\n");
+      }
+      if (!check_raw_response(rawfd, -1, &srv_addr, locport, IPPROTO_TCP))
+      {
+        LOG_INFO("recieved response\n");
+        close(fd);
+        nanosleep(&dly, &dly);
+        return 0;
+      }
     }
-    nanosleep(&rst, &rst);
+    nanosleep(&dly, &dly);
   }
 
+  close(fd);
+  nanosleep(&rst, &rst);
 }
 
 static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_len,
@@ -1126,7 +1202,7 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
   struct timeval tv;
   tv.tv_sec = 0;
   tv.tv_usec = 250000;
-  if(setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv))
+  if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv))
   {
     LOG_ERR("recv timeout\n");
   }
@@ -1157,8 +1233,7 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
     return 1;
   }
   tcp_send_all(fd, buff, buff_len);
-  
-  
+
   while (recv(fd, recv_buff, sizeof(recv_buff), 0) > 0)
   {
     LOG_INFO("read socket\n");
@@ -1197,25 +1272,26 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
 {
 
   int fd, icmpfd, err;
-  struct sockaddr_storage srv_addr;
+  struct sockaddr_storage srv_addr, srv_addr_ono;
   socklen_t srv_addr_size;
   struct timespec rst = UDP_DLY;
   struct timespec dly = CONN_DLY;
 
   uint8_t pkt[1024];
-  //memset(pkt, 0, sizeof pkt);
+  memset(pkt, 0, sizeof pkt);
 
   if (!buff)
     return 1;
 
   err = host_to_sockaddr(host, extport, &srv_addr, &srv_addr_size);
+  err |= host_to_sockaddr(host, 0, &srv_addr_ono, &srv_addr_size);
   if (err)
   {
     LOG_ERR("host_to_sockaddr\n");
     return 1;
   }
 
-  fd = contruct_rawsock_to_host(&srv_addr, proto);
+  fd = construct_rawsock_to_host(&srv_addr, proto, 0x00);
   if (fd < 0)
   {
     LOG_ERR("bad fd\n");
@@ -1241,19 +1317,15 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
       int len = (offset - pkt) + buff_len;
       int ret;
       ret =
-          sendto(fd, pkt, len, 0, (struct sockaddr *)&srv_addr, srv_addr_size);
+          sendto(fd, pkt, len, 0, (struct sockaddr *)&srv_addr_ono, srv_addr_size);
       if (ret < 0)
       {
-        LOG_ERR("send failed\n");
+        LOG_ERR("send failed, returning: %s\n", strerror(errno));
         continue;
-      }
-      else
-      {
-        LOG_INFO("Sent %d\n", ret);
       }
 
       nanosleep(&rst, &rst);
-      ret = check_raw_response(fd, icmpfd, &srv_addr);
+      ret = check_raw_response(fd, icmpfd, &srv_addr, locport, proto);
       if (ret == 0)
       {
         goto response;
@@ -1534,20 +1606,6 @@ static struct lsquic_stream_if h3cli_client_callbacks = {
     .on_close = h3cli_client_on_close,
 };
 
-static int h3cli_set_nonblocking(int fd)
-{
-  int flags;
-
-  flags = fcntl(fd, F_GETFL);
-  if (-1 == flags)
-    return -1;
-  flags |= O_NONBLOCK;
-  if (0 != fcntl(fd, F_SETFL, flags))
-    return -1;
-
-  return 0;
-}
-
 static void h3cli_timer_expired(EV_P_ ev_timer *timer, int revents)
 {
   h3cli_process_conns(timer->data);
@@ -1669,8 +1727,6 @@ static void h3cli_read_socket(EV_P_ ev_io *w, int revents)
 
 static void *keylog_open(void *ctx, lsquic_conn_t *conn)
 {
-  // struct h3cli *h3_ctx = (struct h3cli *)ctx;
-  // printf("%s %s\n", h3_ctx->h3cli_hostname, h3_ctx->h3cli_method);
   const char *const dir = ctx ? ctx : ".";
   const lsquic_cid_t *cid;
   FILE *fh;
@@ -1721,102 +1777,115 @@ int send_quic_http_request(int fd, char *host, char *sni, int locport, int ecn)
   return ret;
 }
 
-int send_quic_http_probe(int fd, char *host, char *sni, int locport, int ecn, uint8_t **pkt_relay, ssize_t *pkt_relay_len)
+int send_quic_http_probe(int fd, char *host, char *sni, int locport, int ecn, struct quic_conn_t *relay)
 {
-  int icmpfd;
-  struct sockaddr_storage addr, loc_addr;
-  socklen_t socklen;
-  struct timespec dly = UDP_DLY;
-  host_to_sockaddr(host, PORT_TLS, &addr, &socklen);
-  apply_sock_opts(fd, SOCK_DGRAM, (struct sockaddr *)&addr, socklen);
-  uint8_t buff[1024];
+  //   int icmpfd;
+  //   struct sockaddr_storage addr, loc_addr;
+  //   socklen_t socklen;
+  //   struct timespec dly = UDP_DLY;
+  //   host_to_sockaddr(host, PORT_TLS, &addr, &socklen);
+  //   apply_sock_opts(fd, SOCK_DGRAM, (struct sockaddr *)&addr, socklen);
+  //   uint8_t buff[1024];
 
-  icmpfd = construct_icmp_sock(&addr);
-  if (icmpfd < 0)
-  {
-    LOG_ERR("icmp fd\n");
-    close(fd);
-  }
+  //   icmpfd = construct_icmp_sock(&addr);
+  //   if (icmpfd < 0)
+  //   {
+  //     LOG_ERR("icmp fd\n");
+  //     close(fd);
+  //   }
 
-  if (!*pkt_relay)
-  {
-    LOG_INFO("Buffer packet to relay\n");
-    send_generic_quic_request(fd, host, sni, locport, ecn, 1);
-  }
-  if (!(*pkt_relay))
-  {
-    LOG_ERR("Failed to catch pkt to relay\n");
-    return -1;
-  }
+  //   pthread_mutex_lock(&relay->mtx);
+  //   uint8_t *pkt_relay = relay->pkt_relay;
+  //   pthread_mutex_unlock(&relay->mtx);
+  //   if (!pkt)
+  //   {
+  //     LOG_INFO("Buffer packet to relay\n");
+  //     send_generic_quic_request(fd, host, sni, locport, ecn, 1);
 
-  LOG_INFO("Called with payload: %p (len %ul)\n", *pkt_relay, *pkt_relay_len);
+  //     pthread_mutex_lock(&relay->mtx);
+  //     pkt_relay = relay->pkt_relay;
+  //     pthread_mutex_unlock(&relay->mtx);
 
-  // Probes only really care about modifications to the ECT fields
-  // Hence relaying a buffered packet is likely fine
+  //   }
+  //   if (!pkt)
+  //   {
+  //     LOG_ERR("Failed to catch pkt to relay\n");
+  //     return -1;
+  //   }
 
-  for (int i = 1; i < MAX_TTL; i++)
-  {
+  //   // get length of quic packet
+  //   pthread_mutex_lock(&relay->mtx);
+  //   ssize_t pkt_relay_len = relay->pkt_relay_len;
+  //   pthread_mutex_unlock(&relay->mtx);
 
-    if (ip_ver_str(host) == AF_INET)
-    {
-      setsockopt(fd, IPPROTO_IP, IP_TTL, &i, sizeof i);
-    }
-    else
-    {
-      setsockopt(fd, IPPROTO_IPV6, IPV6_HOPLIMIT, &i, sizeof i);
-    }
+  //   LOG_INFO("Called with payload: %p (len %ul)\n", *pkt_relay, pkt_relay_len);
 
-    for (int j = 0; j < MAX_UDP; j++)
-    {
-      if (send(fd, *pkt_relay, *pkt_relay_len, 0) < 0)
-      {
-        LOG_ERR("send failed: %s\n", strerror(errno));
-        close(fd);
-        close(icmpfd);
-        return -1;
-      }
-      nanosleep(&dly, &dly);
-      if (recv(fd, buff, sizeof buff, 0) > 0)
-      {
-        close(fd);
-        close(icmpfd);
-        return 0;
-      }
+  //   // Probes only really care about modifications to the ECT fields
+  //   // Hence relaying a buffered packet is likely fine
 
-      // Check the response for icmp responses
-      if (addr.ss_family == AF_INET)
-      {
-        int ret = -1;
-        int spin = 0;
-        while (spin++ < 100 || ret != -1)
-        {
-          ret = check_ip4_response(-1, icmpfd, (struct sockaddr_in *)&addr);
-        }
-        // icmp host prohibited
-        if (ret == 3)
-        {
-          goto fail;
-        }
-      }
-      else if (addr.ss_family == AF_INET6)
-      {
-        int ret = -1;
-        int spin = 0;
-        while (spin++ < 100 || ret != -1)
-        {
-          ret = check_ip6_response(-1, icmpfd, (struct sockaddr_in6 *)&addr);
-        }
-        if (ret == 3)
-        {
-          goto fail;
-        }
-      }
-    }
-  }
-fail:
-  close(fd);
-  close(icmpfd);
-  return 1;
+  //   for (int i = 1; i < MAX_TTL; i++)
+  //   {
+
+  //     if (ip_ver_str(host) == AF_INET)
+  //     {
+  //       setsockopt(fd, IPPROTO_IP, IP_TTL, &i, sizeof i);
+  //     }
+  //     else
+  //     {
+  //       setsockopt(fd, IPPROTO_IPV6, IPV6_HOPLIMIT, &i, sizeof i);
+  //     }
+
+  //     for (int j = 0; j < MAX_UDP; j++)
+  //     {
+  //       if (send(fd, *pkt_relay, pkt_relay_len, 0) < 0)
+  //       {
+  //         LOG_ERR("send failed: %s\n", strerror(errno));
+  //         close(fd);
+  //         close(icmpfd);
+  //         return -1;
+  //       }
+  //       nanosleep(&dly, &dly);
+  //       if (recv(fd, buff, sizeof buff, 0) > 0)
+  //       {
+  //         close(fd);
+  //         close(icmpfd);
+  //         return 0;
+  //       }
+
+  //       // Check the response for icmp responses
+  //       if (addr.ss_family == AF_INET)
+  //       {
+  //         int ret = -1;
+  //         int spin = 0;
+  //         while (spin++ < 100 || ret != -1)
+  //         {
+  //           ret = check_ip4_response(-1, icmpfd, (struct sockaddr_in *)&addr);
+  //         }
+  //         // icmp host prohibited
+  //         if (ret == 3)
+  //         {
+  //           goto fail;
+  //         }
+  //       }
+  //       else if (addr.ss_family == AF_INET6)
+  //       {
+  //         int ret = -1;
+  //         int spin = 0;
+  //         while (spin++ < 100 || ret != -1)
+  //         {
+  //           ret = check_ip6_response(-1, icmpfd, (struct sockaddr_in6 *)&addr);
+  //         }
+  //         if (ret == 3)
+  //         {
+  //           goto fail;
+  //         }
+  //       }
+  //     }
+  //   }
+  // fail:
+  //   close(fd);
+  //   close(icmpfd);
+  //   return 1;
 }
 
 static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
@@ -1842,7 +1911,7 @@ static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
   int ret = host_to_sockaddr(host, PORT_TLS, &addr, &addr_len);
   if (ret)
   {
-    fprintf(stderr, "send_quic_http\n");
+    LOG_ERR("Host to sockaddr\n");
     return 1;
   }
 

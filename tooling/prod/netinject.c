@@ -29,11 +29,12 @@
 
 #define IS_ECN(x) (x & 0x03)
 #define IS_TCP_CONTROL(x) (x->syn || x->fin)
+#define SHOULD_LOG_SEQ(x) ((x->proto == TCP || x->proto == DNS_TCP || x->proto == NTP_TCP) )
 
 static void *nf_controller(void *arg);
 static void nf_handle_conn(struct nf_controller_t *nfc);
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data);
-
+static int nf_log_init_seq(struct connection_context_t *ctx, struct tcphdr * hdr);
 static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 static int nf_handle_gen_udp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 static int nf_handle_quic_probe(struct connection_context_t *ctx, uint8_t *payload, size_t len);
@@ -230,7 +231,7 @@ static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, str
         struct nfqnl_msg_packet_hdr *ph;
         uint8_t *payload;
 
-        printf("packet callback\n");
+        
         ph = nfq_get_msg_packet_hdr(pkt);
         if (!ph)
         {
@@ -332,10 +333,8 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
         struct ipv6hdr *ip6;
         int return_value = -1;
 
-        LOG_INFO("generic tcp handler\n");
-
-        bool mark_tos = false && ((IS_ECN(ctx->flags) && nfq_tcp_get_payload(hdr, pkt)) || ctx->additional & TCP_MARK_CONTROL);
-        bool relay_pkt = !hdr->syn && (ctx->additional & TCP_TEST_ECE) && ctx->pkt_relay;
+        bool mark_tos = ((IS_ECN(ctx->flags) && nfq_tcp_get_payload(hdr, pkt)));
+        bool log_seq = hdr->syn && SHOULD_LOG_SEQ(ctx);
 
         if (!pkt)
                 return -1;
@@ -362,7 +361,6 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
                 if (mark_tos)
                         ip4->tos = ctx->flags;
 
-                // buffer the packet like quick so we can echo through a raw sock to avoid the tcp stack doing annoying things
                 nfq_ip_set_checksum(ip4);
                 nfq_tcp_compute_checksum_ipv4(hdr, ip4);
                 return_value = 0;
@@ -381,20 +379,13 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
                 return_value = 0;
         }
 
-        if(relay_pkt)
+        // if we are doing a mid conn tracert
+        if(log_seq)
         {
-                // nop wip
-                ssize_t pkt_len = sizeof(struct tcphdr);
-                uint8_t *pkt_relay = malloc(pkt_len);
-                if(!pkt_relay)
-                {
-                        LOG_ERR("malloc packet failed\n");
-                        return return_value;
-                }
-
-                memcpy(pkt_relay, hdr, pkt_len);
-                ctx->pkt_relay = pkt_relay;
-                ctx->pky_relay_len = pkt_len;
+                pthread_mutex_lock(&ctx->tcp_conn.mtx);
+                ctx->tcp_conn.tcp_seq = htonl(ntohl(hdr->seq) + 1);
+                LOG_INFO("log seq as %ud\n", ntohl(ctx->tcp_conn.tcp_seq));
+                pthread_mutex_unlock(&ctx->tcp_conn.mtx);
         }
 
         return return_value;
@@ -418,7 +409,8 @@ static int nf_handle_quic_probe(struct connection_context_t *ctx, uint8_t *paylo
                 return -1;
         }
 
-        if (!ctx->pkt_relay)
+        pthread_mutex_lock(&ctx->quic_conn.mtx);
+        if (!ctx->quic_conn.pkt_relay)
         {
                 
                 udp_payload = nfq_udp_get_payload(udp, pkt);
@@ -437,9 +429,10 @@ static int nf_handle_quic_probe(struct connection_context_t *ctx, uint8_t *paylo
                         return -1;
                 }
                 memcpy(payload_replay, udp_payload, payload_len);
-                ctx->pkt_relay = payload_replay;
-                ctx->pky_relay_len = payload_len;
+                ctx->quic_conn.pkt_relay = payload_replay;
+                ctx->quic_conn.pky_relay_len = payload_len;
         }
+        pthread_mutex_unlock(&ctx->quic_conn.mtx);
 
         gen_ip_udp_checksum(ctx, pkt, udp);
 
