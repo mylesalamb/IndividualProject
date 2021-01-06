@@ -1091,7 +1091,7 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
 {
   struct timespec dly = {1, 0}; //CONN_DLY;
   struct timespec rst = TCP_DLY;
-  struct sockaddr_storage srv_addr;
+  struct sockaddr_storage srv_addr, srv_addr_ono;
   socklen_t srv_addr_len;
   int rawfd;
 
@@ -1103,7 +1103,8 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
   if (!host || !buff)
     return 1;
 
-  if (host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len))
+  if (host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len) ||
+      host_to_sockaddr(host, 0, &srv_addr_ono, &srv_addr_len))
   {
     LOG_INFO("Host to sockaddr failed\n");
     close(fd);
@@ -1168,7 +1169,7 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
     }
     for (int j = 0; j < 1; j++)
     {
-      if (sendto(rawfd, raw_buff, raw_buff_len, 0, (struct sockaddr *)&srv_addr, srv_addr_len) < 0)
+      if (sendto(rawfd, raw_buff, raw_buff_len, 0, (struct sockaddr *)&srv_addr_ono, srv_addr_len) < 0)
       {
         LOG_INFO("send failed with: %s", strerror(errno));
       }
