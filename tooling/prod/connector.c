@@ -785,15 +785,27 @@ static int check_ip6_response(int fd, int ttlfd,
   }
 
   // Otherwise check if we got a response from the host
+  struct sockaddr_in6 addr;
+  struct iovec iov[1];
+  uint8_t *iobuff;
+  if (!(iobuff = calloc(1, 4096)))
+  {
+    LOG_INFO("calloc failed\n");
+    return -1;
+  }
+  iov->iov_base = iobuff;
+  iov->iov_len = 4096;
 
   uint8_t cname[256];
   memset(&cname, 0, sizeof(cname));
 
   char cmbuf[0x200];
-  struct msghdr mh = {.msg_name = &cname,
+  struct msghdr mh = {.msg_name = &addr,
                       .msg_namelen = sizeof(cname),
                       .msg_control = cmbuf,
-                      .msg_controllen = sizeof(cmbuf)};
+                      .msg_controllen = sizeof(cmbuf),
+                      .msg_iov = iov,
+                      .msg_iovlen = 1};
 
   if (recvmsg(fd, &mh, 0) < 0)
   {
@@ -804,8 +816,6 @@ static int check_ip6_response(int fd, int ttlfd,
        cmsg != NULL;
        cmsg = CMSG_NXTHDR(&mh, cmsg))
   {
-
-      CMSG_DATA(cmsg);
     if (cmsg->cmsg_level == IPPROTO_TCP)
     {
       LOG_INFO("got something");
@@ -814,16 +824,41 @@ static int check_ip6_response(int fd, int ttlfd,
     // ignore the control headers that don't match what we want
     if (cmsg->cmsg_level == IPPROTO_IPV6 || cmsg->cmsg_type == IPV6_PKTINFO)
     {
-	    LOG_INFO("got something in ipproto clause\n");
-      struct sockaddr_in6 *addr = (struct sockaddr_in6 *)cname;
+      CMSG_DATA(cmsg);
       // at this point, peeraddr is the source sockaddr
-      if (!memcmp(&addr->sin6_addr, &srv_addr->sin6_addr,
+      if (memcmp(&addr.sin6_addr, &srv_addr->sin6_addr,
                  sizeof(struct in6_addr)))
       {
-	LOG_INFO("port was %d", ntohs(addr->sin6_port));
-	LOG_INFO("matched host");
+        match_host = true;
+        break;
       }
     }
+  }
+
+  struct tcphdr *tcp = iobuff;
+  struct udphdr *udp = iobuff;
+
+  uint32_t port_number;
+
+  if (pkt_type == IPPROTO_TCP)
+  {
+    port_number = tcp->dest;
+  }
+  if (pkt_type == IPPROTO_UDP)
+  {
+
+    port_number = udp->dest;
+  }
+
+  if (!memcmp(&port_number, &srv_addr->sin6_port, sizeof(port_number)))
+  {
+    LOG_INFO("Matched port as well\n");
+    match_port = true;
+  }
+
+  if (match_port && match_host)
+  {
+    return 0;
   }
 
   return -1;
