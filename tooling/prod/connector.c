@@ -785,7 +785,6 @@ static int check_ip6_response(int fd, int ttlfd,
   }
 
   // Otherwise check if we got a response from the host
-  struct sockaddr_in6 addr;
   struct iovec iov[1];
   uint8_t *iobuff;
   if (!(iobuff = calloc(1, 4096)))
@@ -796,11 +795,11 @@ static int check_ip6_response(int fd, int ttlfd,
   iov->iov_base = iobuff;
   iov->iov_len = 4096;
 
-  uint8_t cname[256];
+  struct sockaddr_in6 cname;
   memset(&cname, 0, sizeof(cname));
 
   char cmbuf[0x200];
-  struct msghdr mh = {.msg_name = &addr,
+  struct msghdr mh = {.msg_name = &cname,
                       .msg_namelen = sizeof(cname),
                       .msg_control = cmbuf,
                       .msg_controllen = sizeof(cmbuf),
@@ -822,11 +821,11 @@ static int check_ip6_response(int fd, int ttlfd,
     }
 
     // ignore the control headers that don't match what we want
-    if (cmsg->cmsg_level == IPPROTO_IPV6 || cmsg->cmsg_type == IPV6_PKTINFO)
+    if (cmsg->cmsg_level == IPPROTO_IPV6 && cmsg->cmsg_type == IPV6_PKTINFO)
     {
       CMSG_DATA(cmsg);
       // at this point, peeraddr is the source sockaddr
-      if (memcmp(&addr.sin6_addr, &srv_addr->sin6_addr,
+      if (memcmp(&cname.sin6_addr, &srv_addr->sin6_addr,
                  sizeof(struct in6_addr)))
       {
         match_host = true;
