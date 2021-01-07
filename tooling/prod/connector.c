@@ -804,7 +804,8 @@ static int check_ip6_response(int fd, int ttlfd,
                       .msg_control = cmbuf,
                       .msg_controllen = sizeof(cmbuf),
                       .msg_iov = iov,
-                      .msg_iovlen = 1};
+                      .msg_iovlen = 1
+                    };
 
   if (recvmsg(fd, &mh, 0) < 0)
   {
@@ -822,9 +823,10 @@ static int check_ip6_response(int fd, int ttlfd,
     {
       CMSG_DATA(cmsg);
       // at this point, peeraddr is the source sockaddr
-      if (memcmp(&cname.sin6_addr, &srv_addr->sin6_addr,
+      if (!memcmp(&cname.sin6_addr, &srv_addr->sin6_addr,
                  sizeof(struct in6_addr)))
       {
+        LOG_INFO("matched host\n");
         match_host = true;
         break;
       }
@@ -846,7 +848,7 @@ static int check_ip6_response(int fd, int ttlfd,
     port_number = udp->dest;
   }
 
-  if (!memcmp(&port_number, &srv_addr->sin6_port, sizeof(port_number)))
+  if (ntohs(port_number) == locport)
   {
     LOG_INFO("Matched port as well\n");
     match_port = true;
