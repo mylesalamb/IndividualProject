@@ -3,7 +3,7 @@ EXEC=ecnDetector
 DATASET=../datasets/pre-flight.dataset
 CONF="runs.conf"
 
-if `pgrep ecnDetector`; then
+if pgrep ecnDetector >> /dev/null; then
     echo "already running" >> cron.log
     exit 0
 fi
