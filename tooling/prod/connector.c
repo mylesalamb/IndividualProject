@@ -1136,8 +1136,10 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
   uint32_t tcp_seq, tcp_ack;
   uint8_t raw_buff[sizeof(struct tcphdr) + buff_len];
 
-  if (!host || !buff)
+  if (!host || !buff){
+    close(fd);
     return 1;
+  }
 
   if (host_to_sockaddr(host, extport, &srv_addr, &srv_addr_len) ||
       host_to_sockaddr(host, 0, &srv_addr_ono, &srv_addr_len))
@@ -1184,6 +1186,8 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
     {
       LOG_INFO("failed to catch ack\n");
       pthread_mutex_unlock(&conn->mtx);
+      close(fd);
+      close(rawfd);
       return -1;
     }
   }
@@ -1242,7 +1246,7 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
 
   close(fd);
   close(rawfd);
-  nanosleep(&rst, &rst);
+  nanosleep(&dly, &dly);
   return 1;
 }
 

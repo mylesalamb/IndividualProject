@@ -399,7 +399,8 @@ static int dispatch_ntp(struct transaction_node_t *transac,
       transac->ctx->additional |= ecn ? TCP_PROBE_PATH : 0;
 
       if(!(transac->ctx->additional & TCP_HOST_DOWN))
-      {pcap_push_context(pc, cursor->ctx);
+      {
+        pcap_push_context(pc, cursor->ctx);
       pcap_wait_until_rdy(pc);
 
       nf_push_context(nfc, cursor->ctx);
