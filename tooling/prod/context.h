@@ -53,6 +53,7 @@ static struct sock_conf_t socket_conf[] = {
 // TCP has slightly more complex interactions with
 // the network so we can poke and prod to see if anything interesting happens
 #define TCP_PROBE_PATH (1 << 0)
+#define TCP_HOST_DOWN (1 << 1)
 
 struct quic_pkt_t
 {

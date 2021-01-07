@@ -309,6 +309,7 @@ static void dump_wrapper(unsigned char *args, const struct pcap_pkthdr *hdr, con
                                 goto abrt;
 
                         tcphdr = (struct tcphdr *)(iphdr + 1);
+                        LOG_INFO("seen something");
                         
                         if (tcphdr->syn && tcphdr->ack)
                         {

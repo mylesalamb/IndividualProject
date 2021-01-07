@@ -1,7 +1,7 @@
 include Makefile.variables
 
 EXEC=ecnDetector
-EXECSOURCES=connector.o netinject.o connector.o pcapture.o driver.o parser.o context.o log.o
+EXECSOURCES=connector.o netinject.o pcapture.o driver.o parser.o context.o log.o
 WORK_DIR=$(shell pwd)
 CC=clang
 CFLAGS= -Wall -fsigned-char -I$(BSSL_DIR)/include -I$(LSQUIC_DIR)/include -I$(LSQUIC_DIR)/src/liblsquic

@@ -48,10 +48,10 @@ int main(int argc, char **argv)
   char *outdir = "data";
   char arg;
 
-  // memory sanitizers have a hard tme with this
-  #ifndef DEBUG
+// memory sanitizers have a hard tme with this
+#ifndef DEBUG
   set_user();
-  #endif
+#endif
 
   log_init();
 
@@ -122,8 +122,6 @@ int main(int argc, char **argv)
   return EXIT_SUCCESS;
 }
 
-
-
 // call the underlying singular dispatch function
 // for each transac, suitable for web and dns
 // not ntp
@@ -152,14 +150,13 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
   LOG_INFO("dispatch web, to host %s\n", transac->ctx->host);
   int ecn;
   transac->ctx->proto = TCP;
-  for (ecn = 0; ecn < 4; ecn++) {
-    int fd;
+  for (ecn = 0; ecn < 4; ecn++)
+  {
+    int fd, ret;
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
-    
-    if(ecn)
-      transac->ctx->additional = TCP_PROBE_PATH;
 
     transac->ctx->flags = ecn;
+    transac->ctx->additional |= ecn ? TCP_PROBE_PATH : 0; 
 
     pcap_push_context(pc, transac->ctx);
     pcap_wait_until_rdy(pc);
@@ -167,21 +164,28 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     nf_push_context(nfc, transac->ctx);
     nf_wait_until_rdy(nfc);
 
-    send_tcp_http_request(fd, transac->ctx->host, transac->request,
+    ret = send_tcp_http_request(fd, transac->ctx->host, transac->request,
                           transac->ctx->port, ecn, &transac->ctx->tcp_conn);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
     transac->ctx->tcp_conn.tcp_seq = 0;
     transac->ctx->tcp_conn.tcp_ack = 0;
-  }
 
+    if(ret && ecn == 0)
+    {
+      LOG_INFO("TCP host likely down skipping\n");
+      break;
+    }
+  }
+  transac->ctx->additional = 0;
 
   transac->ctx->proto = QUIC;
-  for (ecn = 0; ecn < 4; ecn++) {
+  for (ecn = 0; ecn < 4; ecn++)
+  {
     transac->ctx->flags = ecn;
 
-    int fd;
+    int fd, ret;
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
 
     pcap_push_context(pc, transac->ctx);
@@ -190,17 +194,21 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     nf_push_context(nfc, transac->ctx);
     nf_wait_until_rdy(nfc);
 
-    send_quic_http_request(fd, transac->ctx->host, transac->request,
+    ret = send_quic_http_request(fd, transac->ctx->host, transac->request,
                            transac->ctx->port, ecn);
     pcap_close_context(pc);
     nf_close_context(nfc);
-    
+    if(ret && ecn == 0)
+    {
+      LOG_INFO("Quic host likely down\n");
+      break;
+    }
   }
 
   transac->ctx->proto = TCP_PROBE;
-  for (uint8_t ecn = 0; ecn < 2; ecn++) {
+  for (uint8_t ecn = 0; ecn < 2; ecn++)
+  {
     transac->ctx->flags = ecn;
-    
 
     int fd;
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
@@ -217,10 +225,11 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
   }
 
   transac->ctx->proto = QUIC_PROBE;
-  for (ecn = 0; ecn < 3; ecn++) {
+  for (ecn = 0; ecn < 4; ecn++)
+  {
     transac->ctx->flags = ecn;
 
-    int fd;
+    int fd, ret;
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
 
     pcap_push_context(pc, transac->ctx);
@@ -229,11 +238,16 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     nf_push_context(nfc, transac->ctx);
     nf_wait_until_rdy(nfc);
 
-    send_quic_http_probe(fd, transac->ctx->host, transac->request,transac->ctx->port,
+    ret = send_quic_http_probe(fd, transac->ctx->host, transac->request, transac->ctx->port,
                          ecn, &transac->ctx->quic_conn);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
+    if(ret && ecn == 0)
+    {
+      LOG_INFO("Host likely down, skipping\n");
+      break;
+    }
   }
   free(transac->ctx->quic_conn.pkt_relay);
   transac->ctx->quic_conn.pkt_relay = NULL;
@@ -257,13 +271,13 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
   int ecn;
 
   transac->ctx->proto = DNS_TCP;
-  //transac->ctx->additional = TCP_TEST_ECE;
   for (ecn = 0; ecn < 4; ecn++)
   {
-    int fd;
+    int fd, ret;
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
 
     transac->ctx->flags = ecn;
+    transac->ctx->additional |= ecn ? TCP_PROBE_PATH : 0; 
 
     pcap_push_context(pc, transac->ctx);
     pcap_wait_until_rdy(pc);
@@ -271,15 +285,23 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
     nf_push_context(nfc, transac->ctx);
     nf_wait_until_rdy(nfc);
 
-    send_tcp_dns_request(fd, transac->ctx->host, transac->request,
+    ret = send_tcp_dns_request(fd, transac->ctx->host, transac->request,
                          transac->ctx->port, ecn, &transac->ctx->tcp_conn);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
+    transac->ctx->tcp_conn.tcp_seq = 0;
+    transac->ctx->tcp_conn.tcp_ack = 0;
+    if(ret && ecn == 0)
+    {
+      LOG_INFO("Host likely down, skipping\n");
+      break;
+    }
   }
 
   transac->ctx->proto = DNS_UDP;
-  for (ecn = 0; ecn < 4; ecn++) {
+  for (ecn = 0; ecn < 4; ecn++)
+  {
 
     int fd;
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
@@ -300,14 +322,14 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
   }
 
   transac->ctx->proto = DNS_UDP_PROBE;
-  for (uint8_t ecn = 0; ecn < 4; ecn++) {
-    
+  for (uint8_t ecn = 0; ecn < 4; ecn++)
+  {
+
     int fd;
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
     LOG_INFO("dns port is %d\n", transac->ctx->port);
-    
+
     transac->ctx->flags = ecn;
-    
 
     pcap_push_context(pc, transac->ctx);
     pcap_wait_until_rdy(pc);
@@ -322,7 +344,8 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
   }
 
   transac->ctx->proto = DNS_TCP_PROBE;
-  for (ecn = 0; ecn < 2; ecn++) {
+  for (ecn = 0; ecn < 2; ecn++)
+  {
     transac->ctx->flags = ecn;
 
     int fd;
@@ -360,11 +383,53 @@ static int dispatch_ntp(struct transaction_node_t *transac,
   LOG_INFO("dispatch ntp, to host %s\n", transac->ctx->host);
   uint8_t ecn;
 
-  for (ecn = 0; ecn < 4; ecn++) {
+  for (ecn = 0; ecn < 4; ecn++)
+  {
 
     struct transaction_node_t *cursor = transac;
-    while (cursor) {
+    while (cursor)
+    {
       cursor->ctx->proto = NTP_TCP;
+
+      int fd;
+      int ret = 0;
+      init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
+
+      transac->ctx->flags = ecn;
+      transac->ctx->additional |= ecn ? TCP_PROBE_PATH : 0;
+
+      if(!(transac->ctx->additional & TCP_HOST_DOWN))
+      {pcap_push_context(pc, cursor->ctx);
+      pcap_wait_until_rdy(pc);
+
+      nf_push_context(nfc, cursor->ctx);
+      nf_wait_until_rdy(nfc);
+
+      ret = send_tcp_ntp_request(fd, cursor->ctx->host, cursor->ctx->port, ecn, &transac->ctx->tcp_conn);
+
+      LOG_INFO("\nreturn value %d\n",ret);
+
+      pcap_close_context(pc);
+      nf_close_context(nfc);}
+      transac->ctx->tcp_conn.tcp_seq = 0;
+      transac->ctx->tcp_conn.tcp_ack = 0;
+      transac->ctx->additional &= ~TCP_PROBE_PATH;
+      if(ret && ecn == 0)
+      {
+        transac->ctx->additional |= TCP_HOST_DOWN;
+      }
+      cursor = cursor->next;
+    }
+  }
+
+  for (ecn = 0; ecn < 4; ecn++)
+  {
+
+    struct transaction_node_t *cursor = transac;
+    while (cursor)
+    {
+
+      cursor->ctx->proto = NTP_UDP;
 
       int fd;
       init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
@@ -377,7 +442,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
       nf_push_context(nfc, cursor->ctx);
       nf_wait_until_rdy(nfc);
 
-      send_tcp_ntp_request(fd, cursor->ctx->host, cursor->ctx->port, ecn, &transac->ctx->tcp_conn);
+      send_udp_ntp_request(fd, cursor->ctx->host, cursor->ctx->port);
 
       pcap_close_context(pc);
       nf_close_context(nfc);
@@ -385,77 +450,54 @@ static int dispatch_ntp(struct transaction_node_t *transac,
     }
   }
 
-  for (ecn = 0; ecn < 4; ecn++) {
-
+  for (ecn = 0; ecn < 4; ecn++)
+  {
     struct transaction_node_t *cursor = transac;
-    while (cursor) {
+    while (cursor)
+    {
+      cursor->ctx->proto = NTP_UDP_PROBE;
+      cursor->ctx->flags = ecn;
 
+      int fd;
+      init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
 
-    cursor->ctx->proto = NTP_UDP;
-    
-    int fd;
-    init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
-    
-    cursor->ctx->flags = ecn;
+      pcap_push_context(pc, cursor->ctx);
+      pcap_wait_until_rdy(pc);
 
-    pcap_push_context(pc, cursor->ctx);
-    pcap_wait_until_rdy(pc);
+      nf_push_context(nfc, cursor->ctx);
+      nf_wait_until_rdy(nfc);
 
-    nf_push_context(nfc, cursor->ctx);
-    nf_wait_until_rdy(nfc);
-
-    send_udp_ntp_request(fd, cursor->ctx->host, cursor->ctx->port);
-
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-    cursor = cursor->next;
+      send_udp_ntp_probe(fd, cursor->ctx->host, cursor->ctx->port);
+      pcap_close_context(pc);
+      nf_close_context(nfc);
+      cursor = cursor->next;
     }
   }
 
-  for (ecn = 0; ecn < 4; ecn++) {
-    struct transaction_node_t *cursor = transac;
-    while (cursor) {
-    cursor->ctx->proto = NTP_UDP_PROBE;
-    cursor->ctx->flags = ecn;
-
-    int fd;
-    init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
-
-    pcap_push_context(pc, cursor->ctx);
-    pcap_wait_until_rdy(pc);
-
-    nf_push_context(nfc, cursor->ctx);
-    nf_wait_until_rdy(nfc);
-
-    send_udp_ntp_probe(fd, cursor->ctx->host, cursor->ctx->port);
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-    cursor = cursor->next;
-    }
-  }
-
-  for (ecn = 0; ecn < 2; ecn++) {
+  for (ecn = 0; ecn < 2; ecn++)
+  {
 
     struct transaction_node_t *cursor = transac;
-    while (cursor) {
+    while (cursor)
+    {
 
-    cursor->ctx->flags = ecn;
-    cursor->ctx->proto = NTP_TCP_PROBE;
+      cursor->ctx->flags = ecn;
+      cursor->ctx->proto = NTP_TCP_PROBE;
 
-    int fd;
-    init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
+      int fd;
+      init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
 
-    pcap_push_context(pc, cursor->ctx);
-    pcap_wait_until_rdy(pc);
+      pcap_push_context(pc, cursor->ctx);
+      pcap_wait_until_rdy(pc);
 
-    nf_push_context(nfc, cursor->ctx);
-    nf_wait_until_rdy(nfc);
+      nf_push_context(nfc, cursor->ctx);
+      nf_wait_until_rdy(nfc);
 
-    send_tcp_ntp_probe(fd, cursor->ctx->host, cursor->ctx->port);
+      send_tcp_ntp_probe(fd, cursor->ctx->host, cursor->ctx->port);
 
-    pcap_close_context(pc);
-    nf_close_context(nfc);
-    cursor = cursor->next;
+      pcap_close_context(pc);
+      nf_close_context(nfc);
+      cursor = cursor->next;
     }
   }
 
