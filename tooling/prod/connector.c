@@ -2010,7 +2010,7 @@ static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
   }
   else
   {
-    setsockopt(h3cli.h3cli_sock_fd, IPPROTO_IPV6, IPV6_HOPLIMIT, &ttl, sizeof ttl);
+    setsockopt(h3cli.h3cli_sock_fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof ttl);
   }
 
   h3cli.h3cli_timer.data = &h3cli;
