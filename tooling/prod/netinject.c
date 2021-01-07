@@ -34,7 +34,6 @@
 static void *nf_controller(void *arg);
 static void nf_handle_conn(struct nf_controller_t *nfc);
 static int packet_callback(struct nfq_q_handle *queue, struct nfgenmsg *msg, struct nfq_data *pkt, void *data);
-static int nf_log_init_seq(struct connection_context_t *ctx, struct tcphdr * hdr);
 static int nf_handle_tcp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 static int nf_handle_gen_udp(struct connection_context_t *ctx, uint8_t *payload, size_t len);
 static int nf_handle_quic_probe(struct connection_context_t *ctx, uint8_t *payload, size_t len);
@@ -430,7 +429,7 @@ static int nf_handle_quic_probe(struct connection_context_t *ctx, uint8_t *paylo
                 }
                 memcpy(payload_replay, udp_payload, payload_len);
                 ctx->quic_conn.pkt_relay = payload_replay;
-                ctx->quic_conn.pky_relay_len = payload_len;
+                ctx->quic_conn.pkt_relay_len = payload_len;
         }
         pthread_mutex_unlock(&ctx->quic_conn.mtx);
 

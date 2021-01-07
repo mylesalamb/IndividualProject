@@ -237,7 +237,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         do
         {
-                pcap_dispatch(pc->handle, -1, &dump_wrapper, pc);
+                pcap_dispatch(pc->handle, -1, &dump_wrapper, (u_char *)pc);
         } while (!get_connection_exit(pc));
         // close dump file handle
         pcap_dump_close(pd);
@@ -338,7 +338,7 @@ abrt:
         pthread_mutex_unlock(&pc->ctx->tcp_conn.mtx);
         pthread_cond_signal(&pc->ctx->tcp_conn.cv);
 
-        pcap_dump(pc->dump, hdr, pd);
+        pcap_dump((u_char *)pc->dump, hdr, pd);
 }
 
 static struct tcphdr *parse_ipv6_headers(void *hdr, int hdr_type)

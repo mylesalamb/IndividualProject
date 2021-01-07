@@ -59,7 +59,7 @@ struct quic_pkt_t
 	pthread_mutex_t mtx;
 	pthread_cond_t cv;
 	uint8_t *pkt_relay;
-	ssize_t pky_relay_len;
+	ssize_t pkt_relay_len;
 };
 
 struct tcp_conn_t

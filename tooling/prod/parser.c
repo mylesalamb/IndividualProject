@@ -138,7 +138,7 @@ unit_static struct transaction_node_t *parse_transaction(char *buff)
                 pthread_cond_init(&ret->ctx->quic_conn.cv, NULL);
                 pthread_mutex_init(&ret->ctx->quic_conn.mtx, NULL);
                 ret->ctx->quic_conn.pkt_relay = NULL;
-                ret->ctx->quic_conn.pky_relay_len = 0;
+                ret->ctx->quic_conn.pkt_relay_len = 0;
         }
         pthread_cond_init(&ret->ctx->tcp_conn.cv, NULL);
         pthread_mutex_init(&ret->ctx->tcp_conn.mtx, NULL);
