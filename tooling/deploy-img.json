@@ -32,7 +32,7 @@
     "provisioners": [
         {
             "type":"shell",
-            "script": "installer.sh"
+            "script": "installer.ami.sh"
         }
     ]
   }

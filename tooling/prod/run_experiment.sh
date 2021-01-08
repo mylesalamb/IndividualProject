@@ -1,6 +1,6 @@
 #!/bin/bash
 EXEC=ecnDetector
-DATASET=../datasets/pre-flight.dataset
+DATASET=../datasets/flight.dataset
 CONF="runs.conf"
 
 if pgrep ecnDetector >> /dev/null; then
@@ -11,8 +11,6 @@ fi
 # change directory to where the script is being called from
 cd "$(dirname "$0")"
 
-mkdir keystore
-sudo chown ecnDetector_psuedo keystore 
 
 #conf shouldnt exist if we are running for the first time
 if [ ! -f $CONF ]; then
@@ -20,6 +18,11 @@ if [ ! -f $CONF ]; then
 fi
 
 source $CONF
+
+mkdir -p "trace${RUNS}/keystore"
+sudo chown -R ecnDetector_psuedo trace${RUNS}
+
+
 
 # we should be able to use sudo from scipts from installer.user.sh
 sudo ./setup.sh

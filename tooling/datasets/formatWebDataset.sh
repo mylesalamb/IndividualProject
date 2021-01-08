@@ -6,13 +6,15 @@
 #	Format to what the network tool expects
 cat "web.raw.dataset" | while read line; do
 
-	elt=$(dig +short $line A | grep -v '\.$' | head -n 1)
-	if [  $? -eq 0  ] && [ ! -z "$elt" ]; then
-  			echo "$elt WEB $line"
+	ip4=$(dig +short $line A | grep -v '\.$' | head -n 1)
+	if [  $? -eq 0  ] && [ ! -z "$ip4" ]; then
+  			echo "$ip4 WEB $line"
 	fi
-	elt=$(dig +short $line AAAA | grep -v '\.$' | head -n 1)
-	if [  $? -eq 0  ] && [ ! -z "$elt" ]; then
-  			echo "$elt WEB $line"
+	ip6=$(dig +short $line AAAA | grep -v '\.$' | head -n 1)
+	if [  $? -eq 0  ] && [ ! -z "$ip6" ]; then
+  			echo "$ip6 WEB $line"
 	fi
+
+	echo "$ip4,$ip6,$line" >> aux.web.dataset
 
 done

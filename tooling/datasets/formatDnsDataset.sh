@@ -12,6 +12,6 @@ fi
 
 cat $DATASET | while read line; do
 
-    echo "$line DNS example.io"
+    echo "$line DNS example.com"
 
 done 

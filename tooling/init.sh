@@ -8,6 +8,6 @@ cd "$(dirname "$0")"
 # remove init job to start at midnight (ie. this job)
 crontab -u pi -l | grep -v "init.sh" | crontab -u pi -
 #add job to run on n hour schedule
-(crontab -u pi -l; echo "0 */36 * * * $(pwd)/prod/run_experiment.sh") | crontab -u pi -
+(crontab -u pi -l; echo "0 0 */2 * * $(pwd)/prod/run_experiment.sh") | crontab -u pi -
 
 ./prod/run_experiment.sh

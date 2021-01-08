@@ -24,7 +24,7 @@ int send_tcp_ntp_request(int fd, char *host, int locport, int ecn, struct tcp_co
 int send_udp_ntp_probe(int fd, char *host, int locport);
 int send_tcp_ntp_probe(int fd, char *host, int locport);
 
-int send_quic_http_request(int fd, char *host, char *sni, int locport, int ecn);
+int send_quic_http_request(int fd, char *host, char *sni, int locport, int ecn, char *keysdir);
 int send_quic_http_probe(int fd, char *host, char *sni, int locport, int ecn, struct quic_pkt_t *conn);
 
 #endif

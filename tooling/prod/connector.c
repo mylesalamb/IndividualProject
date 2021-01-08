@@ -98,7 +98,7 @@ static uint8_t *format_ip_header(uint8_t *buff, struct sockaddr_storage *addr,
                                  int proto, int ttl);
 
 static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
-                                     int ecn, int ttl);
+                                     int ecn, int ttl, char *keysdir);
 
 /* underlying request handlers to take care of repeated socket interactions */
 static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_len, int extport);
@@ -698,8 +698,8 @@ static int check_raw_response(int fd, int ttlfd,
 static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr, int locport, int pkt_type)
 {
   uint8_t buff[1024];
-  struct iphdr *ip = buff;
-  struct icmphdr *icmp = buff;
+  struct iphdr *ip = (struct iphdr *)buff;
+  struct icmphdr *icmp = (struct icmphdr *)buff;
 
   if (ttlfd > 0 && recvfrom(ttlfd, buff, sizeof buff, 0, NULL, NULL) > 0)
   {
@@ -1136,7 +1136,8 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
   uint32_t tcp_seq, tcp_ack;
   uint8_t raw_buff[sizeof(struct tcphdr) + buff_len];
 
-  if (!host || !buff){
+  if (!host || !buff)
+  {
     close(fd);
     return 1;
   }
@@ -1258,7 +1259,7 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
   struct sockaddr_storage srv_addr;
   socklen_t srv_addr_len;
 
-   if (fd < 0)
+  if (fd < 0)
   {
     LOG_ERR("defer_tcp: bad fd\n");
     return 1;
@@ -1281,7 +1282,8 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
     return 1;
   }
 
-  if (!host || !buff){
+  if (!host || !buff)
+  {
     close(fd);
     return 1;
   }
@@ -1294,12 +1296,10 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
     return -1;
   }
 
- 
   tcp_send_all(fd, buff, buff_len);
 
   while (recv(fd, recv_buff, sizeof(recv_buff), 0) > 0)
   {
-    
   }
 
   close(fd);
@@ -1735,10 +1735,6 @@ static void h3cli_proc_ancillary(struct msghdr *msg,
   }
 }
 
-struct keylog_ctx
-{
-};
-
 #if defined(IP_RECVORIGDSTADDR)
 #define DST_MSG_SZ sizeof(struct sockaddr_in)
 #else
@@ -1787,24 +1783,27 @@ static void h3cli_read_socket(EV_P_ ev_io *w, int revents)
   h3cli_process_conns(h3cli);
 }
 
+struct keylog_ctx
+{
+  char *keylog_dir;
+  char *host;
+  int ecn;
+};
+
 static void *keylog_open(void *ctx, lsquic_conn_t *conn)
 {
-  const char *const dir = ctx ? ctx : ".";
-  const lsquic_cid_t *cid;
+  struct keylog_ctx *keylog_ctx = (struct keylog_ctx *)ctx;
+  const char *const dir = (keylog_ctx && keylog_ctx->keylog_dir ) ? keylog_ctx->keylog_dir : ".";
   FILE *fh;
   int sz;
-  unsigned i;
-  char id_str[MAX_CID_LEN * 2 + 1];
+  char id_str[256];
   char path[4096];
-  static const char b2c[16] = "0123456789ABCDEF";
+  char *host = (keylog_ctx && keylog_ctx->host) ? keylog_ctx->host : "host";
+  int ecn =  (keylog_ctx) ? keylog_ctx->ecn : 0;
 
-  cid = lsquic_conn_id(conn);
-  for (i = 0; i < cid->len; ++i)
-  {
-    id_str[i * 2 + 0] = b2c[cid->idbuf[i] >> 4];
-    id_str[i * 2 + 1] = b2c[cid->idbuf[i] & 0xF];
-  }
-  id_str[i * 2] = '\0';
+
+  sprintf(id_str, "%s-%02x", host, ecn );
+  
   sz = snprintf(path, sizeof(path), "%s/%s.keys", dir, id_str);
   if ((size_t)sz >= sizeof(path))
   {
@@ -1832,9 +1831,9 @@ static const struct lsquic_keylog_if keylog_if = {
     .kli_close = keylog_close,
 };
 
-int send_quic_http_request(int fd, char *host, char *sni, int locport, int ecn)
+int send_quic_http_request(int fd, char *host, char *sni, int locport, int ecn, char *keysdir)
 {
-  int ret = send_generic_quic_request(fd, host, sni, locport, ecn, MAX_TTL);
+  int ret = send_generic_quic_request(fd, host, sni, locport, ecn, MAX_TTL, keysdir);
   close(fd);
   return ret;
 }
@@ -1862,7 +1861,7 @@ int send_quic_http_probe(int fd, char *host, char *sni, int locport, int ecn, st
   if (!pkt_relay)
   {
     LOG_INFO("Buffer packet to relay\n");
-    send_generic_quic_request(fd, host, sni, locport, ecn, 1);
+    send_generic_quic_request(fd, host, sni, locport, ecn, 1, NULL);
 
     pthread_mutex_lock(&relay->mtx);
     pkt_relay = relay->pkt_relay;
@@ -1950,15 +1949,27 @@ fail:
 }
 
 static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
-                                     int ecn, int ttl)
+                                     int ecn, int ttl, char *keysdir)
 {
   struct lsquic_engine_api eapi;
   struct lsquic_engine_settings settings;
   struct h3cli h3cli;
   struct sockaddr_storage addr;
   socklen_t addr_len;
-  const char *key_log_dir = "keystore";
+  char key_log_dir[256];
+  if(keysdir){
+  sprintf(key_log_dir, "%s/keystore", keysdir);
+  }
   char errbuf[0x100];
+
+  LOG_INFO("keylog dir is: %s\n", key_log_dir);
+
+  struct keylog_ctx key_ctx = 
+  {
+    key_log_dir,
+    host,
+    ecn
+  };
 
   memset(&h3cli, 0, sizeof(h3cli));
 
@@ -2012,10 +2023,9 @@ static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
   eapi.ea_packets_out_ctx = &h3cli;
   eapi.ea_stream_if = &h3cli_client_callbacks;
   eapi.ea_stream_if_ctx = &h3cli;
-  if (key_log_dir)
-  {
-    eapi.ea_keylog_if = &keylog_if;
-    eapi.ea_keylog_ctx = (void *)key_log_dir;
+  if(keysdir){
+  eapi.ea_keylog_if = &keylog_if;
+  eapi.ea_keylog_ctx = (void *)&key_ctx;
   }
   eapi.ea_settings = &settings;
 

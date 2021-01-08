@@ -42,12 +42,5 @@ void get_context_str(struct connection_context_t *ctx, char *dst)
         }
 
         // do some stuff that actually generates the sring that we want
-        if (ctx->proto != TCP)
-        {
-                sprintf(dst, "%s-%s-%02x.pcap", ctx->host, str_proto[ctx->proto], ctx->flags);
-        }
-        else
-        {
-                sprintf(dst, "%s-%s-%02x-%02x.pcap", ctx->host, str_proto[ctx->proto], ctx->flags, ctx->additional);
-        }
+        sprintf(dst, "%s-%s-%02x.pcap", ctx->host, str_proto[ctx->proto], ctx->flags);
 }

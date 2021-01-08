@@ -80,7 +80,7 @@ cd ..
 
 # Add cron job, but attempting to preserve other jobs that may exist already
 CRON=`crontab -l -u pi`
-CRON_COM="30 1 * * * $(pwd)/init.sh"
+CRON_COM="0 0 * * * $(pwd)/init.sh"
 if [ $? -ne 0 ]; then
 	echo "$CRON_COM" | crontab -u pi -
 else 
