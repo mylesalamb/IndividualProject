@@ -38,7 +38,7 @@ def main():
     in_args = parse_arguments()
     raw_data = utils.get_instance_traces(in_args["indir"])
     pprint.pprint(raw_data)
-    resolve_instance(raw_data[0])
+    #resolve_instance(raw_data[0])
 
     
 

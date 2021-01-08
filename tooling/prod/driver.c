@@ -156,7 +156,7 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
 
     transac->ctx->flags = ecn;
-    transac->ctx->additional |= ecn ? TCP_PROBE_PATH : 0; 
+    transac->ctx->additional |= ecn ? TCP_PROBE_PATH : 0;
 
     pcap_push_context(pc, transac->ctx);
     pcap_wait_until_rdy(pc);
@@ -165,14 +165,14 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     nf_wait_until_rdy(nfc);
 
     ret = send_tcp_http_request(fd, transac->ctx->host, transac->request,
-                          transac->ctx->port, ecn, &transac->ctx->tcp_conn);
+                                transac->ctx->port, ecn, &transac->ctx->tcp_conn);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
     transac->ctx->tcp_conn.tcp_seq = 0;
     transac->ctx->tcp_conn.tcp_ack = 0;
 
-    if(ret && ecn == 0)
+    if (ret && ecn == 0)
     {
       LOG_INFO("TCP host likely down skipping\n");
       break;
@@ -195,10 +195,10 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     nf_wait_until_rdy(nfc);
 
     ret = send_quic_http_request(fd, transac->ctx->host, transac->request,
-                           transac->ctx->port, ecn);
+                                 transac->ctx->port, ecn);
     pcap_close_context(pc);
     nf_close_context(nfc);
-    if(ret && ecn == 0)
+    if (ret && ecn == 0)
     {
       LOG_INFO("Quic host likely down\n");
       break;
@@ -239,11 +239,11 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     nf_wait_until_rdy(nfc);
 
     ret = send_quic_http_probe(fd, transac->ctx->host, transac->request, transac->ctx->port,
-                         ecn, &transac->ctx->quic_conn);
+                               ecn, &transac->ctx->quic_conn);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
-    if(ret && ecn == 0)
+    if (ret && ecn == 0)
     {
       LOG_INFO("Host likely down, skipping\n");
       break;
@@ -277,7 +277,7 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
     init_conn(transac->ctx->host, transac->ctx->proto, &fd, &transac->ctx->port);
 
     transac->ctx->flags = ecn;
-    transac->ctx->additional |= ecn ? TCP_PROBE_PATH : 0; 
+    transac->ctx->additional |= ecn ? TCP_PROBE_PATH : 0;
 
     pcap_push_context(pc, transac->ctx);
     pcap_wait_until_rdy(pc);
@@ -286,13 +286,13 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
     nf_wait_until_rdy(nfc);
 
     ret = send_tcp_dns_request(fd, transac->ctx->host, transac->request,
-                         transac->ctx->port, ecn, &transac->ctx->tcp_conn);
+                               transac->ctx->port, ecn, &transac->ctx->tcp_conn);
 
     pcap_close_context(pc);
     nf_close_context(nfc);
     transac->ctx->tcp_conn.tcp_seq = 0;
     transac->ctx->tcp_conn.tcp_ack = 0;
-    if(ret && ecn == 0)
+    if (ret && ecn == 0)
     {
       LOG_INFO("Host likely down, skipping\n");
       break;
@@ -395,29 +395,34 @@ static int dispatch_ntp(struct transaction_node_t *transac,
       int ret = 0;
       init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
 
-      transac->ctx->flags = ecn;
-      transac->ctx->additional |= ecn ? TCP_PROBE_PATH : 0;
+      cursor->ctx->flags = ecn;
+      cursor->ctx->additional |= ecn ? TCP_PROBE_PATH : 0;
 
-      if(!(transac->ctx->additional & TCP_HOST_DOWN))
+      if (!(cursor->ctx->additional & TCP_HOST_DOWN))
       {
         pcap_push_context(pc, cursor->ctx);
-      pcap_wait_until_rdy(pc);
+        pcap_wait_until_rdy(pc);
 
-      nf_push_context(nfc, cursor->ctx);
-      nf_wait_until_rdy(nfc);
+        nf_push_context(nfc, cursor->ctx);
+        nf_wait_until_rdy(nfc);
 
-      ret = send_tcp_ntp_request(fd, cursor->ctx->host, cursor->ctx->port, ecn, &transac->ctx->tcp_conn);
+        ret = send_tcp_ntp_request(fd, cursor->ctx->host, cursor->ctx->port, ecn, &cursor->ctx->tcp_conn);
 
-      LOG_INFO("\nreturn value %d\n",ret);
+        LOG_INFO("\nreturn value %d\n", ret);
 
-      pcap_close_context(pc);
-      nf_close_context(nfc);}
-      transac->ctx->tcp_conn.tcp_seq = 0;
-      transac->ctx->tcp_conn.tcp_ack = 0;
-      transac->ctx->additional &= ~TCP_PROBE_PATH;
-      if(ret && ecn == 0)
+        pcap_close_context(pc);
+        nf_close_context(nfc);
+      }
+      else
       {
-        transac->ctx->additional |= TCP_HOST_DOWN;
+        close(fd);
+      }
+      cursor->ctx->tcp_conn.tcp_seq = 0;
+      cursor->ctx->tcp_conn.tcp_ack = 0;
+      cursor->ctx->additional &= ~TCP_PROBE_PATH;
+      if (ret && ecn == 0)
+      {
+        cursor->ctx->additional |= TCP_HOST_DOWN;
       }
       cursor = cursor->next;
     }

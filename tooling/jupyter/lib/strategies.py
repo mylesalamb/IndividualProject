@@ -5,6 +5,11 @@ from scapy.all import *
 def is_ecn_negotiated_tcp(packets, ctx) -> bool:
     return False
 
+@add_metric(TCPConnectonParser)
+def is_ect_stripped_tcp(packets, ctx):
+    return False
+
+
 @add_metric(Parser)
 def is_host_reachable(packets, ctx) -> bool:
     for pkt in packets:
@@ -23,6 +28,7 @@ def marked_icmp(packets, ctx) -> bool:
     and doesnt seem to be covered in existing research
     '''
     out_pkt = []
+    print(packets)
     for pkt in packets:
         if ICMP in pkt and pkt[IP].tos & 0x03:
             out_pkt.append(pkt)
@@ -46,3 +52,5 @@ def is_ect_stripped(packets, ctx) -> str:
 @add_metric(QuicConnectionParser)
 def is_ecn_negotiated_quic(packets, ctx) -> bool:
     return False
+
+

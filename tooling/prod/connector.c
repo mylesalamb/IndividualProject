@@ -1258,6 +1258,12 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
   struct sockaddr_storage srv_addr;
   socklen_t srv_addr_len;
 
+   if (fd < 0)
+  {
+    LOG_ERR("defer_tcp: bad fd\n");
+    return 1;
+  }
+
   struct timeval tv;
   tv.tv_sec = 0;
   tv.tv_usec = 250000;
@@ -1275,8 +1281,10 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
     return 1;
   }
 
-  if (!host || !buff)
+  if (!host || !buff){
+    close(fd);
     return 1;
+  }
 
   // get host to some sort of address
   if (apply_sock_opts(fd, SOCK_STREAM, (struct sockaddr *)&srv_addr, srv_addr_len))
@@ -1286,11 +1294,7 @@ static int defer_tcp_connection(int fd, char *host, uint8_t *buff, ssize_t buff_
     return -1;
   }
 
-  if (fd < 0)
-  {
-    LOG_ERR("defer_tcp: bad fd\n");
-    return 1;
-  }
+ 
   tcp_send_all(fd, buff, buff_len);
 
   while (recv(fd, recv_buff, sizeof(recv_buff), 0) > 0)
@@ -1359,6 +1363,7 @@ static int defer_raw_tracert(char *host, uint8_t *buff, ssize_t buff_len,
   if (icmpfd < 0)
   {
     LOG_ERR("bad icmp fd\n");
+    close(fd);
     return 1;
   }
 
