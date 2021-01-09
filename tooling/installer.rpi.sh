@@ -46,7 +46,7 @@ else
 	. /home/pi/.bashrc
 	
 fi
-sudo ldconfig
+ldconfig
 cd ..
 
 git clone $GREPO

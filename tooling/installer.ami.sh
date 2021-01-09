@@ -15,7 +15,7 @@ GREPO_PATH=individualProject/tooling/prod
 
 #DEBIAN_FRONTEND=noninteractive
 
-if [ ! -z $CI_BUILD ]; then
+if [ -z $CI_BUILD ]; then
 	while ! grep "Cloud-init .* finished" /var/log/cloud-init.log; do
 		echo "$(date -Ins) Waiting for cloud-init to finish"
 		sleep 2

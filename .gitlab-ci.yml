@@ -10,14 +10,14 @@ stages:
 build:tool:
   image: ubuntu
   script:
-    - ./tooling/installer.sh
+    - ./tooling/installer.ami.sh
 
 test:tool:
   image: ubuntu
   before_script:
     - apt-get update --yes && apt install --yes libcunit1-dev
   script:
-    - ./tooling/installer.sh
+    - ./tooling/installer.ami.sh
     - cd tooling/prod
     - make clean
     - make test

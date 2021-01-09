@@ -8,7 +8,6 @@ NF_PATH=/usr/local/lib
 GREPO=https://github.com/mylesalamb/individualProject.git
 GREPO_PATH=individualProject/tooling/prod
 
-
 echo "Installer script for Ubuntu"
 
 if [ $UID -ne 0 ]; then
@@ -26,7 +25,7 @@ echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 useradd ecnDetector_psuedo
 
 apt-get update -y
-apt-get install -y clang gcc git-lfs zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
+apt-get install -y clang gcc libc-dev git-lfs zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
 git lfs install
 
 # pull netfilter 1.0.5
