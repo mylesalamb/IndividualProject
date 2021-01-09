@@ -15,10 +15,12 @@ GREPO_PATH=individualProject/tooling/prod
 
 #DEBIAN_FRONTEND=noninteractive
 
-while ! grep "Cloud-init .* finished" /var/log/cloud-init.log; do
-    echo "$(date -Ins) Waiting for cloud-init to finish"
-    sleep 2
-done
+if [ ! -z $CI_BUILD ]; then
+	while ! grep "Cloud-init .* finished" /var/log/cloud-init.log; do
+		echo "$(date -Ins) Waiting for cloud-init to finish"
+		sleep 2
+	done
+fi
 
 # Update image to most recent version, and install
 # non crit dependencies
