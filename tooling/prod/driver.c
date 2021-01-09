@@ -251,6 +251,7 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
   }
   free(transac->ctx->quic_conn.pkt_relay);
   transac->ctx->quic_conn.pkt_relay = NULL;
+  transac->ctx->quic_conn.pkt_relay_len = 0;
 
   return 0;
 }

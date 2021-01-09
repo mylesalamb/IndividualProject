@@ -16,7 +16,7 @@ if [ $UID -ne 0 ]; then
 	exit 1
 fi
 
-if [ `pwd` -ne "/home/pi" ]; then
+if [ ! `pwd` = "/home/pi" ]; then
 	echo "this script should be called from the home directory of the 'pi' user"
 	exit 0
 fi
@@ -44,7 +44,9 @@ else
 	echo "*** Not on path"
 	echo "export LD_LIBRARY_PATH=$NF_PATH:\$LD_LIBRARY_PATH" >> /home/pi/.bashrc
 	. /home/pi/.bashrc
+	
 fi
+sudo ldconfig
 cd ..
 
 git clone $GREPO
@@ -72,7 +74,7 @@ chown -R pi /home/pi
 
 # this must come after the chown step as it clears capabilities
 setcap cap_setpcap,cap_net_admin,cap_net_raw,cap_setgid,cap_setuid=+eip ecnDetector
-if [ $? -ne 0 ] && echo "setcap failed! returning: $?"
+[ $? -ne 0 ] && echo "setcap failed! returning: $?"
 
 
 

@@ -1131,6 +1131,7 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
   struct sockaddr_storage srv_addr, srv_addr_ono;
   socklen_t srv_addr_len;
   int rawfd;
+  int icmpfd;
 
   // seq, and ack for hijacking live tcp conn
   uint32_t tcp_seq, tcp_ack;
@@ -1167,6 +1168,14 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
     return 1;
   }
 
+  if(!(icmpfd = construct_icmp_sock(&srv_addr)))
+  {
+    LOG_INFO("creating icmp sock\n");
+    close(fd);
+    close(rawfd);
+    return 1;
+  }
+
   pthread_mutex_lock(&conn->mtx);
   if (!(conn->tcp_ack && conn->tcp_seq))
   {
@@ -1189,6 +1198,7 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
       pthread_mutex_unlock(&conn->mtx);
       close(fd);
       close(rawfd);
+      close(icmpfd);
       return -1;
     }
   }
@@ -1223,30 +1233,36 @@ static int defer_tcp_path_probe(int fd, char *host, uint8_t *buff, ssize_t buff_
     {
       setsockopt(rawfd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &i, sizeof i);
     }
-    for (int j = 0; j < 1; j++)
+    for (int j = 0; j < MAX_UDP; j++)
     {
       if (sendto(rawfd, raw_buff, raw_buff_len, 0, (struct sockaddr *)&srv_addr_ono, srv_addr_len) < 0)
       {
         LOG_INFO("send failed with: %s", strerror(errno));
       }
-      else
+      nanosleep(&rst, &rst);
+      int ret = check_raw_response(rawfd, icmpfd, &srv_addr, locport, IPPROTO_TCP);
+      if (ret == 0)
       {
-        LOG_INFO("send succeeded\n");
-      }
-      if (!check_raw_response(rawfd, -1, &srv_addr, locport, IPPROTO_TCP))
-      {
-        LOG_INFO("recieved response\n");
+        
         close(fd);
         close(rawfd);
+        close(icmpfd);
         nanosleep(&dly, &dly);
         return 0;
       }
+      if(ret == 1)
+      {
+        break;
+      }
+
+
     }
-    nanosleep(&rst, &rst);
+    
   }
 
   close(fd);
   close(rawfd);
+  close(icmpfd);
   nanosleep(&dly, &dly);
   return 1;
 }
@@ -1959,10 +1975,14 @@ static int send_generic_quic_request(int fd, char *host, char *sni, int locport,
   char key_log_dir[256];
   if(keysdir){
   sprintf(key_log_dir, "%s/keystore", keysdir);
+  LOG_INFO("keylog dir is: %s\n", key_log_dir);
+  }
+  else{
+    LOG_INFO("Not logging keys\n");
   }
   char errbuf[0x100];
 
-  LOG_INFO("keylog dir is: %s\n", key_log_dir);
+  
 
   struct keylog_ctx key_ctx = 
   {

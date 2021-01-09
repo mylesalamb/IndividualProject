@@ -16,7 +16,7 @@ if [ $UID -ne 0 ]; then
 	exit 1
 fi
 
-if [ `pwd` -ne "/home/ubuntu" ]; then
+if [ ! `pwd` = "/home/ubuntu" ]; then
 	echo "this script should be called from the home directory of the 'ubuntu' user"
 	exit 0
 fi
@@ -44,7 +44,9 @@ else
 	echo "*** Not on path"
 	echo "export LD_LIBRARY_PATH=$NF_PATH:\$LD_LIBRARY_PATH" >> /home/ubuntu/.bashrc
 	. /home/ubuntu/.bashrc
+    
 fi
+sudo ldconfig
 cd ..
 
 git clone $GREPO
@@ -71,7 +73,7 @@ chown -R ubuntu /home/ubuntu
 
 # this must come after the chown step as it clears capabilities
 setcap cap_setpcap,cap_net_admin,cap_net_raw,cap_setgid,cap_setuid=+eip ecnDetector
-if [ $? -ne 0 ] && echo "setcap failed! returning: $?"
+[ $? -ne 0 ] && echo "setcap failed! returning: $?"
 
 cd ..
 
@@ -79,9 +81,9 @@ cd ..
 CRON=`crontab -l -u ubuntu`
 CRON_COM="0 0 * * * $(pwd)/init.sh"
 if [ $? -ne 0 ]; then
-	echo "$CRON_COM" | crontab -u pi -
+	echo "$CRON_COM" | crontab -u ubuntu -
 else 
-	( echo "$CRON"; echo "$CRON_COM"; ) | crontab -u pi -
+	( echo "$CRON"; echo "$CRON_COM"; ) | crontab -u ubuntu -
 fi
 
 exit 0
