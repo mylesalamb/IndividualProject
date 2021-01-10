@@ -55,7 +55,7 @@ struct transaction_list_t *fget_transactions(char *filename)
                 }
                 else
                 {
-                        fprintf(stderr, "failed to parse transaction with line \"%s\"", buff);
+                        LOG_ERR("failed to parse transaction with line \"%s\"\n", buff);
                 }
         }
 

@@ -167,7 +167,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
         char filter_exp[64];
 
         sprintf(filter_exp, "port %d or dst port %d or icmp or icmp6", pc->ctx->port, pc->ctx->port);
-        printf("filter exp is %s\n", filter_exp);
+        LOG_INFO("filter exp is %s\n", filter_exp);
         char error_buffer[PCAP_ERRBUF_SIZE];
         struct bpf_program filter;
         bpf_u_int32 subnet_mask, ip;
@@ -309,13 +309,10 @@ static void dump_wrapper(unsigned char *args, const struct pcap_pkthdr *hdr, con
                                 goto abrt;
 
                         tcphdr = (struct tcphdr *)(iphdr + 1);
-                        LOG_INFO("seen something");
                         
                         if (tcphdr->syn && tcphdr->ack)
                         {
-                                LOG_INFO("Seen syn");
                                 pc->ctx->tcp_conn.tcp_ack = htonl(ntohl(tcphdr->seq) + 1);
-                                LOG_INFO("cached ack was %d\n", ntohl(pc->ctx->tcp_conn.tcp_ack));
                         }
 
                         break;
@@ -324,9 +321,7 @@ static void dump_wrapper(unsigned char *args, const struct pcap_pkthdr *hdr, con
                         tcphdr = (struct tcphdr *)parse_ipv6_headers(ip6hdr, IPPROTO_IPV6);
                         if(tcphdr && (tcphdr->syn && tcphdr->ack))
                         {
-                                LOG_INFO("Seen syn");
                                 pc->ctx->tcp_conn.tcp_ack = htonl(ntohl(tcphdr->seq) + 1);
-                                LOG_INFO("cached ack was %d\n", ntohl(pc->ctx->tcp_conn.tcp_ack));        
                         }
                         break;
                 default:

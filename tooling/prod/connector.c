@@ -320,7 +320,7 @@ int send_tcp_dns_request(int fd, char *host, char *ws, int locport, int ecn, str
   }
   else
   {
-    LOG_INFO("Calling tcp path probe");
+    LOG_INFO("Calling tcp path probe\n");
     return defer_tcp_path_probe(fd, host, buff, end_ptr - buff, locport, PORT_DNS, conn);
   }
 }
@@ -740,7 +740,6 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr, i
     {
       return -1;
     }
-    LOG_INFO("Matched host addr\n");
     if (pkt_type == IPPROTO_TCP)
     {
       tcp = (struct tcphdr *)data_offset;
@@ -754,7 +753,6 @@ static int check_ip4_response(int fd, int ttlfd, struct sockaddr_in *srv_addr, i
 
     if (ntohs(port_number) == locport)
     {
-      LOG_INFO("Matched port numbers");
       return 0;
     }
   }
@@ -1894,7 +1892,7 @@ int send_quic_http_probe(int fd, char *host, char *sni, int locport, int ecn, st
   ssize_t pkt_relay_len = relay->pkt_relay_len;
   pthread_mutex_unlock(&relay->mtx);
 
-  LOG_INFO("Called with payload: %p (len %ul)\n", *pkt_relay, pkt_relay_len);
+  LOG_INFO("Called with payload: %p (len %ul)\n", pkt_relay, pkt_relay_len);
 
   // Probes only really care about modifications to the ECT fields
   // Hence relaying a buffered packet is likely fine

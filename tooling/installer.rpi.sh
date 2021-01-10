@@ -76,8 +76,6 @@ chown -R pi /home/pi
 setcap cap_setpcap,cap_net_admin,cap_net_raw,cap_setgid,cap_setuid=+eip ecnDetector
 [ $? -ne 0 ] && echo "setcap failed! returning: $?"
 
-
-
 cd ..
 
 # Add cron job, but attempting to preserve other jobs that may exist already

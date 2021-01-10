@@ -332,8 +332,13 @@ static int gen_ip_tcp_checksum(struct connection_context_t *ctx, struct pkt_buff
         struct ipv6hdr *ip6;
         int return_value = -1;
 
-        bool mark_tos = ((IS_ECN(ctx->flags) && nfq_tcp_get_payload(hdr, pkt)));
+        bool mark_tos = ((IS_ECN(ctx->flags) && !hdr->syn && !hdr->fin && !hdr->rst));
         bool log_seq = hdr->syn && SHOULD_LOG_SEQ(ctx);
+
+        if(!ctx || !pkt || !hdr)
+        {
+                return return_value;
+        }
 
         if (!pkt)
                 return -1;
