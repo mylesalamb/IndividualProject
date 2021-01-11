@@ -75,6 +75,7 @@ cd ..
 make
 chmod o+rwx .
 
+cd ..
 
 if [ -z $CI_BUILD ]; then
 	sudo useradd ecnDetector_psuedo

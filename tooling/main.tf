@@ -31,7 +31,9 @@ variable af-south-1_ami {}
 module "us-west-1" {
   source = "./terraform-shared-config"
   region = "us-west-1"
+  machine = "t2.medium"
   ami_image = var.us-west-1_ami
+
 }
 
 # module "us-west-2" {
@@ -43,6 +45,7 @@ module "us-west-1" {
 module "us-east-1" {
   source = "./terraform-shared-config"
   region = "us-east-1"
+  machine = "t2.medium"
   ami_image = var.us-east-1_ami
 }
 
@@ -57,6 +60,7 @@ module "us-east-1" {
 module "ap-northeast-1" {
   source = "./terraform-shared-config"
   region = "ap-northeast-1"
+  machine = "t2.medium"
   ami_image = var.ap-northeast-1_ami
 }
 
@@ -102,6 +106,7 @@ module "ap-northeast-1" {
 module "eu-west-2" {
   source = "./terraform-shared-config"
   region = "eu-west-2"
+  machine = "t2.medium"
   ami_image = var.eu-west-2_ami
 }
 
@@ -141,18 +146,21 @@ module "eu-west-2" {
  module "me-south-1" {
    source = "./terraform-shared-config"
    region = "me-south-1"
+  machine = "t3.medium"
    ami_image = var.me-south-1_ami
  }
 
 module "sa-east-1" {
   source = "./terraform-shared-config"
   region = "sa-east-1"
+  machine = "t3.medium"
   ami_image = var.sa-east-1_ami
 }
 
 module "af-south-1" {
   source = "./terraform-shared-config"
-  region = "sa-east-1"
+  region = "af-south-1"
+  machine = "t3.medium"
   ami_image = var.af-south-1_ami
 
 }

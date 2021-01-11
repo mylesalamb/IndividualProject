@@ -11,7 +11,7 @@ resource "aws_instance" "ecnDetector" {
   provider                    = aws.singleregion
   ami                         = var.ami_image
   key_name                    = var.aws_key_name
-  instance_type               = "t2.medium"
+  instance_type               = var.machine
   vpc_security_group_ids      = [aws_security_group.default.id]
   subnet_id                   = aws_subnet.default.id
   associate_public_ip_address = true
@@ -27,6 +27,11 @@ resource "aws_instance" "ecnDetector" {
       private_key = file("~/masterKey.pem")
     }
   }
+
+  credit_specification {
+	cpu_credits = "standard"
+  }
+
 }
 
 
