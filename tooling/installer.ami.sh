@@ -88,7 +88,7 @@ if [ -z $CI_BUILD ]; then
 	# Stop the kernel negotiating ecn on our behalf
 	# Alter retry behaviour, a fair number of NTP hosts will be done
 	# Dont crash out for ages if this happens, three should be fine in most circumstances
-	sudo sysctl -w net.ipv4.tcp_ecn=1
+	sudo sysctl -w net.ipv4.tcp_ecn=0
 	sudo sysctl -w net.ipv4.tcp_syn_retries=3
 	sudo sysctl -w net.ipv4.tcp_synack_retries=3
 

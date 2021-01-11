@@ -25,7 +25,7 @@ variable eu-west-2_ami      {}
 # variable ca-central-1_ami   {}
 variable me-south-1_ami     {}
 variable sa-east-1_ami      {}
-
+variable af-south-1_ami {}
 # US
 
 module "us-west-1" {
@@ -148,4 +148,11 @@ module "sa-east-1" {
   source = "./terraform-shared-config"
   region = "sa-east-1"
   ami_image = var.sa-east-1_ami
+}
+
+module "af-south-1" {
+  source = "./terraform-shared-config"
+  region = "sa-east-1"
+  ami_image = var.af-south-1_ami
+
 }
