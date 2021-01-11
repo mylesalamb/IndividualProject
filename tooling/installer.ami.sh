@@ -75,16 +75,24 @@ cd ..
 make
 chmod o+rwx .
 
-cd ..
 
 if [ -z $CI_BUILD ]; then
 	sudo useradd ecnDetector_psuedo
 	sudo setcap cap_net_raw,cap_net_admin,cap_setuid,cap_setgid=eip ecnDetector
 	sudo ldconfig
 
+	cd ..
+
 	# setup the experiement to run in fixed intervals
-	sudo service cron stop
-	sudo bash -c "echo \"0 0 * * * ubuntu /bin/bash $PWD/init.sh\" >> /etc/crontab"
+	CRON=`crontab -l`
+	CRON_COM="0 0 * * * $(pwd)/init.sh"
+	if [ $? -ne 0 ]; then
+        	echo "$CRON_COM" | crontab -
+	else 
+        	( echo "$CRON"; echo "$CRON_COM"; ) | crontab -
+	fi
+
+
 
 	# Stop the kernel negotiating ecn on our behalf
 	# Alter retry behaviour, a fair number of NTP hosts will be done
