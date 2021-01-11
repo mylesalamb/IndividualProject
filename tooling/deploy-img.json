@@ -3,7 +3,7 @@
     "variables" : {
       "aws_access_key" : "{{ env `AWS_ACCESS_KEY` }}",
       "aws_secret_key" : "{{ env `AWS_SECRET_KEY` }}",
-      "dest_regions" : "eu-west-2,eu-west-1" 
+      "dest_regions" : "eu-west-2,us-west-1,af-south-1,me-south-1,sa-east-1,ap-northeast-1,us-east-1" 
     },
     "sensitive-variables" : ["aws_access_key", "aws_secret_key"],
     "builders": [
