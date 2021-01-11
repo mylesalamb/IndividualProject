@@ -206,7 +206,8 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
   }
 
   transac->ctx->proto = TCP_PROBE;
-  for (uint8_t ecn = 0; ecn < 2; ecn++)
+  transac->ctx->additional |= TCP_MARK_CONTROL;
+  for (uint8_t ecn = 0; ecn < 3; ecn++)
   {
     transac->ctx->flags = ecn;
 
@@ -223,6 +224,7 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
     pcap_close_context(pc);
     nf_close_context(nfc);
   }
+  transac->ctx->additional &= ~TCP_MARK_CONTROL;
 
   transac->ctx->proto = QUIC_PROBE;
   for (ecn = 0; ecn < 4; ecn++)
@@ -345,7 +347,8 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
   }
 
   transac->ctx->proto = DNS_TCP_PROBE;
-  for (ecn = 0; ecn < 2; ecn++)
+  transac->ctx->additional |= TCP_MARK_CONTROL;
+  for (ecn = 0; ecn < 3; ecn++)
   {
     transac->ctx->flags = ecn;
 
@@ -364,6 +367,7 @@ static int dispatch_dns_singular(struct transaction_node_t *transac,
     pcap_close_context(pc);
     nf_close_context(nfc);
   }
+  transac->ctx->additional &= ~TCP_MARK_CONTROL;
 
   return 0;
 }
@@ -476,7 +480,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
     }
   }
 
-  for (ecn = 0; ecn < 2; ecn++)
+  for (ecn = 0; ecn < 3; ecn++)
   {
 
     struct transaction_node_t *cursor = transac;
@@ -485,6 +489,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
 
       cursor->ctx->flags = ecn;
       cursor->ctx->proto = NTP_TCP_PROBE;
+      cursor->ctx->additional |= TCP_MARK_CONTROL;
 
       int fd;
       init_conn(cursor->ctx->host, cursor->ctx->proto, &fd, &cursor->ctx->port);
@@ -499,6 +504,7 @@ static int dispatch_ntp(struct transaction_node_t *transac,
 
       pcap_close_context(pc);
       nf_close_context(nfc);
+      cursor->ctx->additional &= ~TCP_MARK_CONTROL;
       cursor = cursor->next;
     }
   }

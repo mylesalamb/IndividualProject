@@ -78,7 +78,7 @@ chmod o+rwx .
 
 if [ -z $CI_BUILD ]; then
 	sudo useradd ecnDetector_psuedo
-	sudo setcap cap_net_raw,cap_net_admin,cap_setuid,cap_setgid=eip ecnDetector
+	sudo setcap cap_setpcap,cap_net_raw,cap_net_admin,cap_setuid,cap_setgid=eip ecnDetector
 	sudo ldconfig
 
 	cd ..
