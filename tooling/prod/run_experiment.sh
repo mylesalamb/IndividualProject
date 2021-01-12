@@ -1,6 +1,6 @@
 #!/bin/bash
 EXEC=ecnDetector
-DATASET=../datasets/flight.dataset
+DATASET=../datasets/flight.ip4.dataset
 CONF="runs.conf"
 
 if pgrep ecnDetector >> /dev/null; then
