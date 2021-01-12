@@ -32,6 +32,7 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <linux/ipv6.h>
+#include <linux/in6.h>
 
 #include "context.h"
 #include "log.h"
