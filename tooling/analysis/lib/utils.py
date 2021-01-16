@@ -54,15 +54,18 @@ def get_instance_traces(indir: str):
     instances = get_instances(os.path.expanduser(indir))
     inputs = []
     for instance in instances:
+        print("getting instace: {}".format(instance))
         dic = {}
         dic["name"] = os.path.basename(instance)
         traces = get_traces(instance)
 
-        globs = {}
+        dic["traces"] = []
         for trace in traces:
-            globs = {k:get_pcap_from_trace(trace, v) for k,v in file_globs.copy().items()}
-            
-        dic["traces"] = globs
+            globs = {}
+            print("resolve instance: {}, trace {}".format(instance, trace))
+            globs = {k:get_pcap_from_trace(trace, v) for k,v in file_globs.items()}
+            dic["traces"].append(globs)
+
         inputs.append(dic)
     return inputs
 

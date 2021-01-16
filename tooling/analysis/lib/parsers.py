@@ -7,11 +7,8 @@ import pprint
 
 def add_metric(typeArg):
     def wrapper(f):
-        print(f"wrapping {f.__name__} to {typeArg.__name__}")
         typeArg.add_metric_strategy(f)
-        def wrapped_call(*args):
-            f(*args)
-        return wrapped_call
+        return f
     return wrapper
 
 def all_subclasses(cls, incl_cls=False):
@@ -39,7 +36,6 @@ def impl_metric_base_class(class_arg):
             else:
                 v.append(func)
 
-        pprint.pprint(class_arg._metrics)
     @property
     def metrics(self):
         return self._metrics.get(self.__class__.__name__)
@@ -74,8 +70,7 @@ class ParserFactory(object):
         
 
     def get_parser(self, file):
-        print(file)
-        host, proto, *flags = file.split('-')
+        host, proto, flag = file.split('-')
         parser = self.parsers.get(proto.lower())
 
         if parser:
@@ -87,11 +82,12 @@ class ParserFactory(object):
 
 class ConnectionContext(object):
     
-    def __init__(self, filename):
-        filename, _ = os.path.splitext(filename)
-        self.host, proto, *flags = filename.split('-')
+    def __init__(self, filepath):
+        filename, _ = os.path.splitext(os.path.basename(filepath))
+        self.file_loc = filepath
+        self.host, proto, flags = filename.split('-')
         self.proto = proto.lower()
-        self.flags = [int(flag, 16) for flag in flags]
+        self.flags = int(flags, 16)
 
 @impl_metric_base_class
 class Parser(object):
@@ -106,15 +102,15 @@ class Parser(object):
 
         self.output = {}
         self.packets = rdpcap(file)
-        self.ctx = ConnectionContext(os.path.basename(file))    
+        self.ctx = ConnectionContext(file)    
 
     def run(self):
         outputs = {}
         for func in self.my_metrics:
             outputs[func.__name__] = func(self.packets, self.ctx)
-        print(outputs)
+        
 
-        return outputs
+        return self.ctx,outputs
         
 
 class ProbeParser(Parser):
