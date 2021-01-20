@@ -45,7 +45,7 @@ static int (*dispatch_table[])(struct connection_context_t *ctx, uint8_t *payloa
     &nf_handle_tcp,       // NTP TCP
     &nf_handle_gen_udp,   // DNS UDP
     &nf_handle_tcp,       // DNS TCP
-    &nf_nop,              // QUIC
+    &nf_handle_gen_udp,   // QUIC
     &nf_handle_tcp,       // TCP PROBE
     &nf_handle_gen_udp,   // NTP UDP PROBE
     &nf_handle_tcp,       // NTP TCP PROBE

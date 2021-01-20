@@ -245,15 +245,16 @@ static int dispatch_web_singular(struct transaction_node_t *transac,
 
     pcap_close_context(pc);
     nf_close_context(nfc);
+    free(transac->ctx->quic_conn.pkt_relay);
+    transac->ctx->quic_conn.pkt_relay = NULL;
+    transac->ctx->quic_conn.pkt_relay_len = 0;
+    
     if (ret && ecn == 0)
     {
       LOG_INFO("Host likely down, skipping\n");
       break;
     }
   }
-  free(transac->ctx->quic_conn.pkt_relay);
-  transac->ctx->quic_conn.pkt_relay = NULL;
-  transac->ctx->quic_conn.pkt_relay_len = 0;
 
   return 0;
 }

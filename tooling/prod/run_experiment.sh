@@ -1,11 +1,10 @@
 #!/bin/bash
 EXEC=ecnDetector
-DATASET=../datasets/flight.ip4.dataset
+DATASET=../datasets/flight.dataset
 CONF="runs.conf"
 
 if pgrep ecnDetector >> /dev/null; then
     echo "already running" >> cron.log
-    sudo killall ecnDetector
 fi
 
 # change directory to where the script is being called from

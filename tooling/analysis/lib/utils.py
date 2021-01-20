@@ -1,5 +1,6 @@
 import os
 import glob
+import json
 
 file_types = [
               "tcp", "quic", "ntp_udp",
@@ -48,6 +49,20 @@ def get_pcap_from_trace(trace_dir: str, glob_str: str = None):
     
     globed_path = os.path.join(trace_dir, glob_str)
     return glob.glob(globed_path)
+
+def recover_instances_from_file(data_dir, glob_str = "*.json"):
+    path = os.path.join(data_dir, glob_str)
+    globbed_files = glob.glob(path)
+
+    instances = []
+
+    for file in globbed_files:
+        print(f"Recover data from {file}")
+        with open(file) as f:
+            instance = json.load(f)
+            instances.append(instance)
+
+    return instances
 
 
 def get_instance_traces(indir: str):
