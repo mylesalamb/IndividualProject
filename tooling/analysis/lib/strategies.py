@@ -9,17 +9,21 @@ TCP_SYN = 0x02
 TCP_RST = 0x04
 TCP_ECE = 0x40
 TCP_ACK = 0x10
+TCP_CWR = 0x80
 
 
 def _negotiated_ecn_tcp(tcphdr):
     return tcphdr.flags & TCP_SYN and tcphdr.flags & TCP_ECE and tcphdr.flags & TCP_ACK
+
+def has_tcp_ecn_flags(tcphdr):
+    return tcphdr.flags & (TCP_SYN | TCP_ECE | TCP_CWR)
 
 def _is_from_host(pkt, ctx):
     return IP in pkt and pkt[IP].src == ctx.host or IPv6 in pkt and pkt[IPv6].src == ctx.host
 
 
 def _is_to_host(pkt, ctx):
-    return IP in pkt and pkt[IP].dst == ctx.host or IPv6 in pkt and pkt[IPv6].dst == ctx.host
+    return (IP in pkt and pkt[IP].dst == ctx.host) or (IPv6 in pkt and pkt[IPv6].dst == ctx.host)
 
 def _is_tcp_rst(tcphdr):
     return True if tcphdr.flags & TCP_RST else False
@@ -81,7 +85,7 @@ def marked_icmp(packets, ctx) -> bool:
 def is_ect_stripped(packets, ctx) -> str:
     
     if ctx.flags == 0:
-        return ()
+        return [-1,-1,-1]
 
     hops = 1
 
@@ -91,8 +95,9 @@ def is_ect_stripped(packets, ctx) -> str:
 
     for i, pkt in enumerate(packets):
         
+
         #if pkt from host, set the hops value
-        if _is_to_host(pkt, ctx):
+        if _is_to_host(pkt, ctx) and get_packet_ttl(pkt) < 60:
             hops = get_packet_ttl(pkt)
 
         if ICMP in pkt and IPerror in pkt and not (pkt[IPerror].tos & 0x03) and hops_before_removal == -1:
@@ -104,12 +109,13 @@ def is_ect_stripped(packets, ctx) -> str:
             hops_before_removal = hops
             removal_index = i
 
-        if _is_from_host(pkt, ctx):
+        if _is_from_host(pkt, ctx) and hops > 5:
             hops_before_host = hops
             break
-            
+    
     return (hops_before_removal, removal_index, hops_before_host)
 
+@add_metric(TCPProbeParser)
 def is_syn_ecn_stripped(packets, ctx):
 
     if ctx.flags == 0:
@@ -127,9 +133,10 @@ def is_syn_ecn_stripped(packets, ctx):
         if _is_to_host(pkt, ctx):
             hops = get_packet_ttl(pkt)
 
-        if TCPerror in pkt and not (pkt[IPerror].tos & 0x03) and hops_before_removal == -1:
+        if TCPerror in pkt and (pkt[TCPerror].flags & TCP_SYN) and not has_tcp_ecn_flags(pkt[TCPerror]) and hops_before_removal == -1:
             hops_before_removal = hops
             removal_index = i
+            break
         
         if _is_from_host(pkt, ctx):
             hops_before_host = hops
@@ -168,6 +175,7 @@ def is_ecn_negotiated_quic(packets, ctx) -> bool:
         print("Tshark exited abnormally!")
     elif stdout:
         return True
+
         
     return False
 
