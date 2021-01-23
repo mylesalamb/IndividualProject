@@ -2,6 +2,8 @@ from lib.parsers import *
 from scapy.all import *
 import pprint
 
+from lib.whois import WhoIs
+
 import shlex
 from subprocess import Popen, PIPE
 
@@ -14,6 +16,9 @@ TCP_CWR = 0x80
 
 def _negotiated_ecn_tcp(tcphdr):
     return tcphdr.flags & TCP_SYN and tcphdr.flags & TCP_ECE and tcphdr.flags & TCP_ACK
+
+def _is_icmp_ttl_exceed(icmp):
+    return icmp.type == 11 and icmp.code == 0
 
 def has_tcp_ecn_flags(tcphdr):
     return tcphdr.flags & (TCP_SYN | TCP_ECE | TCP_CWR)
@@ -43,11 +48,6 @@ def is_ecn_negotiated_tcp(packets, ctx) -> bool:
             if _negotiated_ecn_tcp(tcp):
                 return True
     return False
-
-@add_metric(TCPConnectonParser)
-def is_ect_stripped_tcp(packets, ctx):
-    return False
-
 
 @add_metric(Parser)
 def is_host_reachable(packets, ctx) -> bool:
@@ -82,7 +82,12 @@ def marked_icmp(packets, ctx) -> bool:
 @add_metric(UDPProbeParser)
 @add_metric(TCPConnectonParser)
 @add_metric(QuicProbeParser)
+@add_metric(TCPProbeParser)
 def is_ect_stripped(packets, ctx) -> str:
+
+    whois = WhoIs.instance()
+    as_data = []
+
     
     if ctx.flags == 0:
         return [-1,-1,-1]
@@ -92,18 +97,31 @@ def is_ect_stripped(packets, ctx) -> str:
     hops_before_removal = -1
     removal_index = -1
     hops_before_host = -1
+    icmp_index = -1
+
+    likely_src = None
 
     for i, pkt in enumerate(packets):
+
+        if _is_to_host(pkt,ctx) and not likely_src:
+            if IPv6 in pkt:
+                likely_src = pkt[IPv6].src
+            elif IP in pkt:
+                likely_src = pkt[IP].src
         
 
-        #if pkt from host, set the hops value
+        #if pkt from host, set the hops value, also prevent registering pkts sent from
         if _is_to_host(pkt, ctx) and get_packet_ttl(pkt) < 60:
             hops = get_packet_ttl(pkt)
 
-        if ICMP in pkt and IPerror in pkt and not (pkt[IPerror].tos & 0x03) and hops_before_removal == -1:
-            hops_before_removal = hops
-            removal_index = i
-        
+        if ICMP in pkt and _is_icmp_ttl_exceed(pkt[ICMP]) and IPerror in pkt and not (pkt[IPerror].tos & 0x03):
+            as_datum = whois.lookup(pkt[IP].src)
+            if as_datum:
+                as_data.append(as_datum)
+            if hops_before_removal == -1:
+                hops_before_removal = hops
+                removal_index = i
+            
         # ICMP response somewhere on the path
         if ICMPv6TimeExceeded in pkt and IPerror6 in pkt and not (pkt[IPerror6].tc & 0x03) and hops_before_removal == -1:
             hops_before_removal = hops
@@ -113,7 +131,9 @@ def is_ect_stripped(packets, ctx) -> str:
             hops_before_host = hops
             break
     
-    return (hops_before_removal, removal_index, hops_before_host)
+    
+
+    return (hops_before_removal, removal_index, hops_before_host, as_data)
 
 @add_metric(TCPProbeParser)
 def is_syn_ecn_stripped(packets, ctx):

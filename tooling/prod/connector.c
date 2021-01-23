@@ -407,7 +407,7 @@ int send_tcp_ntp_request(int fd, char *host, int locport, int ecn, struct tcp_co
   }
   else
   {
-    return defer_tcp_path_probe(fd, host, buff, strlen((char *)buff), locport, PORT_NTP, conn);
+    return defer_tcp_path_probe(fd, host, buff, strlen((char *)buff), locport, PORT_HTTP, conn);
   }
 }
 
