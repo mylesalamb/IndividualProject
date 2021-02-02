@@ -452,9 +452,6 @@ def compute_map_of_hosts(data_file):
                 lats.append(item["latitude"])
                 longs.append(item["longitude"])
 
-    
-
-
     df = pd.DataFrame(
         {
         'Latitude': lats,
@@ -558,7 +555,7 @@ def conduct_analysis(instances, dataset_dir="../../datasets"):
     compute_cdf_quic_ect(instances)
     compute_tcp_udp_strip_stats(instances)
     compute_tcp_udp_correlation(instances)
-    #compute_graph_of_hops(instances, "203.190.58.50", "tcp_probe")
+    compute_graph_of_hops(instances, "203.190.58.50", "tcp_probe")
     pprint.pprint(stats)
     compute_tcp_udp_bar_charts(instances)
     
