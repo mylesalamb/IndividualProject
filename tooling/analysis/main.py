@@ -29,7 +29,10 @@ def resolve_instance(instance):
             parser_type = factory.get_parser(os.path.basename(trace_files[0]))
 
             for conn in trace_files:
-                p = parser_type(conn)
+                try:
+                    p = parser_type(conn)
+                except:
+                    continue
                 ctx,result = p.run()
                 
                 result["proto"] = ctx.proto
@@ -59,23 +62,40 @@ def parse_arguments(args:str = sys.argv[1:]):
 
 def main():
     in_args = parse_arguments()
+    procs = []
     
     if not in_args["output_directory"] or not os.path.exists(in_args["output_directory"]):
         print("invalid output directory")
         exit(1)
 
-    WhoIs.instance(in_args["whoiscache"])
+    WhoIs.instance()
     
     if not in_args["from_json"]:
         print("Getting data from {}...".format(in_args["indir"]))
         instances = []
         raw_data = utils.get_instance_traces(in_args["indir"])
         for instance_data in raw_data:
+            
+            pid = os.fork()
+
+            if pid:
+                print(f"Forked proc pid:{pid}")
+                procs.append(pid)
+                continue
+
+            # sub proc
             instance = resolve_instance(instance_data)
             ofile = "{}.json".format(instance_data["name"])
             with open(ofile, "w") as f:
                 json.dump(instance, f)
             instances.append(instance)
+            exit(0)
+
+        for pid in procs:
+            os.waitpid(pid, 0)
+        print("Analysis done")
+        exit(0)
+        
     else:
         # We've been given a checkpointed set of files
         print(f"Attempt to recover data from a collection of Json files")
@@ -84,9 +104,8 @@ def main():
     if in_args["run_analysis"]:
         print("Would run analysis from here on")
         compute_aux_structures(instances)
+        print("number of instances: {}".format(len(instances)))
         conduct_analysis(instances)
-    
-    WhoIs.instance().cleanup()
 
 
     

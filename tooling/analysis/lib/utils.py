@@ -75,7 +75,7 @@ def get_instance_traces(indir: str):
         traces = get_traces(instance)
 
         dic["traces"] = []
-        for trace in traces:
+        for trace in sorted(traces):
             globs = {}
             print("resolve instance: {}, trace {}".format(instance, trace))
             globs = {k:get_pcap_from_trace(trace, v) for k,v in file_globs.items()}

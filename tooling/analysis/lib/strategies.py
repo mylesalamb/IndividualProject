@@ -78,6 +78,7 @@ def marked_icmp(packets, ctx) -> bool:
     The number of hops until the ect markings disappear
     The number of hops to the host (max ttl before response)
     The index into the packets list containing the first icmp without ect markings
+    list of items (corresponding hop, network interface)
 '''
 @add_metric(UDPProbeParser)
 @add_metric(TCPConnectonParser)
@@ -87,6 +88,7 @@ def is_ect_stripped(packets, ctx) -> str:
 
     whois = WhoIs.instance()
     as_data = []
+    icmp_data = []
 
     
     if ctx.flags == 0:
@@ -114,18 +116,33 @@ def is_ect_stripped(packets, ctx) -> str:
         if _is_to_host(pkt, ctx) and get_packet_ttl(pkt) < 60:
             hops = get_packet_ttl(pkt)
 
-        if ICMP in pkt and _is_icmp_ttl_exceed(pkt[ICMP]) and IPerror in pkt and not (pkt[IPerror].tos & 0x03):
+        if ICMP in pkt and _is_icmp_ttl_exceed(pkt[ICMP]):
+
             as_datum = whois.lookup(pkt[IP].src)
-            if as_datum:
-                as_data.append(as_datum)
-            if hops_before_removal == -1:
+            icmp_data.append((hops, pkt[IP].src))
+
+            if IPerror in pkt and not (pkt[IPerror].tos & 0x03):
+            
+                if as_datum:
+                    as_data.append(as_datum)
+                if hops_before_removal == -1:
+                    hops_before_removal = hops
+                    removal_index = i
+            
+            
+        # ICMP response somewhere on the path
+        if ICMPv6TimeExceeded in pkt and IPerror6 in pkt:
+            
+            icmp_data.append((hops, pkt[IPv6].src))
+            as_datum = whois.lookup(pkt[IPv6].src)
+            
+            # has the ect marking been removed
+            if not (pkt[IPerror6].tc & 0x03) and hops_before_removal == -1:
+                if as_datum:
+                    as_data.append(as_datum)
                 hops_before_removal = hops
                 removal_index = i
             
-        # ICMP response somewhere on the path
-        if ICMPv6TimeExceeded in pkt and IPerror6 in pkt and not (pkt[IPerror6].tc & 0x03) and hops_before_removal == -1:
-            hops_before_removal = hops
-            removal_index = i
 
         if _is_from_host(pkt, ctx) and hops > 5:
             hops_before_host = hops
@@ -133,7 +150,7 @@ def is_ect_stripped(packets, ctx) -> str:
     
     
 
-    return (hops_before_removal, removal_index, hops_before_host, as_data)
+    return (hops_before_removal, removal_index, hops_before_host, icmp_data)
 
 @add_metric(TCPProbeParser)
 def is_syn_ecn_stripped(packets, ctx):
