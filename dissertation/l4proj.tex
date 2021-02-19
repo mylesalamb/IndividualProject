@@ -2,30 +2,36 @@
 
 \documentclass{l4proj}
 
-    
+
 %
 % put any additional packages here
 %
+\usepackage{pgf-umlsd}
+\usepackage{scalefnt}
+\usepackage{tikz}
 
 \begin{document}
 
+
 %==============================================================================
 %% METADATA
-\title{Level 4 Project Report Template}
-\author{John H. Williamson}
-\date{September 14, 2018}
+\title{Where Is ECN Stripped On the Network?}
+\author{Myles Lamb}
+\date{March 26, 2021}
 
 \maketitle
 
 %==============================================================================
 %% ABSTRACT
 \begin{abstract}
-    Every abstract follows a similar pattern. Motivate; set aims; describe work; explain results.
-    \vskip 0.5em
-    ``XYZ is bad. This project investigated ABC to determine if it was better. 
-    ABC used XXX and YYY to implement ZZZ. This is particularly interesting as XXX and YYY have
-    never been used together. It was found that  
-    ABC was 20\% better than XYZ, though it caused rabies in half of subjects.''
+    % Every abstract follows a similar pattern. Motivate; set aims; describe work; explain results.
+    % \vskip 0.5em
+    % ``XYZ is bad. This project investigated ABC to determine if it was better. 
+    % ABC used XXX and YYY to implement ZZZ. This is particularly interesting as XXX and YYY have
+    % never been used together. It was found that  
+    % ABC was 20\% better than XYZ, though it caused rabies in half of subjects.''
+    
+    This paper investigates where on the network ECT codepoints are removed by network devices, we investigate this through the production of a new network analysis tool, allowing for the observation of the modifications of packets on the network. We analyse three server three server populations under a variety of transport layer protocols.
 \end{abstract}
 
 %==============================================================================
@@ -39,9 +45,9 @@
 % Please note that you are under no obligation to sign 
 % this declaration, but doing so would help future students.
 %
-%\def\consentname {My Name} % your full name
-%\def\consentdate {20 March 2018} % the date you agree
-%
+\def\consentname {Myles Lamb} % your full name
+\def\consentdate {26 March 2021} % the date you agree
+
 \educationalconsent
 
 
@@ -74,359 +80,305 @@
 %
 %==================================================================================================================================
 \chapter{Introduction}
+\label{chap:introduction}
 
 % reset page numbering. Don't remove this!
 \pagenumbering{arabic} 
 
+This chapter will motivate the development of a new network analysis tool, to investigate the adoption of ECN and the frequency and location on the network where ECN expression is altered by devices on the network path. Following chapters will go into detail, discussing various aspects of the project, such as the design and implementation of the network analysis tool and and evaluation of the results of a medium scale deployment of the previously developed tool.
 
-Why should the reader care about what are you doing and what are you actually doing?
-\section{Guidance}
+\section{Motivation}
 
-\textbf{Motivate} first, then state the general problem clearly. 
+The traditional, end to end approach to congestion control employed within transport protocols such as TCP results in end hosts inferring congestion on the network through signals such as packet loss. In brief, ECN or Explicit Congestion Notification is a mechanism providing a means for devices on the network path to signal incipient congestion to end hosts, allowing them to reduce their sending rates before congestive loss occurs. This is beneficial in terms of throughput (\cite{fairhurst_benefits_2017}) amongst other positive characteristics. 
 
-\section{Writing guidance}
-\subsection{Who is the reader?}
+However, the deployment of ECN has been slowed due to issues relating to devices on the network dropping packets that were signalled as ECN capable, resetting connections that attempt to negoatiate ECN or remarking packets that indicate ECN capable transport (\cite{floyd_inappropriate_2002}), ultimately leading to a lack of faith in the technology. Whilst these issues have lessened in prevalence over time (\cite{trammell_enabling_2015}), there has been a renewed interest in the deployment of ECN through its integration with Quic, a new transport protocol operating over UDP (\cite{johansson_ecn_2017}), as well as the growing need to reduce queuing delay across modern networks, given the increasing prevalence of real time traffic presenting the preservation of ECN markings across the network as critical for managing the continued development of the internet. To the best of our knowledge this paper presents first set of findings relating to the deployment of ECN within Quic. As well as presenting a new technical method for measuring on path removal of codepoints to TCP based hosts.
 
-This is the key question for any writing. Your reader:
+\section{Aim}
 
+The aim of this paper is to investigate the overall adoption of ECN and how often, as well as where devices on the network modify the expression of ECN markings, serving as another datapoint of active ECN measurements over the last two decades. Additionally investigating whether choices of network substrate such as the Internet protocol version or transport layer substrate influence the modification patholgoies of ECN functionality, whether the ECT codepoint used influences the characteristics of the modfication of packets on the network. Lastly, evaluating ECN adoption and modification pathologies for Quic, a  new transport protocol implemented over UDP that has introduced support for ECN. To achieve this we will;
 \begin{itemize}
-    \item
-    is a trained computer scientist: \emph{don't explain basics}.
-    \item
-    has limited time: \emph{keep on topic}.
-    \item
-    has no idea why anyone would want to do this: \emph{motivate clearly}
-    \item
-    might not know \emph{anything} about your project in particular:
-    \emph{explain your project}.
-    \item
-    but might know precise details and check them: \emph{be precise and
-    strive for accuracy.}
-    \item
-    doesn't know or care about you: \emph{personal discussions are
-    irrelevant}.
+    \item Devise a suitable experimental methodology to gather appropriate measurements from the network (Section \ref{chap:design})
+    \item Design and implement a network analysis tool supporting the goals of the experimental methodology (Section \ref{chap:design} and Section \ref{chap:implementation})
+    \item Evaluate the network analysis tool through a medium scale deployment across numerous geographically distributed hosts (Section \ref{chap:evaluation})
 \end{itemize}
 
-Remember, you will be marked by your supervisor and one or more members
-of staff. You might also have your project read by a prize-awarding
-committee or possibly a future employer. Bear that in mind.
-
-\subsection{References and style guides}
-There are many style guides on good English writing. You don't need to
-read these, but they will improve how you write.
-
-\begin{itemize}
-    \item
-    \emph{How to write a great research paper} \cite{Pey17} (\textbf{recommended}, even though you aren't writing a research paper)
-    \item
-    \emph{How to Write with Style} \cite{Von80}. Short and easy to read. Available online.
-    \item
-    \emph{Style: The Basics of Clarity and Grace} \cite{Wil09} A very popular modern English style guide.
-    \item
-    \emph{Politics and the English Language} \cite{Orw68}  A famous essay on effective, clear writing in English.
-    \item
-    \emph{The Elements of Style} \cite{StrWhi07} Outdated, and American, but a classic.
-    \item
-    \emph{The Sense of Style} \cite{Pin15} Excellent, though quite in-depth.
-\end{itemize}
-
-\subsubsection{Citation styles}
-
-\begin{itemize}
-\item If you are referring to a reference as a noun, then cite it as: ``\citet{Orw68} discusses the role of language in political thought.''
-\item If you are referring implicitly to references, use: ``There are many good books on writing \citep{Orw68, Wil09, Pin15}.''
-\end{itemize}
-\subsection{Plagiarism warning}
-
-\begin{highlight_title}{WARNING}
-    
-    If you include material from other sources without full and correct attribution, you are commiting plagiarism. The penalties for plagiarism are severe.
-    Quote any included text and cite it correctly. Cite all images, figures, etc. clearly in the caption of the figure.
-\end{highlight_title}
+\clearpage
 
 
 %==================================================================================================================================
 \chapter{Background}
-What did other people do, and how is it relevant to what you want to do?
-\section{Guidance}
-\begin{itemize}    
-    \item
-      Don't give a laundry list of references.
-    \item
-      Tie everything you say to your problem.
-    \item
-      Present an argument.
-    \item Think critically; weigh up the contribution of the background and put it in context.    
-    \item
-      \textbf{Don't write a tutorial}; provide background and cite
-      references for further information.
-\end{itemize}
+
+This chapter discusses the fundamentals of ECN as a technology and presents the contributions of previous works. Identifying areas for elaboration in existing research.
+
+\section{Overview of ECN}
+
+ECN as previously mentioned in section \ref{chap:introduction}, is a mechanism allowing for devices on the network to signal impending congestion to end hosts without incurring packet loss. This allows routers utilising Active Queue Management (ie. RED) to mark packets when congestion is experienced, receivers observing these markings inform the sender of their observation, allowing the sender to reduce their sending rate, before packet loss occurs. Potentially reducing negative aspects of loss based congestion signals such as, Head-of-line blocking for protocols that provide an in-order delivery service model such as TCP, or providing benefits to the quality of service for protocols that do not re-transmit lost packets such as RTP.
+
+ECN is implemented through the 2 least significant bits of the traffic class byte of the IPv4/IPv6 header. These two bits of the IP header are used to signify whether a given transport is ECN capable, and whether congestion has been experienced on the network. We have four ECT (ECN capable transport) codepoints. 00 = not ECN capable, 10 = ECT(0), 01 = ECT(1), 11 = CE, or congestion experienced. 
+
+It may be noted that both ECT(0) and ECT(1) are to be treated equivalently by devices on the network in identifying ECN capable transport (\cite{floyd_addition_2001}). Furthermore if a device on the network does not leverage the ECN field, it is not to modify it. Historically, the bits that constitute the ECN field occupy the same space as the legacy ToS (Type of Service) byte, providing some insight into why ECN is removed on the network, with some older equipment on the network continuing to use ToS semantics and subsequently erroneously clearing the ECN field (\cite{kuhlewind_state_2013}).
+
+% Discuss research concerning the %
+
+\section{ECN within TCP}
+
+
+
+When ECN is utilised with TCP, hosts must first negotiate its use at the beginning of the TCP connection, during the SYN-ACK exchange. Utilising two, previously reserved bits of the TCP header. Namely the ECE (ECN Echo) and the CWR (Congestion window reduced) bits. Hosts may negotiate ECN through setting the ECE and CWR bits of the TCP header on the initiating SYN of the TCP handshake. If the receiving host also desires to use ECN, a SYN-ACK with the ECE bit set will be returned. Subsequent data segments sent during the connection should be marked with either ECT(0) or ECT(1) on the IP header to indicate ECN capable transport. Given when congestion is experienced on the network, and some device marks a given packet with the ECE codepoint. End hosts receiving a packet with the CE codepoint set should respond by setting the ECE bit on the following segment sent during the connection. The, sending host, then indicates the reciept of a segment with ECE bit, by setting the CWR bit of the following segment sent, as well as responding with respect to the congestion control algorithm in use as if packet loss had occurred, as summarised in figure \ref{fig:ecn_tcp}.
+
+
+
+\begin{center}
+    \begin{figure}
+            \begin{tikzpicture}
+            
+            \draw (0,0) -- (0, 6);
+            \draw (6.5,0) -- (6.5, 6);
+            \draw (13,0) -- (13, 6);
+            \node at (0,6.5) {Client};
+            \node at (6.5,6.5) {Middlebox};
+            \node at (13,6.5) {Server};
+            
+            \draw [arrows={-triangle 45}]
+            (0, 5.5) -- (13, 5.5) node [midway, fill=white, text centered]
+            { TCP(SYN, ECE, CWR)  IP(ECN=00)};
+            
+            \draw [arrows={triangle 45-}]
+            (0, 4.5) -- (13, 4.5) node [midway, fill=white, text centered]
+            { TCP(SYN, ACK, ECE)  IP(ECN=00)};
+            
+            \draw [arrows={-triangle 45}]
+            (0, 3.5) -- (13, 3.5) node [midway, fill=white, text centered]
+            { TCP(DATA)  IP(ECN=10)};
+            
+            \draw [arrows={-triangle 45}]
+            (0, 2.5) -- (6.5, 2.5) node [midway, fill=white, text centered]
+            { TCP(DATA)  IP(ECN=10)};
+            
+            \draw [arrows={-triangle 45}]
+            (6.5, 2.5) -- (13, 2.5) node [midway, fill=white, text centered]
+            { TCP(DATA)  IP(ECN=11)};
+            
+            \draw [arrows={triangle 45-}]
+            (0, 1.5) -- (13, 1.5) node [midway, fill=white, text centered]
+            { TCP(DATA, ECE)  IP(ECN=10)};
+            
+            \draw [arrows={-triangle 45}]
+            (0, 0.5) -- (13, 0.5) node [midway, fill=white, text centered]
+            { TCP(DATA, CWR)  IP(ECN=10)};
+            
+            \end{tikzpicture}
+        \caption{Diagrammatic representation of the operation of the ECN extension with TCP/IP, TCP acks have been ommited for the sake of brevity}
+    \label{fig:ecn_tcp}
+    \end{figure}
+\end{center}
+\section{ECN within UDP}
+
+ECN is not directly used with UDP, the exact operation of ECN with UDP is deferred to the context of a higher layer protocol, such as RTP, or Quic, which utilise UDP as their transport substrate. In the following text, we discuss the operation of ECN within Quic, one of the protocols investigated in this paper. Quic introduced the notion of ECN support with an IETF draft \cite{johansson_ecn_2017} discussing its intended operation. Whilst Quic is still in development as a protocol (lacking an RFC ), we summarise the current state of ECN operation under Quic at the time of writing.
+
+When ECN is utilised with Quic, the sender must first determine whether both the path and the end host support ECN marking. This is defined as whether ECT codepoints are not cleared on path, or packets setting ECT codepoints are dropped, as well as the end host being able to both view and set the ECN field on the IP header. This is achieved through sending early Quic packets marked with either ECT(0) or ECT(1). Assuming packets are recieved by the end host, the receivers response should contain an "ECN ACK Frame" containing counts of packets observed with ECT(0), ECT(1) or CE. Of which the sender must validate, to ensure that the path and host support ECN markings. Following this, the sender may continue to send ECT marked packets. If a sending host, receives an ECN Ack frame that increases the CE count. The sender is to reduce their congestion window, in a similar manner to as if a loss had occurred. In a similar manner to ECN under TCP/IP.
+
+\section{ICMP Quotations}
+
+Introduced in RFC 792, it is required for some ICMP resposes to quote the IP header and the first 8 bytes of associated data. In particular 'TTL exceeded in transit' ICMP responses, are required by the RFC to observe this behaviour. This allows for path level insight to the IP header, and specifically, insight into remarking behaviour of ECN codepoints from within the network. This mechanism is used extensively in the existing literature on network measurement.
+
+\section{Previous Works}
+
+There exists an extensive body of work on ECN measurement across the last two decades, in this subsection we present and evaluate previous contributions in the area.
+
+\subsection{Measuring the state of ECN Readiness in clients and Servers}
+
+
+There exists an extensive body of work on ECN measurement across the last two decades concerning the deployment of ECN within TCP. \cite{bauer_measuring_2011} measured the top one million web servers as ranked by the alexa top sites list, a collection of college and university based hosts and a collection of hosts intended for use with mobile devices. Measuring what fraction of hosts would negotiate ECN, additionally investigating whether middleboxes or routers on the network path were clearing ECT codepoints using an approach based on ICMP probes of the network. From a collection of vantage points hosted in datacentres or university networks. The authors found that 94.8\% of hosts preserved the ECT codepoint across the network path. Additionally the authors utilised a robust approach to identify a given interface that may be responsible for remarking the ECN codepoint, additionally attributing this behaviour to a particular AS, we see a particular bias to earlier in the network path, however this should be expected, as given when ECN codepoints are remarked subsequent parts of the network path are unable to be evaluated. This paper primarily used the CE codepoint in its network measurements, hence does not investigate the possibility of differential treatment of the codepoints on the network. Additionally, this paper was produced before the advent of the Quic network protocol
+
+
+\subsection{Is ECN Usable With UDP}
+
+Additional studies have also concerned themselves with the deployment of UDP based protocols incorporating ECN. \cite{mcquistin_is_2015} investigated in the broader sense whether ECN was usable with UDP, through the evaluation of 2,500 NTP pool servers. Revealing that ECN had a minor impact on the reachability of NTP servers. The authors breifly examined, where on the path ECT(0) codepoints were removed from packets, through implementing traceroutes to given hosts. Sending TTL limited packets with increasing hop limits until a response from the intended hosts is recieved. The generated ICMP TTL exceeded responses being collected in the process. The authors identified that in the majority of cases ECT(0) codepoints do traverse the network. Furthermore, when ECT codepoints are stripped from packets, this occurs distantly from the host, with the responsible device being located on an AS boundary. The authors did not use a directly comparable approach for that of TCP connections against the same host, although the core focus of the study was in evaluating the usability of UDP.
+
+\subsection{Exploring DSCP modification pathologies in the internet}
+
+\cite{custura_exploring_2017} examined the wider traffic class byte. With a particular focus on the DSCP codepoint however the author discovers many different modification pathologies that in some cases effect ECN codepoints as well. In particular demonstrating a correlation between DSCP codepoint remarking and ECN remarking in many cases, suggesting that some routers erronously clear the ECN field as a consequence of continuing to use ToS semantics. However, this is not universal suggesting that not all ECN remarking behaviour is due to this. Furthermore the author investigates whether the transport protocol in use influences the DSCP modifications pathologies discussed in the paper. This analysis is not extended to the 3 ECN codepoints, for which the modifcation pathologies slightly differ as shown in the paper.
+
+\subsection{PathSpider}
+
+There also exists a collection of existing tools tailored for network measurement. PathSpider is one of these tools, for instance. The previously mentioned
+
+\section{Tracebox}
+
+Tracebox is another network path transparency tool
+
+
+
+
+
+% discuss the history of the dscp and tos, and why might network operators interact with these aspects of the ip header
+
+% ECN (Explicit Congestion Notification) provides a means for devices on the network path to signal impending congestion to end hosts, allowing them to reduce their sending rates before packet loss occurs. However, the deployment of ECN has been stiffled due to concerns with how the relevant markings on internet traffic interact with the wider network. Particularly in the case of firewalls. Interest in the deployment of ECN has increased over recent years, in particular around newer protcols such as Quic, for which a proposal to add ECN support to quic has been around since 2017.
+
+% {{Discussion of the codepoints that ECN uses}}
+
+% {{Discussion of how ecn works with TCP}}
+
+% {{Discussion of how ECN is proposed to operate with Quic}}
+
+% {{Discussion of ICMP quotations}}
+
 
 %==================================================================================================================================
 \chapter{Analysis/Requirements}
-What is the problem that you want to solve, and how did you arrive at it?
-\section{Guidance}
-Make it clear how you derived the constrained form of your problem via a clear and logical process. 
+
+The following chapter details the analysis of the problem domain. Documenting how the scope of the project was narrowed, informing the design and subsequent implementation phases of the project.
+
+\section{General Problem}
+
+% How do we figure out what is going on on the network -> ttl exceeded responses %
+
+% Visualisation of packets traversing the network %
+
+% issues with attributing ecn removal to a particular network interface %
+
+% issues with some network interfaces showing up as unresolved to a particular as %
+
+% testing the network is almost impossible from a singular host vantage point %
+
+
+
 
 %==================================================================================================================================
 \chapter{Design}
-How is this problem to be approached, without reference to specific implementation details? 
-\section{Guidance}
-Design should cover the abstract design in such a way that someone else might be able to do what you did, but with a different language or library or tool.
+\label{chap:design}
+
+Given the nature of the topic, we identify two high level aspects of design, that of the network analysis tool required to gather suitable measurements from the network, and the experimental design itself, to ensure that the measurements we gather from the network are both robust and are capable of answering the questions proposed in {{Where aims are proposed}}
+
+\section{Tooling}
+
+what we need to measure -> design of experiemnt
+how we measure it -> design of tool
+where deploy in many places -> choice of aws and participant locations
+
+\subsection{Network analysis tool}
+{{Create a graph with graphviz to visualise how tool components interact with eachother and the wider network ie. system architecture diagram}}
+
+{{Small discussion of the high level components of the tool}}
+{{Traffic generator}}
+{{Traffic modification}}
+{{Traffic capture}}
+
+\section{Experimental Design}
+
+{{3 server populations to gather a representative sample of the network; Overview of dataset}}
+{{Tool operates through the dataset over a space of 48 hours, over a period of two weeks}}
+
+
+{{Collection of vantage points, AWS hosts, at least one in each continent that AWS operates}}
+{{Collection of residential hosts through an ethics approved study}}
+
+
+{{Overview of specifics of traffic generated}}
+{{What types of connection for each host}}
+{{ECT markings on each connection}}
+
 
 %==================================================================================================================================
 \chapter{Implementation}
-What did you do to implement this idea, and what technical achievements did you make?
-\section{Guidance}
-You can't talk about everything. Cover the high level first, then cover important, relevant or impressive details.
 
+discuss issues with deployment
+firewall issues
+Issue relating to TCP and NTP
 
+aws deployment -> terraform
 
-\section{General points}
+{{Overview of each component}}
 
-These points apply to the whole dissertation, not just this chapter.
+{{Traffifc modifier}}
+{{Preffered over iptables rules -> programmatic access to packets as opposed to generic over arching rules}}
 
+{{Traffic capturer}}
+{{Basically just a mention that libpcap was used}}
 
-
-\subsection{Figures}
-\emph{Always} refer to figures included, like Figure \ref{fig:relu}, in the body of the text. Include full, explanatory captions and make sure the figures look good on the page.
-You may include multiple figures in one float, as in Figure \ref{fig:synthetic}, using \texttt{subcaption}, which is enabled in the template.
-
-
-
-% Figures are important. Use them well.
-\begin{figure}
-    \centering
-    \includegraphics[width=0.5\linewidth]{images/relu.pdf}    
-
-    \caption{In figure captions, explain what the reader is looking at: ``A schematic of the rectifying linear unit, where $a$ is the output amplitude,
-    $d$ is a configurable dead-zone, and $Z_j$ is the input signal'', as well as why the reader is looking at this: 
-    ``It is notable that there is no activation \emph{at all} below 0, which explains our initial results.'' 
-    \textbf{Use vector image formats (.pdf) where possible}. Size figures appropriately, and do not make them over-large or too small to read.
-    }
-
-    % use the notation fig:name to cross reference a figure
-    \label{fig:relu} 
-\end{figure}
-
-
-\begin{figure}
-    \centering
-    \begin{subfigure}[b]{0.45\textwidth}
-        \includegraphics[width=\textwidth]{images/synthetic.png}
-        \caption{Synthetic image, black on white.}
-        \label{fig:syn1}
-    \end{subfigure}
-    ~ %add desired spacing between images, e. g. ~, \quad, \qquad, \hfill etc. 
-      %(or a blank line to force the subfigure onto a new line)
-    \begin{subfigure}[b]{0.45\textwidth}
-        \includegraphics[width=\textwidth]{images/synthetic_2.png}
-        \caption{Synthetic image, white on black.}
-        \label{fig:syn2}
-    \end{subfigure}
-    ~ %add desired spacing between images, e. g. ~, \quad, \qquad, \hfill etc. 
-    %(or a blank line to force the subfigure onto a new line)    
-    \caption{Synthetic test images for edge detection algorithms. \subref{fig:syn1} shows various gray levels that require an adaptive algorithm. \subref{fig:syn2}
-    shows more challenging edge detection tests that have crossing lines. Fusing these into full segments typically requires algorithms like the Hough transform.
-    This is an example of using subfigures, with \texttt{subref}s in the caption.
-    }\label{fig:synthetic}
-\end{figure}
-
-\clearpage
-
-\subsection{Equations}
-
-Equations should be typeset correctly and precisely. Make sure you get parenthesis sizing correct, and punctuate equations correctly 
-(the comma is important and goes \textit{inside} the equation block). Explain any symbols used clearly if not defined earlier. 
-
-For example, we might define:
-\begin{equation}
-    \hat{f}(\xi) = \frac{1}{2}\left[ \int_{-\infty}^{\infty} f(x) e^{2\pi i x \xi} \right],
-\end{equation}    
-where $\hat{f}(\xi)$ is the Fourier transform of the time domain signal $f(x)$.
-
-\subsection{Algorithms}
-Algorithms can be set using \texttt{algorithm2e}, as in Algorithm \ref{alg:metropolis}.
-
-% NOTE: line ends are denoted by \; in algorithm2e
-\begin{algorithm}
-    \DontPrintSemicolon
-    \KwData{$f_X(x)$, a probability density function returing the density at $x$.\; $\sigma$ a standard deviation specifying the spread of the proposal distribution.\;
-    $x_0$, an initial starting condition.}
-    \KwResult{$s=[x_1, x_2, \dots, x_n]$, $n$ samples approximately drawn from a distribution with PDF $f_X(x)$.}
-    \Begin{
-        $s \longleftarrow []$\;
-        $p \longleftarrow f_X(x)$\;
-        $i \longleftarrow 0$\;
-        \While{$i < n$}
-        {
-            $x^\prime \longleftarrow \mathcal{N}(x, \sigma^2)$\;
-            $p^\prime \longleftarrow f_X(x^\prime)$\;
-            $a \longleftarrow \frac{p^\prime}{p}$\;
-            $r \longleftarrow U(0,1)$\;
-            \If{$r<a$}
-            {
-                $x \longleftarrow x^\prime$\;
-                $p \longleftarrow f_X(x)$\;
-                $i \longleftarrow i+1$\;
-                append $x$ to $s$\;
-            }
-        }
-    }
-    
-\caption{The Metropolis-Hastings MCMC algorithm for drawing samples from arbitrary probability distributions, 
-specialised for normal proposal distributions $q(x^\prime|x) = \mathcal{N}(x, \sigma^2)$. The symmetry of the normal distribution means the acceptance rule takes the simplified form.}\label{alg:metropolis}
-\end{algorithm}
-
-\subsection{Tables}
-
-If you need to include tables, like Table \ref{tab:operators}, use a tool like https://www.tablesgenerator.com/ to generate the table as it is
-extremely tedious otherwise. 
-
-\begin{table}[]
-    \caption{The standard table of operators in Python, along with their functional equivalents from the \texttt{operator} package. Note that table
-    captions go above the table, not below. Do not add additional rules/lines to tables. }\label{tab:operators}
-    %\tt 
-    \rowcolors{2}{}{gray!3}
-    \begin{tabular}{@{}lll@{}}
-    %\toprule
-    \textbf{Operation}    & \textbf{Syntax}                & \textbf{Function}                            \\ %\midrule % optional rule for header
-    Addition              & \texttt{a + b}                          & \texttt{add(a, b)}                                    \\
-    Concatenation         & \texttt{seq1 + seq2}                    & \texttt{concat(seq1, seq2)}                           \\
-    Containment Test      & \texttt{obj in seq}                     & \texttt{contains(seq, obj)}                           \\
-    Division              & \texttt{a / b}                          & \texttt{div(a, b) }  \\
-    Division              & \texttt{a / b}                          & \texttt{truediv(a, b) } \\
-    Division              & \texttt{a // b}                         & \texttt{floordiv(a, b)}                               \\
-    Bitwise And           & \texttt{a \& b}                         & \texttt{and\_(a, b)}                                  \\
-    Bitwise Exclusive Or  & \texttt{a \textasciicircum b}           & \texttt{xor(a, b)}                                    \\
-    Bitwise Inversion     & \texttt{$\sim$a}                        & \texttt{invert(a)}                                    \\
-    Bitwise Or            & \texttt{a | b}                          & \texttt{or\_(a, b)}                                   \\
-    Exponentiation        & \texttt{a ** b}                         & \texttt{pow(a, b)}                                    \\
-    Identity              & \texttt{a is b}                         & \texttt{is\_(a, b)}                                   \\
-    Identity              & \texttt{a is not b}                     & \texttt{is\_not(a, b)}                                \\
-    Indexed Assignment    & \texttt{obj{[}k{]} = v}                 & \texttt{setitem(obj, k, v)}                           \\
-    Indexed Deletion      & \texttt{del obj{[}k{]}}                 & \texttt{delitem(obj, k)}                              \\
-    Indexing              & \texttt{obj{[}k{]}}                     & \texttt{getitem(obj, k)}                              \\
-    Left Shift            & \texttt{a \textless{}\textless b}       & \texttt{lshift(a, b)}                                 \\
-    Modulo                & \texttt{a \% b}                         & \texttt{mod(a, b)}                                    \\
-    Multiplication        & \texttt{a * b}                          & \texttt{mul(a, b)}                                    \\
-    Negation (Arithmetic) & \texttt{- a}                            & \texttt{neg(a)}                                       \\
-    Negation (Logical)    & \texttt{not a}                          & \texttt{not\_(a)}                                     \\
-    Positive              & \texttt{+ a}                            & \texttt{pos(a)}                                       \\
-    Right Shift           & \texttt{a \textgreater{}\textgreater b} & \texttt{rshift(a, b)}                                 \\
-    Sequence Repetition   & \texttt{seq * i}                        & \texttt{repeat(seq, i)}                               \\
-    Slice Assignment      & \texttt{seq{[}i:j{]} = values}          & \texttt{setitem(seq, slice(i, j), values)}            \\
-    Slice Deletion        & \texttt{del seq{[}i:j{]}}               & \texttt{delitem(seq, slice(i, j))}                    \\
-    Slicing               & \texttt{seq{[}i:j{]}}                   & \texttt{getitem(seq, slice(i, j))}                    \\
-    String Formatting     & \texttt{s \% obj}                       & \texttt{mod(s, obj)}                                  \\
-    Subtraction           & \texttt{a - b}                          & \texttt{sub(a, b)}                                    \\
-    Truth Test            & \texttt{obj}                            & \texttt{truth(obj)}                                   \\
-    Ordering              & \texttt{a \textless b}                  & \texttt{lt(a, b)}                                     \\
-    Ordering              & \texttt{a \textless{}= b}               & \texttt{le(a, b)}                                     \\
-    % \bottomrule
-    \end{tabular}
-    \end{table}
-\subsection{Code}
-
-Avoid putting large blocks of code in the report (more than a page in one block, for example). Use syntax highlighting if possible, as in Listing \ref{lst:callahan}.
-
-\begin{lstlisting}[language=python, float, caption={The algorithm for packing the $3\times 3$ outer-totalistic binary CA successor rule into a 
-    $16\times 16\times 16\times 16$ 4 bit lookup table, running an equivalent, notionally 16-state $2\times 2$ CA.}, label=lst:callahan]
-    def create_callahan_table(rule="b3s23"):
-        """Generate the lookup table for the cells."""        
-        s_table = np.zeros((16, 16, 16, 16), dtype=np.uint8)
-        birth, survive = parse_rule(rule)
-
-        # generate all 16 bit strings
-        for iv in range(65536):
-            bv = [(iv >> z) & 1 for z in range(16)]
-            a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p = bv
-
-            # compute next state of the inner 2x2
-            nw = apply_rule(f, a, b, c, e, g, i, j, k)
-            ne = apply_rule(g, b, c, d, f, h, j, k, l)
-            sw = apply_rule(j, e, f, g, i, k, m, n, o)
-            se = apply_rule(k, f, g, h, j, l, n, o, p)
-
-            # compute the index of this 4x4
-            nw_code = a | (b << 1) | (e << 2) | (f << 3)
-            ne_code = c | (d << 1) | (g << 2) | (h << 3)
-            sw_code = i | (j << 1) | (m << 2) | (n << 3)
-            se_code = k | (l << 1) | (o << 2) | (p << 3)
-
-            # compute the state for the 2x2
-            next_code = nw | (ne << 1) | (sw << 2) | (se << 3)
-
-            # get the 4x4 index, and write into the table
-            s_table[nw_code, ne_code, sw_code, se_code] = next_code
-
-        return s_table
-
-\end{lstlisting}
+{{Traffic generator}}
+{{Overview of lsquic: fixed on draft 29}}
+{{Overview of TCP on path traceroutes}}
 
 %==================================================================================================================================
-\chapter{Evaluation} 
-How good is your solution? How well did you solve the general problem, and what evidence do you have to support that?
+\chapter{Results} 
 
-\section{Guidance}
-\begin{itemize}
-    \item
-        Ask specific questions that address the general problem.
-    \item
-        Answer them with precise evidence (graphs, numbers, statistical
-        analysis, qualitative analysis).
-    \item
-        Be fair and be scientific.
-    \item
-        The key thing is to show that you know how to evaluate your work, not
-        that your work is the most amazing product ever.
-\end{itemize}
+As discussed in \autoref{chap:introduction} we seek to investigate Where ECT codepoints are removed from network traffic on the network. This is inherently, a very broad topic. In order to focus our discussions, we select the following topics to investigate
 
-\section{Evidence}
-Make sure you present your evidence well. Use appropriate visualisations, reporting techniques and statistical analysis, as appropriate.
+{{Each of the following sections with a justification for being in the paper}}
 
-If you visualise, follow the basic rules, as illustrated in Figure \ref{fig:boxplot}:
-\begin{itemize}
-\item Label everything correctly (axis, title, units).
-\item Caption thoroughly.
-\item Reference in text.
-\item \textbf{Include appropriate display of uncertainty (e.g. error bars, Box plot)}
-\item Minimize clutter.
-\end{itemize}
+\section{An Overview of ECN adoption}
 
-See the file \texttt{guide\_to\_visualising.pdf} for further information and guidance.
+We want, a table on ECN negotiated by web server host
+place this as an additional data point on ecn adoption across other hosts, baur et al, medina etc etc
 
-\begin{figure}
-    \centering
-    \includegraphics[width=1.0\linewidth]{images/boxplot_finger_distance.pdf}    
 
-    \caption{Average number of fingers detected by the touch sensor at different heights above the surface, averaged over all gestures. Dashed lines indicate
-    the true number of fingers present. The Box plots include bootstrapped uncertainty notches for the median. It is clear that the device is biased toward 
-    undercounting fingers, particularly at higher $z$ distances.
-    }
+\section{Are ECT code points stripped during TCP connections?}
 
-    % use the notation fig:name to cross reference a figure
-    \label{fig:boxplot} 
-\end{figure}
+Given the methodology noted in chapter n, and the subsequent implementation of the network analyis tool this allowed us to investigate whether ect codepoints are removed during a TCP connections.
+
+From the webserver hosts we discovered that across our experiment, ect code points were modified on approx x\% of connections, tableN details the number of observed, this appears (in)consistent with measurements  from etc etc
+
+\subsection{Where are ECT codepoints removed during TCP connections}
+
+To understand where on the connection ect codepoints are removed we use our trace data obtained during TCP connections and produce a cumulative density function against number of interface hops on path against the total number of interface hops on the path (ie) the maximum ttl recorded from the vantage point when the host repsonds to the tracerouted request.
+
+The CDF shows extensive modification in the in the latter half of the network path that was traversed, notably across the network core. And network hops close to the end host
+
+\^ the above may be replaced with a similar graph to the paper "DSCP modification pathologies in mobile edge networks"
+
+\section{Are ECT code points treated consistently by network devices}
+
+we want a table breaking down, reachability of a given set of hosts, as well as incorporating
+
+
+\section{Does the Network protocol version influence modification pathologies}
+
+Take web hosts that operate over both IPv4 and IPv6, could make some measure of how similar the paths
+are for given hosts, or just in the general sense that the hosts are the same
+
+
+\section{Does the transport protocol influence ECT modification pathologies?}
+
+TCP and udp enabled host on the same port -> use dns servers
+Unsure on what statistical test to use
+
+
+\section{A Quick overview of Quic}
+
+Quic, a relatively new transport protocol introduced ECN as part of Draft, we investigate the extent to which ECN has been deployed with current quic implementations
+
+
+
+\subsection{An overview of ECN adoption under Quic}
+
+Across our dataset of webserver hosts, we found that no webserver hosts negotatiated ECN, with ~40 hosts negotiating QUic at all, we define a host that negotiated ECN as doing one of the following. Marking responses with ECT codepoints, or responsing with packets that contain ECT ack frames as defined in RFCxyz. We attribute this lack of ECN adoption to the immatirity of the protocol itself.
+
+\subsection{An overview of ECT modfications under quic}
+
+Similarily to \\tcphosts we produce a cumulative density function to visualize where on path ECT depoints are modified for connections against hosts operating over Quic. We see differences in the modification pathologies from TCPconnections to Quic connections. That is, we see a particular bias towards the end of the path for hosts operating over Quic
+
+CDF representing where (as a ratio) on path codepoints are cleared
+
+
+\section{Other Notable Behaviours}
+
+{{Brief mention of ECT marked ICMP responses}}
+
 
 
 %==================================================================================================================================
 \chapter{Conclusion}    
-Summarise the whole project for a lazy reader who didn't read the rest (e.g. a prize-awarding committee).
-\section{Guidance}
-\begin{itemize}
-    \item
-        Summarise briefly and fairly.
-    \item
-        You should be addressing the general problem you introduced in the
-        Introduction.        
-    \item
-        Include summary of concrete results (``the new compiler ran 2x
-        faster'')
-    \item
-        Indicate what future work could be done, but remember: \textbf{you
-        won't get credit for things you haven't done}.
-\end{itemize}
+\section{Summary}
+
+
+\section{Future Work}
+
+Whilst it is believed that the experiment was successful in testing a variety of network pathways from numerous vantage points, we accept that there were limitations presented as a result of sourcing participants from a limited geographic distribution.
+
+Furthermore, as the deployment of Quic progresses, gathering data from a wider collection of hosts would be desirable to attain a more general understanding of how ECN under Quic interacts with the wider network.
+
 
 %==================================================================================================================================
 %
@@ -436,27 +388,10 @@ Summarise the whole project for a lazy reader who didn't read the rest (e.g. a p
 
 \begin{appendices}
 
-\chapter{Appendices}
+\chapter{Introduction and debrief scripts}
 
-Typical inclusions in the appendices are:
-
-\begin{itemize}
-\item
-  Copies of ethics approvals (required if obtained)
-\item
-  Copies of questionnaires etc. used to gather data from subjects.
-\item
-  Extensive tables or figures that are too bulky to fit in the main body of
-  the report, particularly ones that are repetitive and summarised in the body.
-
-\item Outline of the source code (e.g. directory structure), or other architecture documentation like class diagrams.
-
-\item User manuals, and any guides to starting/running the software.
-
-\end{itemize}
-
-\textbf{Don't include your source code in the appendices}. It will be
-submitted separately.
+\section{Introduction Script}
+\section{Debrief Script}
 
 \end{appendices}
 
