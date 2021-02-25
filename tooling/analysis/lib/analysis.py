@@ -256,7 +256,7 @@ def compute_ecn_negotiation_quic(instances):
         results[name] = []
 
         print(f"calc stats for {name}")
-        for trace in instance["data"]:
+        for i,trace in enumerate(instance["data"]):
             web_hosts = []
             ecn_negotatiated = [0,0]
             for host, datum in trace.items():
@@ -267,6 +267,7 @@ def compute_ecn_negotiation_quic(instances):
                 for stat in data:
                     if stat["proto"] == "quic" and stat["flags"] == 1:
                         if stat["is_ecn_negotiated_quic"]:
+                            print(f"{host} NEGOTIATED QUIC, with trace {i}")
                             ecn_negotatiated[1] += 1
                         else:
                             ecn_negotatiated[0] += 1
@@ -383,6 +384,7 @@ def compute_tcp_udp_correlation(instances):
 
 def compute_graph_of_hops(instances, host_select, proto, flag = 1):
 
+    graph_size = 100
     raw_strip_data = []
 
     for instance in instances:
@@ -391,19 +393,33 @@ def compute_graph_of_hops(instances, host_select, proto, flag = 1):
                 if host != host_select:
                     continue
                 for x in datum:
-                    if x["proto"] == proto and x["flags"] != 0:
-                        raw_strip_data.append(x["is_ect_stripped"])
+                    if x["proto"] == proto and x["flags"] != 0 and x["flags"] == flag:
+                        raw_strip_data.append((instance["name"],x["is_ect_stripped"]))
 
     print("Recored strip data")
     pprint.pprint(raw_strip_data)
+    import random
+    raw_strip_data.sort(key=lambda x: len(x[1][-1]))
 
-    dot = Graph(comment = "A sample graph", format="svg", engine="circo")
+    hosts = set([host for host, data in raw_strip_data])
+    hosts_str = " ".join([f"{host};" for host in hosts])
+    dot = Graph(comment =   "A sample graph",
+                format =    "svg",
+                engine =    "neato",
+                graph_attr = [
+                    ("ratio", "1"),
+                    ("ranksep","1"),
+                    ("rank", f"same; {hosts_str}")
+                    ]
+               )
     nodes = set()
 
     node_attr = [("shape", "circle"),("style","filled")]
 
-    for instance in raw_strip_data:
-        prev = None
+    for name, instance in raw_strip_data:
+        dot.node(name, "", _attributes=[*node_attr])
+        prev = name
+        nodes.add(name)
         strip, index, hop_distance, trace = instance
 
         def color_node(strip, hop):
@@ -418,6 +434,7 @@ def compute_graph_of_hops(instances, host_select, proto, flag = 1):
             else:
                 return "red"
 
+        hop_outer = -1
 
         for hop,curr in trace:
 
@@ -429,11 +446,12 @@ def compute_graph_of_hops(instances, host_select, proto, flag = 1):
                 dot.edge(prev, curr, _attributes = [("color", color_edge(strip, hop))])
 
             prev = curr
+            hop_outer = hop
         if not host in nodes:
-            dot.node(host, "", _attributes=[*node_attr])
+            dot.node(host, "", _attributes=[*node_attr, ("color", "blue")])
             nodes.add(host)
-        dot.edge(prev,host, _attributes=[("color", color_edge(strip, hop))])
-    dot.unflatten(stagger=3)
+        dot.edge(prev,host, _attributes=[("color", color_edge(strip, hop_outer))])
+
     dot.render('test.gv', view=True)
 
 
@@ -474,9 +492,9 @@ def compute_tcp_udp_bar_charts(instances):
     instance_data = {}
     max_seen = 0
 
-    for instance in instances:
+    for i,instance in enumerate(instances):
         data = []
-        instance_data[instance["name"]] = data
+        instance_data[i] = data
         for trace in instance["data"]:
             udp_count = 0
             tcp_count = 0
@@ -544,19 +562,19 @@ def conduct_analysis(instances, dataset_dir="../../datasets"):
    
     stats = {}
 
-    stats["reachability udp ntp"] = compute_reachability_stats_udp_ntp(instances)
-    stats["ect_stripped_udp_ntp"] = compute_basic_strip_stats_udp_ntp(instances)
-    stats["ect_stripped_tcp_web"] = compute_basic_strip_stats_tcp_web(instances)
-    stats["ecn_negotiated"] = compute_basic_ecn_negotation_stats_web(instances)
+    # stats["reachability udp ntp"] = compute_reachability_stats_udp_ntp(instances)
+    # stats["ect_stripped_udp_ntp"] = compute_basic_strip_stats_udp_ntp(instances)
+    # stats["ect_stripped_tcp_web"] = compute_basic_strip_stats_tcp_web(instances)
+    # stats["ecn_negotiated"] = compute_basic_ecn_negotation_stats_web(instances)
     stats["ecn_negotiated_quic"] = compute_ecn_negotiation_quic(instances)
-    stats["ect_stripped_quic"] = compute_ect_stripped_quic(instances)
-    stats["dns_both_tcp_udp"] = compute_dns_tcp_ect_reachability(instances)
-    compute_cdf_tcp_ect(instances)
-    compute_cdf_quic_ect(instances)
-    compute_tcp_udp_strip_stats(instances)
-    compute_tcp_udp_correlation(instances)
-    compute_graph_of_hops(instances, "203.190.58.50", "tcp_probe")
-    pprint.pprint(stats)
+    # stats["ect_stripped_quic"] = compute_ect_stripped_quic(instances)
+    # stats["dns_both_tcp_udp"] = compute_dns_tcp_ect_reachability(instances)
+    # compute_cdf_tcp_ect(instances)
+    # compute_cdf_quic_ect(instances)
+    # compute_tcp_udp_strip_stats(instances)
+    # compute_tcp_udp_correlation(instances)
+    compute_graph_of_hops(instances, "216.58.210.206", "tcp_probe")
+    # pprint.pprint(stats)
     compute_tcp_udp_bar_charts(instances)
     
     pass
