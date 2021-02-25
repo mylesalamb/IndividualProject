@@ -1,46 +1,232 @@
-@inproceedings{Pey17,
-  author    = {Simon {Peyton Jones}},
-  title     = {How to Write a Great Research Paper},
-  booktitle = {2017 Imperial College Computing Student Workshop, {ICCSW} 2017, September
-               26-27, 2017, London, {UK}},
-  pages     = {1:1--1:1},
-  year      = {2017},    
-  
+
+@misc{floyd_addition_2001,
+	title = {The {Addition} of {Explicit} {Congestion} {Notification} ({ECN}) to {IP}},
+	url = {https://tools.ietf.org/html/rfc3168},
+	language = {en},
+	urldate = {2020-10-01},
+	author = {Floyd, Sally and Ramakrishnan, K. K. and Black, David L.},
+	year = {2001},
+	file = {Snapshot:/home/myleslamb/Zotero/storage/QENWY46Q/rfc3168.html:text/html}
 }
 
-@book{Wil09,
-  title={Style: the basics of clarity and grace},
-  author={Williams, Joseph M and Bizup, Joseph},
-  year={2009},
-  publisher={Pearson Longman}
+@inproceedings{custura_exploring_2017,
+	title = {Exploring {DSCP} modification pathologies in mobile edge networks},
+	doi = {10.23919/TMA.2017.8002923},
+	abstract = {Differentiated Services (DiffServ) provides a means for applications to classify traffic into Quality of Service (QoS) classes by reading the Differentiated Services Code Point (DSCP) field in the IP header and then mapping traffic to a specific QoS forwarding treatment. This paper provides new measurement data that examines how the DSCP is altered as packets traverse mobile broadband access networks. Results are presented for entire paths, differentiating between the access network behaviour and the rest of the path. Observing the DSCP seen at each router can be used to infer whether a packet is likely to receive an appropriate QoS treatment, and hence the level of support for DiffServ QoS. Our results identify two remarking pathologies, one for the mobile networks and the other for the Internet path.},
+	booktitle = {2017 {Network} {Traffic} {Measurement} and {Analysis} {Conference} ({TMA})},
+	author = {Custura, Ana and Venne, Andre and Fairhurst, Gorry},
+	month = jun,
+	year = {2017},
+	keywords = {access network behaviour, broadband networks, differentiated services, differentiated services code point, Diffserv networks, DiffServ networks, DiffServ QoS, DSCP modification pathologies, Internet, Internet path, IP header, IP networks, measurement data, mobile broadband access networks, Mobile communication, mobile computing, Mobile computing, mobile edge networks, QoS forwarding treatment, quality of service, Quality of service, quality of service classes, remarking pathologies, Tools},
+	pages = {1--6},
+	file = {IEEE Xplore Abstract Record:/home/myleslamb/Zotero/storage/QGGG4Z8X/8002923.html:text/html;Submitted Version:/home/myleslamb/Zotero/storage/KYYDE4LE/Custura et al. - 2017 - Exploring DSCP modification pathologies in mobile .pdf:application/pdf}
 }
 
-@book{Pin15,
-  title={The sense of style: The thinking person's guide to writing in the 21st century},
-  author={Pinker, Steven},
-  year={2015},
-  publisher={Penguin Books}
+@inproceedings{bauer_measuring_2011,
+	address = {Berlin, Germany},
+	title = {Measuring the state of {ECN} readiness in servers, clients,and routers},
+	isbn = {978-1-4503-1013-0},
+	url = {http://dl.acm.org/citation.cfm?doid=2068816.2068833},
+	doi = {10.1145/2068816.2068833},
+	abstract = {Better exposing congestion can improve traﬃc management in the wide-area, at peering points, among residential broadband connections, and in the data center. TCP’s network utilization and eﬃciency depends on congestion information, while recent research proposes economic and policy models based on congestion. Such motivations have driven widespread support of Explicit Congestion Notiﬁcation (ECN) in modern operating systems. We reappraise the Internet’s ECN readiness, updating and extending previous measurements. Across large and diverse server populations, we ﬁnd a three-fold increase in ECN support over prior studies. Using new methods, we characterize ECN within mobile infrastructure and at the client-side, populations previously unmeasured. Via large-scale path measurements, we ﬁnd the ECN feedback loop failing in the core of the network 40\% of the time, typically at AS boundaries. Finally, we discover new examples of infrastructure violating ECN Internet standards, and discuss remaining impediments to running ECN while suggesting mechanisms to aid adoption.},
+	language = {en},
+	urldate = {2020-10-08},
+	booktitle = {Proceedings of the 2011 {ACM} {SIGCOMM} conference on {Internet} measurement conference - {IMC} '11},
+	publisher = {ACM Press},
+	author = {Bauer, Steven and Beverly, Robert and Berger, Arthur},
+	year = {2011},
+	pages = {171},
+	file = {Bauer et al. - 2011 - Measuring the state of ECN readiness in servers, c.pdf:/home/myleslamb/Zotero/storage/7Q8DTAIX/Bauer et al. - 2011 - Measuring the state of ECN readiness in servers, c.pdf:application/pdf}
 }
 
-@book{StrWhi07,
-  title={The Elements of style},
-  author={Strunk, William and Whyte, EB},
-  year={2007},
-  publisher={Penguin}
+@article{custura_exploring_2018,
+	title = {Exploring {DSCP} modification pathologies in the {Internet}},
+	volume = {127},
+	issn = {0140-3664},
+	url = {http://www.sciencedirect.com/science/article/pii/S0140366417312835},
+	doi = {10.1016/j.comcom.2018.05.016},
+	abstract = {The differentiated service architecture (DiffServ) provides a means for network devices to classify traffic based on the DiffServ codepoint (DSCP) and to map the traffic to a specific QoS forwarding treatment. Successful use beyond the local network depends on consistent remarking and forwarding of the DSCP value inside and at the boundaries of DiffServ domains. This paper provides the results of a new widescale measurement campaign to examine how the DSCP value is altered as packets travel along a set of Internet paths. This allows us to infer whether a packet is likely to receive an appropriate QoS treatment and to comment the opportunities for more widely deploying DiffServ QoS. Our results identify a set of remarking pathologies, revealing that many deployed routers continue to use the previous semantics of the deprecated Type of Service (ToS) field. We also note that is not common to observe clearing of the bits in the DiffServ field, as previously believed for routers in the core of the Internet, although this varies significantly depending on the type of network studied. Our results are related to recent IETF work that recommends use of specific DSCP values.},
+	language = {en},
+	urldate = {2020-10-08},
+	journal = {Computer Communications},
+	author = {Custura, Ana and Secchi, Raffaello and Fairhurst, Gorry},
+	month = sep,
+	year = {2018},
+	pages = {86--94},
+	file = {ScienceDirect Snapshot:/home/myleslamb/Zotero/storage/IZREDNPE/S0140366417312835.html:text/html;ScienceDirect Full Text PDF:/home/myleslamb/Zotero/storage/G3CHWYYL/Custura et al. - 2018 - Exploring DSCP modification pathologies in the Int.pdf:application/pdf}
 }
 
-@book{Von80,
-  title={How to write with style},
-  author={Vonnegut, Kurt},
-  year={1980},
-  publisher={International Paper Company}
+@misc{noauthor_tracebox_nodate,
+	title = {Tracebox, a {Tool} to {Detect} {Middleboxes}},
+	url = {https://labs.ripe.net/Members/julien_colmonts/tracebox-a-nice-tool-to-detect-middleboxes},
+	abstract = {The increasing number of middleboxes (such as firewalls, NATs, proxies, or Deep Packet Inspection) has raised concerns over the impact of such middleboxes on the network and the possibility to innovate. As a result, operators and researchers are studying the distribution and behaviour of middleboxes in large networks. In this article, we will describe a tool called Tracebox that helps in detecting middleboxes. Tracebox was developed at the Université Catholique de Louvain (UCL) and at university of Liège (ULg) in 2013 and funded by Change (INFSO-ICT-257422), mPlane (ICT-318627), and Bestcom IAP. We believe that adding tracebox-like capabilities to RIPE Atlas could give network operators a deeper insight into their systems and help debugging network problems.},
+	urldate = {2020-10-08},
+	journal = {RIPE Labs},
+	file = {Snapshot:/home/myleslamb/Zotero/storage/RACZWE4J/tracebox-a-nice-tool-to-detect-middleboxes.html:text/html}
 }
 
-@incollection{Orw68,
-  title={Politics and the {English} language},
-  author={Orwell, George},
-  booktitle={The collected essays, journalism and letters of George Orwell},
-  pages={127--140},
-  year={1968},
-  publisher={Harcourt, Brace, Javanovich}
+@inproceedings{edeline_towards_2015,
+	address = {Hong Kong, Hong Kong},
+	title = {Towards a middlebox policy taxonomy: {Path} impairments},
+	isbn = {978-1-4673-7131-5},
+	shorttitle = {Towards a middlebox policy taxonomy},
+	url = {http://ieeexplore.ieee.org/document/7179418/},
+	doi = {10.1109/INFCOMW.2015.7179418},
+	abstract = {Recent years have seen the rise of middleboxes, such as ﬁrewalls, NATs, proxies, or Deep Packet Inspectors. Those middleboxes play an important role in today’s Internet, including enterprise networks and cellular networks. However, despite their huge success in modern network architecture, they have a negative impact on the Internet evolution as they can slow down the TCP protocol evolution and its extensions. Making available a summary of the potential middlebox network interferences is of the highest importance as it could allow researchers to confront their new transport protocol to potential issues caused by middleboxes. And, consequently, allowing again innovation in the Internet.},
+	language = {en},
+	urldate = {2020-10-09},
+	booktitle = {2015 {IEEE} {Conference} on {Computer} {Communications} {Workshops} ({INFOCOM} {WKSHPS})},
+	publisher = {IEEE},
+	author = {Edeline, Korian and Donnet, Benoit},
+	month = apr,
+	year = {2015},
+	pages = {402--407},
+	file = {Edeline and Donnet - 2015 - Towards a middlebox policy taxonomy Path impairme.pdf:/home/myleslamb/Zotero/storage/RNF4PSEW/Edeline and Donnet - 2015 - Towards a middlebox policy taxonomy Path impairme.pdf:application/pdf}
+}
+
+@inproceedings{medina_measuring_2004,
+	address = {Taormina, Sicily, Italy},
+	title = {Measuring interactions between transport protocols and middleboxes},
+	isbn = {978-1-58113-821-4},
+	url = {http://portal.acm.org/citation.cfm?doid=1028788.1028835},
+	doi = {10.1145/1028788.1028835},
+	abstract = {In this paper we explore the current network environment with respect to how the network’s evolution ultimately impacts end-to-end protocols. The traditional end-to-end assumptions about the Internet are increasingly challenged by the introduction of intermediary network elements (middleboxes) that intentionally or unintentionally prevent or alter the behavior of end-to-end communications. This paper provides measurement results showing the impact of the current network environment on a number of traditional and proposed protocol mechanisms (e.g., Path MTU Discovery, Explicit Congestion Notiﬁcation, etc.). We present results of measurements taken using an active measurement framework to study web servers. We analyze our results to gain further understanding of the differences between the behavior of the Internet in theory versus the behavior we observed through measurements. In addition, these measurements can be used to guide the deﬁnition of more realistic Internet modeling scenarios.},
+	language = {en},
+	urldate = {2020-10-09},
+	booktitle = {Proceedings of the 4th {ACM} {SIGCOMM} conference on {Internet} measurement  - {IMC} '04},
+	publisher = {ACM Press},
+	author = {Medina, Alberto and Allman, Mark and Floyd, Sally},
+	year = {2004},
+	pages = {336},
+	file = {Medina et al. - 2004 - Measuring interactions between transport protocols.pdf:/home/myleslamb/Zotero/storage/CEH4NI65/Medina et al. - 2004 - Measuring interactions between transport protocols.pdf:application/pdf}
+}
+
+@misc{fairhurst_benefits_2017,
+	title = {The {Benefits} of {Using} {Explicit} {Congestion} {Notification} ({ECN})},
+	url = {https://tools.ietf.org/html/rfc8087},
+	language = {en},
+	urldate = {2021-02-15},
+	author = {Fairhurst, Godred and Welzl, Michael},
+	year = {2017},
+	file = {Snapshot:/home/myleslamb/Zotero/storage/TWDCTHT7/rfc8087.html:text/html}
+}
+
+@inproceedings{kuhlewind_state_2013,
+	address = {Berlin, Heidelberg},
+	series = {Lecture {Notes} in {Computer} {Science}},
+	title = {On the {State} of {ECN} and {TCP} {Options} on the {Internet}},
+	isbn = {978-3-642-36516-4},
+	doi = {10.1007/978-3-642-36516-4_14},
+	abstract = {Explicit Congestion Notification (ECN) is a TCP/IP extension that can avoid packet loss and thus improve network performance. Though standardized in 2001, it is barely used in today’s Internet. This study, following on previous active measurement studies over the past decade, shows marked and continued increase in the deployment of ECN-capable servers, and usability of ECN on the majority of paths to such servers. We additionally present new measurements of ECN on IPv6, passive observation of actual ECN usage from flow data, and observations on other congestion-relevant TCP options (SACK, Timestamps and Window Scaling). We further present initial work on burst loss metrics for loss-based congestion control following from our findings.},
+	language = {en},
+	booktitle = {Passive and {Active} {Measurement}},
+	publisher = {Springer},
+	author = {Kühlewind, Mirja and Neuner, Sebastian and Trammell, Brian},
+	editor = {Roughan, Matthew and Chang, Rocky},
+	year = {2013},
+	keywords = {Active Queue Management, Burst Loss, Congestion Control, Loss Pattern, Random Early Detection},
+	pages = {135--144},
+	file = {Springer Full Text PDF:/home/myleslamb/Zotero/storage/WH5FBGF4/Kühlewind et al. - 2013 - On the State of ECN and TCP Options on the Interne.pdf:application/pdf}
+}
+
+@misc{floyd_inappropriate_2002,
+	title = {Inappropriate {TCP} {Resets} {Considered} {Harmful}},
+	url = {https://tools.ietf.org/html/rfc3360},
+	language = {en},
+	urldate = {2021-02-15},
+	author = {Floyd, Sally},
+	year = {2002},
+	file = {Snapshot:/home/myleslamb/Zotero/storage/3RNKB2HI/rfc3360.html:text/html}
+}
+
+@misc{thomson_quic_nodate,
+	title = {{QUIC}: {A} {UDP}-{Based} {Multiplexed} and {Secure} {Transport}},
+	shorttitle = {{QUIC}},
+	url = {https://tools.ietf.org/html/draft-ietf-quic-transport-29#section-13.4},
+	language = {en},
+	urldate = {2021-02-15},
+	author = {Thomson, Martin and Iyengar, Jana},
+	file = {Snapshot:/home/myleslamb/Zotero/storage/GGR2LP8C/draft-ietf-quic-transport-29.html:text/html}
+}
+
+@misc{fairhurst_benefits_nodate,
+	title = {The {Benefits} of {Using} {Explicit} {Congestion} {Notification} ({ECN})},
+	url = {https://tools.ietf.org/html/rfc8087#section-2.6},
+	language = {en},
+	urldate = {2021-02-15},
+	author = {Fairhurst, Godred and Welzl, Michael},
+	file = {Snapshot:/home/myleslamb/Zotero/storage/5ETCZUHN/rfc8087.html:text/html}
+}
+
+@misc{fairhurst_benefits_nodate-1,
+	title = {The {Benefits} of {Using} {Explicit} {Congestion} {Notification} ({ECN})},
+	url = {https://tools.ietf.org/html/rfc8087#ref-TR15},
+	language = {en},
+	urldate = {2021-02-15},
+	author = {Fairhurst, Godred and Welzl, Michael},
+	file = {Snapshot:/home/myleslamb/Zotero/storage/S6KGZQGC/rfc8087.html:text/html}
+}
+
+@inproceedings{trammell_enabling_2015,
+	address = {Cham},
+	series = {Lecture {Notes} in {Computer} {Science}},
+	title = {Enabling {Internet}-{Wide} {Deployment} of {Explicit} {Congestion} {Notification}},
+	isbn = {978-3-319-15509-8},
+	doi = {10.1007/978-3-319-15509-8_15},
+	abstract = {Explicit Congestion Notification (ECN) is an TCP/IP extension to signal network congestion without packet loss, which has barely seen deployment though it was standardized and implemented more than a decade ago. On-going activities in research and standardization aim to make the usage of ECN more beneficial. This measurement study provides an update on deployment status and newly assesses the marginal risk of enabling ECN negotiation by default on client end-systems. Additionally, we dig deeper into causes of connectivity and negotiation issues linked to ECN. We find that about five websites per thousand suffer additional connection setup latency when fallback per RFC 3168 is correctly implemented; we provide a patch for Linux to properly perform this fallback. Moreover, we detect and explore a number of cases in which ECN brokenness is clearly path-dependent, i.e. on middleboxes beyond the access or content provider network. Further analysis of these cases can guide their elimination, further reducing the risk of enabling ECN by default.},
+	language = {en},
+	booktitle = {Passive and {Active} {Measurement}},
+	publisher = {Springer International Publishing},
+	author = {Trammell, Brian and Kühlewind, Mirja and Boppart, Damiano and Learmonth, Iain and Fairhurst, Gorry and Scheffenegger, Richard},
+	editor = {Mirkovic, Jelena and Liu, Yong},
+	year = {2015},
+	keywords = {Connection Setup Latency, Explicit Congestion Notification (ECN), IPv6 Hosts, Marginal Risk, Middleboxes},
+	pages = {193--205},
+	file = {Springer Full Text PDF:/home/myleslamb/Zotero/storage/UEAJNBWH/Trammell et al. - 2015 - Enabling Internet-Wide Deployment of Explicit Cong.pdf:application/pdf}
+}
+
+@inproceedings{kuhlewind_state_2013-1,
+	address = {Berlin, Heidelberg},
+	series = {Lecture {Notes} in {Computer} {Science}},
+	title = {On the {State} of {ECN} and {TCP} {Options} on the {Internet}},
+	isbn = {978-3-642-36516-4},
+	doi = {10.1007/978-3-642-36516-4_14},
+	abstract = {Explicit Congestion Notification (ECN) is a TCP/IP extension that can avoid packet loss and thus improve network performance. Though standardized in 2001, it is barely used in today’s Internet. This study, following on previous active measurement studies over the past decade, shows marked and continued increase in the deployment of ECN-capable servers, and usability of ECN on the majority of paths to such servers. We additionally present new measurements of ECN on IPv6, passive observation of actual ECN usage from flow data, and observations on other congestion-relevant TCP options (SACK, Timestamps and Window Scaling). We further present initial work on burst loss metrics for loss-based congestion control following from our findings.},
+	language = {en},
+	booktitle = {Passive and {Active} {Measurement}},
+	publisher = {Springer},
+	author = {Kühlewind, Mirja and Neuner, Sebastian and Trammell, Brian},
+	editor = {Roughan, Matthew and Chang, Rocky},
+	year = {2013},
+	keywords = {Active Queue Management, Burst Loss, Congestion Control, Loss Pattern, Random Early Detection},
+	pages = {135--144},
+	file = {Springer Full Text PDF:/home/myleslamb/Zotero/storage/KGWBMVGR/Kühlewind et al. - 2013 - On the State of ECN and TCP Options on the Interne.pdf:application/pdf}
+}
+
+@misc{johansson_ecn_2017,
+	title = {{ECN} support in {QUIC}},
+	url = {https://tools.ietf.org/html/draft-johansson-quic-ecn-00},
+	language = {en},
+	urldate = {2021-02-15},
+	author = {Johansson, Ingemar},
+	year = {2017},
+	file = {Snapshot:/home/myleslamb/Zotero/storage/TX5CQL53/draft-johansson-quic-ecn-00.html:text/html}
+}
+
+@inproceedings{mcquistin_is_2015,
+	address = {Tokyo Japan},
+	title = {Is {Explicit} {Congestion} {Notification} usable with {UDP}?},
+	isbn = {978-1-4503-3848-6},
+	url = {https://dl.acm.org/doi/10.1145/2815675.2815716},
+	doi = {10.1145/2815675.2815716},
+	abstract = {We present initial measurements to determine if ECN is usable with UDP trafﬁc in the public Internet. This is interesting because ECN is part of current IETF proposals for congestion control of UDPbased interactive multimedia, and due to the increasing use of UDP as a substrate on which new transport protocols can be deployed. Using measurements from the author’s homes, their workplace, and cloud servers in each of the nine EC2 regions worldwide, we test reachability of 2500 servers from the public NTP server pool, using ECT(0) and not-ECT marked UDP packets. We show that an average of 98.97\% of the NTP servers that are reachable using not-ECT marked packets are also reachable using ECT(0) marked UDP packets, and that {\textasciitilde}98\% of network hops pass ECT(0) marked packets without clearing the ECT bits. We compare reachability of the same hosts using ECN with TCP, ﬁnding that 82.0\% of those reachable with TCP can successfully negotiate and use ECN. Our ﬁndings suggest that ECN is broadly usable with UDP trafﬁc, and that support for use of ECN with TCP has increased.},
+	language = {en},
+	urldate = {2021-02-16},
+	booktitle = {Proceedings of the 2015 {Internet} {Measurement} {Conference}},
+	publisher = {ACM},
+	author = {McQuistin, Stephen and Perkins, Colin S.},
+	month = oct,
+	year = {2015},
+	pages = {63--69},
+	file = {McQuistin and Perkins - 2015 - Is Explicit Congestion Notification usable with UD.pdf:/home/myleslamb/Zotero/storage/JUGL75GI/McQuistin and Perkins - 2015 - Is Explicit Congestion Notification usable with UD.pdf:application/pdf}
 }
