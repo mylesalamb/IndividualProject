@@ -1,10 +1,14 @@
 import pprint
 from graphviz import Graph
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
 import numpy as np
 import geoip2.database
 import json
+from collections import defaultdict
+
+# need to add ntp ecn negotiation on probes
 
 def compute_reachability_stats_udp_ntp(instances):
     
@@ -189,6 +193,31 @@ def compute_basic_strip_stats_tcp_web(instances):
                             print(f"stripped on: {host}")
                             ntp_reach[stat["flags"]] += 1
             results[name].append(ntp_reach)
+    return results
+
+def compute_basic_strip_stats_tcp_web_probe(instances):
+    results = {}
+
+    for instance in instances:
+        
+        name = instance["name"]
+        results[name] = []
+
+        print(f"calc stats for {name}")
+        for trace in instance["data"]:
+            ntp_hosts = []
+            ntp_reach = [0,0,0,0]
+            for host, datum in trace.items():
+                if any(map(lambda x: x["proto"] == "tcp_probe", datum)):
+                    ntp_hosts.append((host, datum))
+
+            for host, data in ntp_hosts:
+                for stat in data:
+                    if stat["proto"] == "tcp_probe":
+                        if stat["is_ect_stripped"][0] != -1:
+                            print(f"stripped on: {host}")
+                            ntp_reach[stat["flags"]] += 1
+            results[name].append(ntp_reach)
 
     return results
 
@@ -220,7 +249,7 @@ def compute_basic_strip_stats_udp_ntp(instances):
 
     return results
 
-def compute_basic_ecn_negotation_stats_web(instances):
+def compute_basic_ecn_negotation_stats(instances):
     results = {}
     for instance in instances:
         
@@ -230,20 +259,58 @@ def compute_basic_ecn_negotation_stats_web(instances):
         print(f"calc stats for {name}")
         for trace in instance["data"]:
             web_hosts = []
-            ecn_negotatiated = [0,0]
+            dns_hosts = []
+            ntp_hosts = []
+            ecn_negotiated_web = {"ipv4": [0,0], "ipv6": [0,0]}
+            ecn_negotiated_dns = {"ipv4": [0,0], "ipv6": [0,0]}
+            ecn_negotiated_ntp = {"ipv4": [0,0], "ipv6": [0,0]}
+
             for host, datum in trace.items():
                 if any(map(lambda x: x["proto"] == "tcp", datum)):
                     web_hosts.append((host, datum))
+                if any(map(lambda x: x["proto"] == "dns_tcp", datum)):
+                    dns_hosts.append((host, datum))
+                if any(map(lambda x: x["proto"] == "ntp_tcp_probe", datum)):
+                    ntp_hosts.append((host, datum))
+
+
 
             for host, data in web_hosts:
+                host_ver = "ipv6" if ":" in host else "ipv4"
                 for stat in data:
-                    if stat["proto"] == "tcp" and stat["flags"] == 1:
+                    if stat["proto"] == "tcp" and stat["flags"] == 2:
+                        if not stat["is_host_reachable"]:
+                            continue
                         if stat["is_ecn_negotiated_tcp"]:
-                            ecn_negotatiated[1] += 1
+                            ecn_negotiated_web[host_ver][1] += 1
                         else:
-                            ecn_negotatiated[0] += 1
+                            ecn_negotiated_web[host_ver][0] += 1
 
-            results[name].append(ecn_negotatiated)
+            for host, data in dns_hosts:
+                host_ver = "ipv6" if ":" in host else "ipv4"
+                for stat in data:
+                    if stat["proto"] == "dns_tcp" and stat["flags"] == 2:
+                        if not stat["is_host_reachable"]:
+                            continue
+                        if stat["is_ecn_negotiated_tcp"]:
+                            ecn_negotiated_dns[host_ver][1] += 1
+                        else:
+                            ecn_negotiated_dns[host_ver][0] += 1
+
+            for host, data in ntp_hosts:
+                host_ver = "ipv6" if ":" in host else "ipv4"
+                for stat in data:
+                    if stat["proto"] == "ntp_tcp_probe" and stat["flags"] == 2:
+                        if not stat["is_host_reachable"]:
+                            continue
+                        if stat["is_ecn_negotiated_tcp"]:
+                            ecn_negotiated_ntp[host_ver][1] += 1
+                        else:
+                            ecn_negotiated_ntp[host_ver][0] += 1
+
+
+
+            results[name].append({"web": ecn_negotiated_web, "dns": ecn_negotiated_dns, "ntp": ecn_negotiated_ntp})
 
     return results
 
@@ -276,6 +343,109 @@ def compute_ecn_negotiation_quic(instances):
 
     return results
 
+import datetime as dt
+
+def generate_ecn_trends_graph(input_file):
+    xs = []
+    ys = []
+    authors = []
+
+    with open(input_file) as f:
+        for line in f:
+            author, adoption, date = [ x.strip() for x in line.strip().split(",")]
+            authors.append(author)
+            xs.append(dt.datetime.strptime(date,'%d/%m/%Y').date())
+            ys.append(float(adoption))
+
+    fig, ax = plt.subplots()
+    
+    ax.scatter(xs, ys)
+    for i, author in enumerate(authors):
+        ax.annotate(author, (xs[i], ys[i]))
+    ax.set_xlabel("Proportions of hosts that negotiated ECN")
+    ax.set_ylabel("Time")
+    fig.savefig("ecn_trends.pdf")
+
+def ipv4_ipv6_stuff(instances):
+    matchings = {}
+    hostnames = []
+    matched = []
+    rev = {}
+
+    with open("aux.web.dataset") as f:
+        for line in f:
+            ipv4, ipv6, hostname = line.strip().split(",")
+            matchings[ipv4] = hostname
+            matchings[ipv6] = hostname
+            hostnames.append(hostname)
+            rev[hostname] = []
+            if ipv4:
+                rev[hostname].append(ipv4)
+            if ipv6:
+                rev[hostname].append(ipv6)
+
+
+    for instance in instances:
+        
+
+        for trace in instance["data"]:
+            crossref = {x: 0 for x in hostnames}
+            for host, datum in trace.items():
+                for elt in datum:
+                    if elt["proto"] != "tcp_probe":
+                        continue
+                    if elt["flags"] != 0x02:
+                        continue
+                    hops_to_host = elt["is_ect_stripped"][2]
+                    if not crossref[matchings[host]]:
+                        crossref[matchings[host]] = hops_to_host
+                    elif crossref[matchings[host]] == hops_to_host:
+                        matched.append(matchings[host])
+
+    incl = [item for sublist in  map(lambda x: rev[x], matched) for item in sublist]
+    ret = {}
+
+    for instance in instances:
+        counts = []
+        for trace in instance["data"]:
+            count = [0, 0]
+            for host, datum in trace.items():
+                
+                if host not in incl:
+                    continue
+                
+                for elt in datum:
+                    if elt["proto"] != "tcp" or elt["flags"] != 0x02:
+                        continue
+
+                    if not elt["is_ect_stripped"][0] != -1:
+                        continue
+
+                    if ":" in host:
+                        count[1] += 1
+                    else:
+                        count[0] += 1
+            counts.append(count)
+        ret[instance["name"]] = counts
+
+    final = []
+
+    for key, item in ret.items():
+        
+        count4, count6 = 0, 0
+        for ipv4, ipv6 in item:
+            count4 += ipv4
+            count6 += ipv6
+        
+        count4 /= len(item)
+        count6 /= len(item)
+        final.append((count4, count6))
+    print("ipv4/6 stuff")
+    pprint.pprint(final)
+
+def find_interfaces(instances):
+    pass
+
 def compute_ect_stripped_quic(instances):
 
     results = {}
@@ -283,13 +453,10 @@ def compute_ect_stripped_quic(instances):
         
         name = instance["name"]
 
-        if not "-" in name:
-            continue
-
         results[name] = []
 
         print(f"calc stats for {name}")
-        for trace in instance["data"][-2:]:
+        for trace in instance["data"]:
             web_hosts = []
             ect_stripped = [0,0,0,0]
             for host, datum in trace.items():
@@ -308,31 +475,114 @@ def compute_ect_stripped_quic(instances):
 
     return results
 
+def compute_tcp_udp_correlation(instances):
+
+    hosts = {}
+    trace_counts = {}
+
+    # get dns hosts that operate over both tcp and udp
+    for instance in instances:
+        hosts[instance["name"]] = []
+        trace_counts[instance["name"]] = len(instance["data"])
+        for trace in instance["data"]:
+            for host, datum in trace.items():
+                if any(map(lambda x: x["proto"] == "dns_tcp" and x["is_host_reachable"], datum)) and \
+                any(map(lambda x: x["proto"] == "dns_udp" and x["is_host_reachable"], datum)):
+                    hosts[instance["name"]].append((host, datum))
+    
+    
+    names = []
+    xs = []
+    ys = []
+
+    for instance_name, resolvers in hosts.items():
+        if "Part" in instance_name and "1" in instance_name:
+            continue
+        udp_count = 0
+        tcp_count = 0
+        for host, datum in resolvers:
+            pre = False
+            for elt in datum[::-1]:
+                
+                if elt["proto"] == "dns_udp_probe" and elt["flags"] == 2 and elt["is_ect_stripped"][0] != -1:
+                    pre = True
+                    udp_count +=1
+                if elt["proto"] == "dns_tcp_probe" and elt["flags"] == 2 and elt["is_ect_stripped"][0] != -1 and pre:
+                    tcp_count += 1
+
+        udp_count /= trace_counts[instance_name]
+        tcp_count /= trace_counts[instance_name]
+        print("{}: udp:{} tcp:{}".format(instance_name, udp_count, tcp_count))
+        names.append(instance_name)
+        xs.append(udp_count)
+        ys.append(tcp_count)
+
+
+    print(xs)
+    print(ys)
+    fig, ax = plt.subplots()
+    ax.scatter(xs, ys)
+    ax.set_title("Correlation between on path UDP and TCP removal")
+    ax.set_xlabel("Number of Paths that experience ECT removal under UDP")
+    ax.set_ylabel("Number of paths that also\nexperience ECT removal under TCP")
+
+    fig.savefig("tcpudp.pdf")
+
+
+def ect_marked_icmp_stats(instances):
+    ret = {}
+
+    for instance in instances:
+        protos = {}
+
+        for trace in instance["data"]:
+            for host, datum in trace.items():
+                for elt in datum:
+                    if "marked_icmp" in elt:
+                        val = protos.setdefault(elt["proto"], [0, 0])
+                        if elt["marked_icmp"]:
+                            val[0] += 1
+                        else:
+                            val[1] += 1
+
+        ret[instance["name"]] = protos
+        pprint.pprint(ret)
+
+
 
 
 
 def compute_tcp_udp_strip_stats(instances):
     
-    hosts = []
+    hosts = {}
+    trace_counts = {}
 
     # get dns hosts that operate over both tcp and udp
     for instance in instances:
+        hosts[instance["name"]] = []
+        trace_counts[instance["name"]] = len(instance["data"])
         for trace in instance["data"]:
             for host, datum in trace.items():
                 if any(map(lambda x: x["proto"] == "dns_tcp" and x["is_host_reachable"], datum)) and \
                 any(map(lambda x: x["proto"] == "dns_udp" and x["is_host_reachable"], datum)):
-                    hosts.append((host, datum))
+                    hosts[instance["name"]].append((host, datum))
     
-    udp_count = 0
-    tcp_count = 0
     
-    for host, datum in hosts:
-        for elt in datum:
-            if elt["proto"] == "dns_udp_probe" and elt["flags"] == 2 and elt["is_ect_stripped"][0] != -1:
-                udp_count +=1
-            if elt["proto"] == "dns_tcp_probe" and elt["flags"] == 2 and elt["is_ect_stripped"][0] != -1:
-                tcp_count += 1
-    
+    for instance_name, resolvers in hosts.items():
+        udp_count = 0
+        tcp_count = 0
+        for host, datum in resolvers:
+            for elt in datum:
+                if elt["proto"] == "dns_udp_probe" and elt["flags"] == 2 and elt["is_ect_stripped"][0] != -1:
+                    udp_count +=1
+                
+                if elt["proto"] == "dns_tcp_probe" and elt["flags"] == 2 and elt["is_ect_stripped"][0] != -1:
+                    tcp_count += 1
+
+        udp_count /= trace_counts[instance_name]
+        tcp_count /= trace_counts[instance_name]
+        print("{}: udp:{} tcp:{}".format(instance_name, udp_count, tcp_count))
+
     print(f"udp {udp_count}, tcp {tcp_count}")
 
 def compute_ipv4_ipv6_strip_stats(instances):
@@ -355,46 +605,18 @@ def compute_dns_tcp_ect_reachability(instances):
         reachability[instance["name"]] = count
     return reachability
 
-def compute_tcp_udp_correlation(instances):
-
-    for instance in instances:
-        counts = []
-        for trace in instance["data"]:
-            udp_count = 0
-            tcp_count = 0
-            for host, datum in trace.items():
-                
-                # filter hosts that do not operate over both
-                if not (any(map(lambda x: x["proto"] == "dns_tcp" and x["is_host_reachable"], datum)) and \
-                    any(map(lambda x: x["proto"] == "dns_udp" and x["is_host_reachable"], datum))):
-                    continue
-
-                for x in datum:
-                    if x["proto"] == "dns_udp_probe" and x["flags"] == 1 and x["is_ect_stripped"][0] != -1:
-                        udp_count += 1
-                    if x["proto"] == "dns_tcp_probe" and x["flags"] == 1 and x["is_ect_stripped"][0] != -1:
-                        tcp_count += 1
-            counts.append((udp_count, tcp_count))
-        udp_fin = sum([u for u,_ in counts]) / len(counts)
-        tcp_fin = sum([t for _,t in counts]) / len(counts)
-        print(f"tcp: {tcp_fin}, udp: {udp_fin}")              
-
-            
-    return
-
-def compute_graph_of_hops(instances, host_select, proto, flag = 1):
+def compute_graph_of_hops(instances, host_select, proto, flag = 2):
 
     graph_size = 100
     raw_strip_data = []
 
     for instance in instances:
-        for trace in instance["data"]:
-            for host, datum in trace.items():
-                if host != host_select:
-                    continue
-                for x in datum:
-                    if x["proto"] == proto and x["flags"] != 0 and x["flags"] == flag:
-                        raw_strip_data.append((instance["name"],x["is_ect_stripped"]))
+        for host, datum in instance["data"][0].items():
+            if host not in host_select:
+                continue
+            for x in datum:
+                if x["proto"] == proto and x["flags"] == flag:
+                    raw_strip_data.append((instance["name"],x["is_ect_stripped"]))
 
     print("Recored strip data")
     pprint.pprint(raw_strip_data)
@@ -404,15 +626,18 @@ def compute_graph_of_hops(instances, host_select, proto, flag = 1):
     hosts = set([host for host, data in raw_strip_data])
     hosts_str = " ".join([f"{host};" for host in hosts])
     dot = Graph(comment =   "A sample graph",
-                format =    "svg",
+                format =    "pdf",
                 engine =    "neato",
                 graph_attr = [
-                    ("ratio", "1"),
-                    ("ranksep","1"),
-                    ("rank", f"same; {hosts_str}")
+                    ("ratio", "auto"),
+                    ("ranksep","0.5"),
+                    ("nodesep","0.5"),
+                    ("rank", f"same; {hosts_str}"),
+                    ("overlap", "true")
                     ]
                )
     nodes = set()
+    edges = set()
 
     node_attr = [("shape", "circle"),("style","filled")]
 
@@ -442,17 +667,127 @@ def compute_graph_of_hops(instances, host_select, proto, flag = 1):
                 dot.node(curr, "", _attributes=[*node_attr, ("fillcolor", color_node(strip, hop))])
                 nodes.add(curr)
 
-            if prev and prev != curr:
+            if prev and prev != curr and (prev,curr) not in edges:
                 dot.edge(prev, curr, _attributes = [("color", color_edge(strip, hop))])
+                edges.add((prev,curr))
 
             prev = curr
             hop_outer = hop
         if not host in nodes:
             dot.node(host, "", _attributes=[*node_attr, ("color", "blue")])
             nodes.add(host)
-        dot.edge(prev,host, _attributes=[("color", color_edge(strip, hop_outer))])
+        
+        if(prev, host) not in edges:
+            dot.edge(prev,host, _attributes=[("color", color_edge(strip, hop_outer))])
+            edges.add((prev,host))
+    print(dot.source)
 
-    dot.render('test.gv', view=True)
+
+def compute_preserve_quic_graph(instances):
+    hop_count = [0] * 64
+    trace_count = 0
+    for instance in instances:
+        
+        name = instance["name"]
+
+        if "Part" in name:
+            continue
+
+        print(f"calc stats for {name}")
+        for trace in instance["data"][-2:]:
+            for host, datum in trace.items():
+                for x in datum:
+                    if x["proto"] == "quic_probe" and x["flags"] == 2:
+                        trace_count += 1
+                        if x["is_ect_stripped"][0] != -1:
+                            hop_count[x["is_ect_stripped"][0]] += 1
+
+    #trim of zero values
+    hop_count = hop_count[::-1]
+    trim = None
+    for i, elt in enumerate(hop_count):
+        if elt != 0:
+            trim = i
+            break
+
+    hop_count = hop_count[trim:][::-1]
+    print("trimming at {}".format(trim))
+    print(hop_count)
+    print(trace_count)
+
+
+    total_remarked = sum(hop_count)
+    hop_count = list(map(lambda x: (total_remarked - x) / total_remarked, np.cumsum(hop_count) ))
+
+
+    xs = np.arange(1, len(hop_count)+1)
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.set_title("Graph presenting where on the path ECT removal is reported")
+    ax1.set_xlabel('Interface hop')
+    ax1.set_ylabel('Proportion')
+
+    ax1.plot(xs, hop_count)
+    fig.savefig("preservequic.pdf")
+    
+
+
+    print(hop_count)
+    print(trace_count)
+
+
+def compute_preserve_tcp_graph(instances):
+
+    hop_count = [0] * 64
+    trace_count = 0
+
+
+    for instance in instances:
+        if instance["name"] == "Participant-1":
+            print("Skipping")
+            continue
+        for trace in instance["data"]:
+            for host, datum in trace.items():
+                for x in datum:
+                    if x["proto"] == "tcp_probe" and x["flags"] == 2:
+                        trace_count += 1
+                        if x["is_ect_stripped"][0] != -1:
+                            hop_count[x["is_ect_stripped"][0]] += 1
+    
+
+    #trim of zero values
+    hop_count = hop_count[::-1]
+    trim = None
+    for i, elt in enumerate(hop_count):
+        if elt != 0:
+            trim = i
+            break
+
+    hop_count = hop_count[trim:][::-1]
+    print("trimming at {}".format(trim))
+    print(hop_count)
+    print(trace_count)
+
+
+    total_remarked = sum(hop_count)
+    hop_count = list(map(lambda x: (total_remarked - x) / total_remarked, np.cumsum(hop_count) ))
+
+
+    xs = np.arange(1, len(hop_count)+1)
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.set_title("Graph presenting where on the path ECT removal is reported")
+    ax1.set_xlabel('Interface hop')
+    ax1.set_ylabel('Proportion')
+
+    ax1.plot(xs, hop_count)
+    fig.savefig("preservetcp.pdf")
+    
+
+
+    print(hop_count)
+    print(trace_count)
+
 
 
 def compute_map_of_hosts(data_file):
@@ -483,9 +818,10 @@ def compute_map_of_hosts(data_file):
     ax = world.plot(
         color='black', edgecolor='black')
 
-    gdf.plot(ax=ax, color='#88CCEE', markersize=2, alpha=0.7)
+    gdf.plot(ax=ax, color='#88CCEE', markersize=1.5, alpha=0.5)
     plt.axis('off')
-    plt.savefig(f"{data_file}.map.svg")
+    plt.tight_layout()
+    plt.savefig(f"{data_file}.map.pdf", bbox_inches='tight')
 
 def compute_tcp_udp_bar_charts(instances):
 
@@ -537,6 +873,51 @@ def compute_tcp_udp_bar_charts(instances):
     plt.show()
     print(max_seen)
 
+def compute_tcp_bar_charts(instances):
+
+    instance_data = {}
+    max_seen = 0
+
+    for i,instance in enumerate(instances):
+        data = []
+        vantage = instance["name"]
+        instance_data[i] = data
+        for trace in instance["data"]:
+            tcp_count = 0
+            for host, datum in trace.items():
+                if ":" in host:
+                    continue
+
+                for x in datum:
+                    if x["proto"] == "tcp_probe" and x["flags"] == 2 and x["is_ect_stripped"][0] != -1:
+                        tcp_count += 1
+            data.append({"name": vantage, "tcp":tcp_count})
+            if tcp_count > max_seen:
+                max_seen = tcp_count
+    pprint.pprint(instance_data)
+
+    # graph the results
+    fig, axs = plt.subplots(4, 3)
+    fig.suptitle("Instances of ECT removal under TCP against IPv4 Web servers")
+    axs_re = axs.reshape(12)
+
+    for ax, data in zip(axs_re, instance_data.items()):
+        host, datums = data
+        tcp_vals = [x["tcp"] for x in datums]
+
+        ind = np.arange(len(tcp_vals))
+        width = 0.35
+
+        ax.set_title(datums[0]["name"])
+        ax.set_ylim(0, max_seen)
+        ax.get_xaxis().set_ticks([])
+        rects1 = ax.bar(ind, tcp_vals, width, label="TCP")
+
+    fig.text(0.5, 0.04, 'Traces', ha='center')
+    fig.text(0.04, 0.5, 'Count', va='center', rotation='vertical')
+    fig.set_size_inches( 8.5, 7.5)
+    plt.savefig("tcp_bar.pdf")
+
         
 
     
@@ -554,27 +935,39 @@ def conduct_analysis(instances, dataset_dir="../../datasets"):
         in here we generate graphs
     '''
     
+    generate_ecn_trends_graph("ecn_trends.txt")
 
-    print("attempt to map web hosts")
-    compute_map_of_hosts("ntp.locs")
-    compute_map_of_hosts("web.locs")
-    compute_map_of_hosts("dns.locs")
+    # print("attempt to map web hosts")
+    # compute_map_of_hosts("ntp.locs")
+    # compute_map_of_hosts("web.locs")
+    # compute_map_of_hosts("dns.locs")
    
     stats = {}
 
     # stats["reachability udp ntp"] = compute_reachability_stats_udp_ntp(instances)
     # stats["ect_stripped_udp_ntp"] = compute_basic_strip_stats_udp_ntp(instances)
     # stats["ect_stripped_tcp_web"] = compute_basic_strip_stats_tcp_web(instances)
-    # stats["ecn_negotiated"] = compute_basic_ecn_negotation_stats_web(instances)
+    # stats["ect_probe_tcp_web"] = compute_basic_strip_stats_tcp_web_probe(instances)
+    # stats["ecn_negotiated"] = compute_basic_ecn_negotation_stats(instances)
     stats["ecn_negotiated_quic"] = compute_ecn_negotiation_quic(instances)
-    # stats["ect_stripped_quic"] = compute_ect_stripped_quic(instances)
+    stats["ect_stripped_quic"] = compute_ect_stripped_quic(instances)
     # stats["dns_both_tcp_udp"] = compute_dns_tcp_ect_reachability(instances)
     # compute_cdf_tcp_ect(instances)
     # compute_cdf_quic_ect(instances)
     # compute_tcp_udp_strip_stats(instances)
     # compute_tcp_udp_correlation(instances)
-    compute_graph_of_hops(instances, "216.58.210.206", "tcp_probe")
-    # pprint.pprint(stats)
-    compute_tcp_udp_bar_charts(instances)
+    #  "69.171.250.35", "74.6.231.20" "216.58.210.206", 
+    # compute_graph_of_hops(instances, ["69.171.250.35", "74.6.231.20", "216.58.210.206"], "tcp_probe")
     
+    # compute_tcp_bar_charts(instances)
+    # compute_preserve_tcp_graph(instances)
+    # compute_preserve_quic_graph(instances)
+    
+    # compute_tcp_udp_bar_charts(instances)
+    # compute_tcp_udp_strip_stats(instances)
+    
+    # compute_tcp_udp_correlation(instances)
+    # ect_marked_icmp_stats(instances)
+    # ipv4_ipv6_stuff(instances)
+    pprint.pprint(stats)
     pass
