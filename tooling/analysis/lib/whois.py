@@ -40,8 +40,7 @@ class WhoIs:
             obj = IPASN(net)
             result = obj.lookup()
         except Exception as e:
-            print(f"exception thrown {e}")
-            return None
+            result = {"asn":"private"}
         self._conn.setnx(ipaddr, json.dumps(result))
         return result
 

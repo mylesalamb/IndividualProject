@@ -6,7 +6,15 @@ import matplotlib.patches as mpatches
 import numpy as np
 import geoip2.database
 import json
+import redis
+import lib.whois
 from collections import defaultdict
+
+# connection to offline redis cache of AS numbers harvested during initial parse of data
+REDIS_HOST = "localhost"
+REDIS_PORT = 6379
+connection = redis.Redis(REDIS_HOST, port=REDIS_PORT)
+
 
 # need to add ntp ecn negotiation on probes
 
@@ -873,6 +881,164 @@ def compute_tcp_udp_bar_charts(instances):
     plt.show()
     print(max_seen)
 
+def compute_interfaces(instances):
+    
+    clearing = set()
+    clearing_as = set()
+    
+    maybe_clearing = set()
+    maybe_clearing_as = set()
+
+    non_clearing = set()
+    non_clearing_as = set()
+    boundary = 0
+    non_boundary = 0
+    
+    for instance in instances:
+        if instance["name"] == "Particpant-1":
+            continue
+        for trace in instance["data"]:
+            for host, datum in trace.items():
+                # check the trace data for reachable hosts
+
+                for x in datum:
+                    if not (x["proto"] == "tcp_probe" and x["flags"] == 2 and x["is_host_reachable"]):
+                        continue
+
+                    hop_remove, j, k, hops = x["is_ect_stripped"]
+                    for i, elt  in enumerate(hops):
+                        hop_count, interface, _ = elt
+                        _, interface_next = hops[i+1] if len(hops) - 1 > i else (None, None)
+                        
+                        auto = connection.get(interface)
+                        if not auto:
+                            auto = lib.whois.WhoIs.instance().lookup(interface)
+                            if not auto:
+                                print("still returning none :/")
+                        asn = json.loads(auto)["asn"]
+
+                        if interface_next:
+                            asn_next = json.loads(connection.get(interface_next))["asn"]
+
+                        if hop_remove + 1 == hop_count and hop_remove != -1:
+                            if interface in non_clearing:
+                                maybe_clearing.add(interface)
+                                non_clearing.remove(interface)
+                            else:
+                                clearing.add(interface)
+                                clearing_as.add(asn)
+                            
+                            if not (asn in [None, "private"] or asn_next in [None, "private"]):
+                                if interface_next:
+                                    if asn != asn_next:
+                                        print("{} - {}".format(asn, asn_next))
+                                        boundary += 1
+                                    else:
+                                        non_boundary += 1
+
+
+                        elif not interface in clearing:
+                            non_clearing.add(interface)
+                            non_clearing_as.add(asn)
+
+
+                        else:
+                            clearing.remove(interface)
+                            maybe_clearing.add(interface)
+                            maybe_clearing_as.add(asn)
+
+
+    print("clearing: {}".format(len(clearing)))
+    print("non clearing: {}".format(len(non_clearing)))
+    print("maybe clearing: {}".format(len(maybe_clearing)))
+
+    print("clearing {}".format(len(clearing_as)))
+    print("maybe clearing {}".format(len(maybe_clearing_as)))
+    print("not clearing {}".format(len(non_clearing_as)))
+
+    print("boundary remarking: {}\nNon boundary remarking: {}".format(boundary, non_boundary))
+
+
+def as_traversal_table_data(instances):
+
+    table_dat = [[0] * (i+1) for i in range(1,25)]
+
+    for instance in instances:
+        if instance["name"] == "Participant-1":
+            continue
+        for trace in instance["data"]:
+            for host, datum in trace.items():
+                for x in datum:
+                    if not (x["proto"] == "tcp_probe" and x["flags"] == 2 and x["is_host_reachable"]):
+                        continue
+
+                    hop_remove, j, k, hops = x["is_ect_stripped"]
+                    prev_as = None
+                    curr_as = None
+                    as_strip = -1
+                    as_count = 0
+
+                    # if ect is not stripped
+                    if hop_remove == -1:
+                        continue
+
+                    for i, elt  in enumerate(hops):
+                        hop_count, interface, _ = elt
+                        curr_as = json.loads(connection.get(interface))["asn"]
+                        
+                        if curr_as == "NA":
+                            curr_as = prev_as
+
+                        if prev_as == None:
+                            prev_as == curr_as
+
+                        elif prev_as != curr_as and prev_as != "private":
+                            as_count += 1
+
+                        if hop_remove + 1 == hop_count and hop_remove != -1:
+                            as_strip = as_count
+                        prev_as = curr_as
+
+                    if as_strip != -1:
+                        table_dat[as_count][as_strip] += 1
+    sums = []
+    print(table_dat)
+    for sub in table_dat:
+        # private addresses from src network
+        # we just attribute these to the 1st AS
+        sub.pop(0)
+        tot = sum(sub)
+        sums.append(tot)
+        csum = np.cumsum(sub)
+        if not tot:
+            continue
+        prop = list(map(lambda x: x / tot, sub))
+        print(prop)
+                    
+    print(sums)
+    
+    pass
+
+def compute_strip_stats_ntp(instances):
+    
+    traces = []
+
+    for instance in instances:
+        count = 0
+        total = 0
+        
+
+        for trace in instance["data"]:
+            for host, datum in trace.items():
+                for x in datum:
+                    if x["proto"] == "ntp_udp_probe" and x["flags"] == 2:
+                        if x["is_ect_stripped"][0] != -1:
+                            count += 1
+                        total += 1
+        
+        traces.append( [instance["name"], count / len(instance["data"]), (count/total) * 100 ] )
+    print(traces)
+
 def compute_tcp_bar_charts(instances):
 
     instance_data = {}
@@ -919,8 +1085,91 @@ def compute_tcp_bar_charts(instances):
     plt.savefig("tcp_bar.pdf")
 
         
+def dns_udp_tcp_pairing(instances):
+
+    counts = {}
+
+    for instance in instances:
+        matched = 0
+        matched_as = 0
+        not_matched = 0
+        not_matched_as = 0
+        for trace in instance["data"]:
+            for host, datum in trace.items():
+                tcp_trace = None
+                udp_trace = None
+                for x in datum:
+                    if x["proto"] == "dns_udp_probe" and x["flags"] == 0x02 and x["is_host_reachable"] and x["is_ect_stripped"][0] != -1:
+                        udp_trace = x
+                    if x["proto"] == "dns_tcp_probe" and x["flags"] == 0x02 and x["is_host_reachable"] and x["is_ect_stripped"][0] != -1:
+                        tcp_trace = x
+            
+                if not tcp_trace or not udp_trace:
+                    continue
+
+                hop_remove, j, k, hops = tcp_trace["is_ect_stripped"]
+                tcp_dev = None
+                udp_dev = None
+
+                for hop_count, interface, _ in hops:
+                    if hop_count == hop_remove:
+                        tcp_dev = interface
+                        break
+
+                hop_remove, j, k, hops = udp_trace["is_ect_stripped"]
+                for hop_count, interface, _ in hops:
+                    if hop_count == hop_remove:
+                        udp_dev = interface
+                        break
+
+                tcp_as = connection.get(tcp_dev)
+                udp_as = connection.get(udp_dev)
+
+                if tcp_as and udp_as:
+                    if json.loads(tcp_as)["asn"] == json.loads(udp_as)["asn"]:
+                        matched_as += 1
+                    else:
+                        not_matched_as += 1
+
+                if tcp_dev == udp_dev:
+                    matched+=1
+                else:
+                    print("{} != {}".format(tcp_dev, udp_dev))
+                    not_matched+=1
+
+        avg = len(instance["data"])
+        counts[instance["name"]] = [matched/avg, not_matched/avg, matched_as/avg, not_matched_as/avg]
+    pprint.pprint(counts)
 
     
+
+def compute_remarking_tcp(instances):
+    results = [{}, {}, {}, {}]
+    print(results)
+    for instance in instances:
+        if instance["name"] == "ian":
+            continue
+        print("do remarking for instance: \"{}\"".format(instance["name"]))
+        for trace in instance["data"]:
+            for host, datum in trace.items():
+                #look for where ECT is remarked on the network
+                #compute a table of the common remarking for each codepoint
+                
+                #are codepoints remarked to other codepoints
+                #are some changed to others
+                #does this generally happen with a change to the ToS byte
+
+                for x in datum:
+                    if x["proto"] == "dns_udp_probe" and x["flags"] != 0 and x["is_ect_stripped"][0] != -1:
+                        print("is stripped here")
+                        for hop, interface, tos in x["is_ect_stripped"][-1]:
+                            if (tos &0xFC ,tos&0x03) != x["flags"]:
+                                if (tos &0xFC ,tos&0x03) in results[x["flags"]]:
+                                    results[x["flags"]][(tos &0xFC ,tos&0x03)] += 1
+                                else:
+                                    results[x["flags"]][(tos &0xFC ,tos&0x03)] = 1
+
+    pprint.pprint(results)
 
 def compute_aux_structures(instances):
     ''' 
@@ -935,7 +1184,7 @@ def conduct_analysis(instances, dataset_dir="../../datasets"):
         in here we generate graphs
     '''
     
-    generate_ecn_trends_graph("ecn_trends.txt")
+    # generate_ecn_trends_graph("ecn_trends.txt")
 
     # print("attempt to map web hosts")
     # compute_map_of_hosts("ntp.locs")
@@ -949,8 +1198,8 @@ def conduct_analysis(instances, dataset_dir="../../datasets"):
     # stats["ect_stripped_tcp_web"] = compute_basic_strip_stats_tcp_web(instances)
     # stats["ect_probe_tcp_web"] = compute_basic_strip_stats_tcp_web_probe(instances)
     # stats["ecn_negotiated"] = compute_basic_ecn_negotation_stats(instances)
-    stats["ecn_negotiated_quic"] = compute_ecn_negotiation_quic(instances)
-    stats["ect_stripped_quic"] = compute_ect_stripped_quic(instances)
+    # stats["ecn_negotiated_quic"] = compute_ecn_negotiation_quic(instances)
+    # stats["ect_stripped_quic"] = compute_ect_stripped_quic(instances)
     # stats["dns_both_tcp_udp"] = compute_dns_tcp_ect_reachability(instances)
     # compute_cdf_tcp_ect(instances)
     # compute_cdf_quic_ect(instances)
@@ -969,5 +1218,10 @@ def conduct_analysis(instances, dataset_dir="../../datasets"):
     # compute_tcp_udp_correlation(instances)
     # ect_marked_icmp_stats(instances)
     # ipv4_ipv6_stuff(instances)
-    pprint.pprint(stats)
+    # pprint.pprint(stats)
+    # compute_interfaces(instances)
+    as_traversal_table_data(instances)
+    dns_udp_tcp_pairing(instances)
+    compute_strip_stats_ntp(instances)
+    compute_remarking_tcp(instances)
     pass

@@ -68,9 +68,9 @@ def marked_icmp(packets, ctx) -> bool:
     
     for i,pkt in enumerate(packets):
         if ICMP in pkt and pkt[IP].tos & 0x03:
-            out_pkt.append(i)
+            out_pkt.append([i, pkt[IP].tos])
         if ICMPv6TimeExceeded in pkt and pkt[IPv6].tc & 0x03:
-            out_pkt.append(i)
+            out_pkt.append([i, pkt[IPv6].tc])
     return out_pkt
 
 '''
@@ -119,7 +119,7 @@ def is_ect_stripped(packets, ctx) -> str:
         if ICMP in pkt and _is_icmp_ttl_exceed(pkt[ICMP]):
 
             as_datum = whois.lookup(pkt[IP].src)
-            icmp_data.append((hops, pkt[IP].src))
+            icmp_data.append((hops, pkt[IP].src, pkt[IPerror].tos))
 
             if IPerror in pkt and not (pkt[IPerror].tos & 0x03):
             
@@ -133,7 +133,7 @@ def is_ect_stripped(packets, ctx) -> str:
         # ICMP response somewhere on the path
         if ICMPv6TimeExceeded in pkt and IPerror6 in pkt:
             
-            icmp_data.append((hops, pkt[IPv6].src))
+            icmp_data.append((hops, pkt[IPv6].src, pkt[IPerror6].tc))
             as_datum = whois.lookup(pkt[IPv6].src)
             
             # has the ect marking been removed
