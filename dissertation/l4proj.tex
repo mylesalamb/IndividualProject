@@ -18,7 +18,7 @@
 
 %==============================================================================
 %% METADATA
-\title{Where Is ECN Stripped On the Network?}
+\title{Where is ECN stripped on the network?}
 \author{Myles Lamb}
 \date{March 26, 2021}
 
@@ -27,30 +27,13 @@
 %==============================================================================
 %% ABSTRACT
 \begin{abstract}
-    % Every abstract follows a similar pattern. Motivate; set aims; describe work; explain results.
-    % \vskip 0.5em
-    % ``XYZ is bad. This project investigated ABC to determine if it was better. 
-    % ABC used XXX and YYY to implement ZZZ. This is particularly interesting as XXX and YYY have
-    % never been used together. It was found that  
-    % ABC was 20\% better than XYZ, though it caused rabies in half of subjects.''
     
+ Explicit Congestion Notification (ECN) allows devices on the network to signal incipient congestion before a congestive loss occurs. However, devices within the network have presented deployment issues for features such as ECN. This paper investigates where on the network ECN Capable Transport (ECT) codepoints are altered by network devices. To achieve this, we implement a new network analysis tool. We subsequently conduct a medium-scale deployment of the tool to gather various measurements from the network to ascertain the current state of affairs of the treatment of ECN on the network. 
     
- Explicit Congestion Notification (ECN) allows devices on the network to signal incipient congestion before congestive loss occurs. The middlebox internet has presented deployment issues for features such as ECN. In this paper we investigate where on the network ECN codepoints are altered by network devices. To achieve this we implement a new network analysis tool. We subsequently conduct a medium scale deployment of the tool to gather a variety of measurements from the network to ascertain whether; Differing ECT codepoints are treated consistently by network devices, whether the transport protocol in use influences the modification of ECT codepoints. 
-    
-    % This paper investigates where on the network ECT codepoints are removed by network devices, we investigate this through the production of a new network analysis tool, allowing for the observation of the modifications of packets on the network on the granularity of individual ECT code points.
 \end{abstract}
 
 %==============================================================================
 
-% EDUCATION REUSE CONSENT FORM
-% If you consent to your project being shown to future students for educational purposes
-% then insert your name and the date below to  sign the education use form that appears in the front of the document. 
-% You must explicitly give consent if you wish to do so.
-% If you sign, your project may be included in the Hall of Fame if it scores particularly highly.
-%
-% Please note that you are under no obligation to sign 
-% this declaration, but doing so would help future students.
-%
 \def\consentname {Myles Lamb} % your full name
 \def\consentdate {26 March 2021} % the date you agree
 
@@ -93,15 +76,13 @@
 % reset page numbering. Don't remove this!
 \pagenumbering{arabic} 
 
-This chapter will motivate the development of a new network analysis tool to investigate the adoption of Explicit Congestion Notification (ECN). Additionally we investigate the frequency and location on the network where ECN expressions are altered by devices on the network path. Following chapters will go into detail, discussing various aspects of the project, such as the design and implementation of the network analysis tool and analysis of the results of a medium scale deployment of the previously developed tool.
+This chapter will motivate developing a new network analysis tool to investigate the adoption of Explicit Congestion Notification (ECN). Additionally, we investigate the frequency and location of devices that alter ECN expressions on the network path. The following chapters will discuss various aspects of the project, such as the design and implementation of the network analysis tool and analysis of the results of a medium-scale deployment of the previously developed tool.
 
-ECN is an extension to the Internet Protocol (IP) and some higher level protocols such as Transmission Control Protocol (TCP) that allows devices on the network to signal incipient congestion and respond accordingly before packet loss due to network congestion occurs.
+ECN is an extension to the Internet Protocol (IP) and some higher-level protocols such as Transmission Control Protocol (TCP) that allows devices on the network to signal incipient congestion and respond accordingly before packet loss due to network congestion occurs.
 
-The deployment of ECN has been slowed due to issues relating to devices on the network dropping packets that attempt to utilise ECN, resetting connections that attempt to negoatiate ECN or remarking packets that indicate ECN capable transport (\cite{floyd_inappropriate_2002}), ultimately leading to a lack of faith in the technology. Whilst these issues have lessened in prevalence over time (\cite{trammell_enabling_2015}), there has been a renewed interest in the deployment of ECN through its integration with Quic, a new transport protocol operating over UDP (\cite{johansson_ecn_2017}), as well as the growing need to reduce queuing delay across modern networks, given the increasing prevalence of real time traffic, ultimately presenting the preservation of ECN markings across the network as critical for managing the continued development of the internet. To the best of our knowledge this paper presents first set of findings relating to the deployment of ECN within Quic. As well as presenting a new technical method for measuring on path removal of codepoints to TCP based hosts.
+The deployment of ECN has been hampered due to devices negatively interacting with packets that attempt to utilise ECN. Such as resetting connections that try to negotiate ECN or remarking packets that indicate ECN capable transport (\cite{floyd_inappropriate_2002}), ultimately leading to a lack of faith in the technology. Whilst these issues have lessened in prevalence over time (\cite{trammell_enabling_2015}), there has been a renewed interest in the deployment of ECN through its integration with Quic, a new transport protocol operating over UDP (\cite{johansson_ecn_2017}). We additionally recognise the growing need to reduce queuing delays across modern networks, given the increasing prevalence of real-time traffic. This presents the preservation of ECN markings across the network as critical for managing the network's continued development. To the best of our knowledge, this paper presents the first set of findings relating to the deployment of ECN within Quic, additionally illustrating a new technical method for measuring on path removal of ECT codepoints to TCP-based hosts.
 
-
-
-We present the aims of this paper as follows; We intend to investigate the overall adoption of ECN. Additionally we investigate where as well as how often devices on the network modify the expressions of ECN related marking on internet traffic. We also seek to discern whether choices in internet protocol version or transport layer substrate influence the remarking behaviour of devices on the network, incorporating new protocols that support ECN such as Quic. Lastly, we investigate whether the available ECT codepoints exhibit different behaviours from devices on the network. To achieve this we will; Devise a suitable experimental methodology to gather appropriate measurements from the network (Section \ref{chap:design}), Design and implement a network analysis tool supporting the goals of the experimental methodology (Section \ref{chap:design} and Section \ref{chap:implementation}), Evaluate the network analysis tool through a medium scale deployment across numerous geographically distributed hosts (Section \ref{chap:evaluation}).
+We present the aims of this paper as follows; We intend to investigate the overall adoption of ECN. Additionally, we explore where as well as how often devices on the network modify the expressions of ECT codepoints on traffic on the network. We also seek to discern whether the internet protocol version or choice of transport layer substrate influences the remarking behaviour of devices on the network. We additionally incorporate new protocols that support ECN, such as Quic. Lastly, we investigate whether the available ECT codepoints experience different remarking behaviours from devices on the network. To achieve this, we will; Devise a suitable experimental methodology to gather appropriate measurements from the network (Section \ref{chap:design}). We then design and implement a network analysis tool supporting the goals of the experimental methodology (Section \ref{chap:design} and Section \ref{chap:implementation}). Lastly, we evaluate the data produced by the network analysis tool through a medium-scale deployment across numerous geographically distributed hosts (Section \ref{chap:evaluation}).
 
 \clearpage
 
@@ -114,23 +95,26 @@ This chapter discusses the fundamentals of ECN as a technology and presents the 
 
 \section{Overview of ECN}
 
-The traditional end to end approach to congestion control employed within transport protocols such as TCP results in end hosts inferring congestion on the network through signals such as packet loss. Whilst protocols such as TCP have managed well through the use of loss based congestion signals. With the advent of mobile computing and the internet of things, and implied wireless communication. It is not clear that loss based congestive signals are the most suitable.
-ECN is a mechanism that allows for devices on the network to signal incipient congestion to end hosts before congestive loss occurs. This allows routers utilising Active Queue Management (ie. Random Early Detection) to mark packets when congestion is experienced. Receivers observing these markings inform the sender of their observation, allowing the sender to reduce their sending rate before a congestive loss occurs. This may potentially reduce negative aspects of loss based congestion signals such as, Head-of-line blocking for protocols that provide an in-order delivery service model such as TCP, or providing benefits to the quality of service for protocols that do not re-transmit lost packets such as Real-time Protocol (RTP).
+% Explain why routers drop packets, and why hosts use congestive loss as a signal for congestion %
 
-ECN is implemented through 2 bits of the IPv4/IPv6 header. Namely, the 2 least significant bits of the Traffic Class byte, with the other 6 bits constituting the differentiated services codepoint (DSCP). These two bits of the IP header are used to signify whether a given transport is ECN capable, and whether congestion has been experienced on the network. We have four potential bit patterns using these bits, called ECT (ECN capable transport) codepoints. 00 = not ECN capable, 10 = ECT(0), 01 = ECT(1), 11 = CE (congestion experienced).
+% Explain why remarking on AS boundaries %
 
-It may be noted that both ECT(0) and ECT(1) can be used to signal a given transport as ECN capable, and both are to be treated equivalently by devices on the network (\cite{floyd_addition_2001}). Furthermore if a device on the network does not leverage the ECN field, it is not to modify it. Historically, the bits that constitute the ECN field occupy the same space as the legacy ToS (Type of Service) byte, providing some insight into why ECN is removed on the network, with some older equipment on the network continuing to use ToS semantics and subsequently erroneously clearing the ECN field (\cite{kuhlewind_state_2013}).
+The traditional end-to-end approach to congestion control employed within transport protocols such as TCP results in end hosts inferring congestion on the network through signals such as packet loss. Whilst protocols such as TCP have managed well through the use of loss-based congestion signals. With the advent of mobile computing and the internet of things, with implied wireless communication. It is not clear that loss based congestive signals are the most suitable.
+ECN is a mechanism that allows for devices on the network to signal incipient congestion to end hosts before a congestive loss occurs. This enables routers utilising Active Queue Management (i.e. Random Early Detection) to mark packets when congestion is experienced. Recipients observing these markings inform the sender of their observation, allowing them to reduce their sending rate before a congestive loss occurs. Avoiding congestive loss through ECN mitigates negative aspects of packet loss on the network; this includes head-of-line blocking for protocols that provide an in-order delivery service model in the case of TCP. Alternatively, providing benefits to service quality for protocols that do not re-transmit lost packets, such as Real-time Protocol (RTP).
 
-Lastly, the CE codepoint is used by devices on the network to signal that congestion is incipient on a given node on the network. Routers that implement ECN related functionality typically employ an algorithm such as Random early detection (RED) to produce a probability of dropping packets in the future. If this is over a given threshold, the router will mark packets that indicate ECN capable transport with the congestion experienced codepoint, as a means to inform senders to reduce their sending rates.
+ECN is implemented through two bits of the IPv4/IPv6 header. Namely, the two least significant bits of the Traffic Class byte, with the other 6 bits constituting the differentiated services codepoint (DSCP). These two bits of the IP header are used to signify whether a given transport is ECN capable and whether congestion has been experienced on the network. We have four potential bit patterns using these bits, called ECT (ECN capable transport) codepoints. These bit patterns are interpreted as follows, 00 = not ECN capable, 10 = ECT(0), 01 = ECT(1), 11 = CE (congestion experienced).
+
+We may note that both ECT(0) and ECT(1) can be used to signal a given transport is ECN capable, and both are to be treated equivalently by devices on the network (\cite{floyd_addition_2001}). Furthermore, if a device on the network does not leverage the ECN field, it should not modify it. However, the first standard presenting ECN was introduced in 2001. Before its' introduction, the bits that constitute the ECN field occupy part of the legacy ToS (Type of Service) byte. With the presence of older equipment on the network continuing to use ToS semantics, we gain some insight into why devices on the network interact poorly with ECN(\cite{kuhlewind_state_2013}).
+
+Lastly, the CE codepoint is used by devices on the network to signal that congestion is incipient on a given device. Routers that implement ECN related functionality typically employ an algorithm such as Random early detection (RED) to produce a probability of dropping packets in the future. Suppose this probability is over a given threshold. In that case, the router will mark packets that indicate ECN capable transport with the congestion experienced codepoint as a means to inform senders to reduce their sending rates. To avoid the router's associated buffer from overflowing resulting in a congestive loss.
 
 \subsection{Historic use of ToS and its implications}
 
-As previously mentioned, the bits in the IP header that constitute the ECN field did not always serve this purpose. Historically these bits constituted part of the Type of Service field, which served many related purposes over the years of its use. Originally presented in RFC 792 and further updated in RFC 1583 it was primarily used to identify the precedence of traffic as well as providing mechanisms to request specific treatment on the network such as, low latency, or high reliability. However the latter was seldom used outside of a few specific use case scenarios. Whilst efforts were made to ensure some level of compatibility between ToS and the later introduced DSCP (Differentiated Services Codepoint), such as maintaining the IP Precedence aspect of ToS. this could not be extended to ECN. The bits that constitute ECN where either unused as defined in RFC 792, or otherwise in RFC 1583 the rightmost bit was to always contain a value of zero. \cite{custura_exploring_2017} showed the existence of a number of devices on the internet that continue to use ToS based semantics, within a number of Autonomous Systems. exhibiting marking pathologies that are destructive towards ECN on the network.
-% Discuss research concerning the %
+As previously mentioned, the IP header's bits that constitute the ECN field did not always serve this purpose. Historically, these bits formed part of the Type of Service field, which served many related purposes over the years of its use—initially presented in RFC 792 and further updated numerous times in the following years. It was primarily used to identify the precedence of traffic and provide mechanisms to request specific treatment on the network, such as low latency or high reliability. However, the latter was seldom used outside of a few particular use case scenarios. Whilst efforts were made to ensure some level of compatibility between ToS and the later introduced DSCP (Differentiated Services Codepoint), such as maintaining the IP Precedence aspect of ToS. This could not be extended to ECN, a concept conceived after the deprecation of the ToS field. The bits that constitute ECN were either unused and set to zero as defined in RFC 792. Alternatively, in RFC 1583 The rightmost bit was always to contain a value of zero. For instance, \cite{custura_exploring_2017} demonstrated several devices on the network that continue to use ToS based semantics within some Autonomous Systems that exhibited marking pathologies that were destructive towards ECN on the network.
 
 \section{ECN within TCP}
 
-When ECN is utilised with TCP, hosts must first negotiate its use at the beginning of the TCP connection, during the SYN-ACK exchange as part of TCP connection establishment. Utilising two, previously reserved bits of the TCP header. Namely the ECE (ECN Echo) and the CWR (Congestion window reduced) bits. Hosts may negotiate ECN through setting the ECE and CWR bits of the TCP header on the initiating SYN of the TCP handshake. If the receiving host also desires to use ECN, a SYN-ACK with the ECE bit set will be returned. Subsequent data segments sent during the connection should be marked with either ECT(0) or ECT(1) on the IP header to indicate ECN capable transport. Given when congestion is experienced on the network, and some device marks a given packet with the ECE codepoint. End hosts receiving a packet with the CE codepoint set, should respond by setting the ECE bit in the TCP header on the following segment sent during the connection. The sending host then indicates the receipt of a segment with ECE bit set, by setting the CWR bit in the TCP header of the following segment sent, as well as responding with respect to the congestion control algorithm in use as if packet loss had occurred, as summarised in figure \ref{fig:ecn_tcp}.
+When ECN is utilised with TCP, hosts must first negotiate its use at the beginning of the TCP connection during the SYN-ACK exchange as part of TCP connection establishment. ECN under TCP utilises two previously reserved bits of the TCP header. Namely the ECE (ECN Echo) and the CWR (Congestion window reduced) bits. Hosts may negotiate ECN by setting the ECE and CWR bits of the TCP header on the initiating SYN of the TCP handshake. If the receiving host also desires to use ECN, a SYN-ACK with the ECE bit set will be returned. Subsequent data segments sent during the connection should be marked with either ECT(0) or ECT(1) on the IP header to indicate ECN capable transport. When congestion is experienced on a node on the network, the network device should mark a given packet with the ECE codepoint. End hosts receiving a packet with the CE codepoint set should respond by setting the ECE bit in the TCP header on the following segment sent during the connection. The sending host then indicates the receipt of a segment with ECE bit set, by setting the CWR bit in the TCP header of the following segment sent, as well as responding with respect to the congestion control algorithm in use as if packet loss had occurred, this process is summarised in figure \ref{fig:ecn_tcp}.
 
 
 
@@ -174,22 +158,23 @@ When ECN is utilised with TCP, hosts must first negotiate its use at the beginni
             { TCP(DATA, CWR)  IP(ECN=10)};
             
             \end{tikzpicture}
-        \caption{Diagrammatic representation of the operation of the ECN extension with TCP/IP with a congested link on the network. When a given device on the network experiences congestion, it remarks the ECN field of packets indicating ECN capable transport to the CE codepoint. TCP acks have been omitted for the sake of brevity.}
+        \caption{Diagrammatic representation of the operation of ECN with TCP/IP with a congested link on the network. When a given device on the network experiences congestion, it remarks the ECN field of packets indicating ECN capable transport to the CE codepoint. Sending hosts respond by reducing their sending rates as if a loss on the network had occurred. TCP acks have been omitted for the sake of brevity.}
     \label{fig:ecn_tcp}
     \end{figure}
 \end{center}
 \section{ECN within UDP}
 
-ECN is not directly used with UDP, the exact operation of ECN with UDP is deferred to the context of a higher layer protocol, such as RTP, or Quic, which utilise UDP as their transport substrate. In the following text, we discuss the operation of ECN within Quic, one of the protocols investigated in this paper. Quic introduced the notion of ECN support with an IETF draft \cite{johansson_ecn_2017} discussing its intended operation. Whilst Quic is still in development as a protocol (lacking an RFC ), we summarise the operation of UDP under Quic within the draft used within this paper (ietf-draft-29).
+ECN is not directly used with UDP. The actual operation of ECN with UDP is deferred to the context of a higher layer protocol, such as RTP, or Quic, which utilise UDP as their transport substrate. In the following text, we discuss the operation of ECN within Quic, one of the protocols investigated in this paper. Quic introduced the notion of ECN support with an IETF draft \cite{johansson_ecn_2017} discussing its intended operation. Whilst Quic is still in development as a protocol (lacking an RFC ), we summarise the function of ECN under Quic within IETF draft 29 (the variant of Quic used in this paper).
 
-When ECN is utilised with Quic, the sender must first determine whether both the path and the end host support ECN marking. This is defined as whether ECT codepoints are not cleared on path, or packets setting ECT codepoints are dropped, as well as the end host being able to both view and set the ECN field on the IP header. This is achieved through sending early Quic packets marked with either ECT(0) or ECT(1). Assuming packets are received by the end host, the receivers response should contain an "ECN ACK Frame" containing counts of packets observed with ECT(0), ECT(1) or CE. Of which the sender must validate, to ensure that the path and host support ECN markings. Following this, the sender may continue to send ECT marked packets. If a sending host, receives an ECN Ack frame that increases the CE count. The sender is to reduce their congestion window, in a similar manner to as if a loss had occurred, similarly to ECN under TCP/IP.
+When ECN is utilised with Quic, the sender must first determine whether both the path and the end host support ECN marking. Support for ECN marking is defined as whether ECT codepoints are not cleared on the network path and that packets setting ECT codepoints are not dropped. Additionally, we require that the end host can view and set the ECN field on the IP header. This is verified through sending early Quic packets marked with either ECT(0) or ECT(1). Assuming packets are received by the end host, the receivers response should contain an "ECN ACK Frame" containing counts of packets observed with ECT(0), ECT(1) or CE. Of which the sender must validate to ensure that the path and host support ECN markings. Following this, the sender may continue to send ECT marked packets. If a sending host, receives an ECN Ack frame, that increases the CE count. The sender reduces their congestion window similarly to as if a loss had occurred (reducing their sending rate), similarly to ECN under TCP/IP.
 
 \section{ICMP Quotations}
 \label{sec:icmp}
 
-Introduced in RFC 792, it is required for some ICMP responses to return the IP header and the first 8 bytes of associated data as a payload of the ICMP packet. In particular 'TTL exceeded in transit' ICMP responses, are required by the RFC to observe this behaviour. This allows for path level insight to the IP header, and specifically, insight into remarking behaviour of ECN codepoints from within the network. This mechanism is used extensively in the existing literature on network measurement. Additionally in RFC 1812 this behaviour is recommended to be extended to not just aspects of the packet header, but the entire IP packet, however \cite{noauthor_tracebox_nodate} notes that this behaviour is less commonly observed as to only being adopted by some major vendors of networking equipment. The general concept around using ICMP responses to gain path level insight into the network is through the implementation of a traceroute style utility. 
+Introduced in RFC 792, it is required for some ICMP responses to return the IP header and the first 8 bytes of associated data as the payload of the ICMP packet. In particular 'TTL exceeded in transit' ICMP responses, are required by the RFC to observe this behaviour. This allows for path level insight into the IP header. More specifically allowing for insight into remarking behaviour of ECT codepoints from within the network. This mechanism is used extensively in the existing literature on network measurement. Additionally in RFC 1812 this behaviour is recommended to be extended to not just aspects of the packet header, but the entire IP packet, however \cite{noauthor_tracebox_nodate} notes that this behaviour is less commonly observed as to only being adopted by some major vendors of networking equipment. The general concept around using ICMP responses to gain path level insight into the network is through implementing a traceroute style utility.
 
-From a given end-host on the network, We begin through sending packets into the network with a Time to Live (TTL) of one. the TTL field of the IP header describes the lifetime of an IP packet. When an IP packet arrives at a router or other device on the network, it is to decrement the TTL of the packet by one. If the TTL reaches zero, the packet is to be dropped by the device, and an ICMP TTL exceeded response is to be sent in return. This response signifies that a packet was dropped on the network due to an expiring TTL, additionally as a payload we receive the contents of the IP header and at least the first 8 bytes of the originating packets contents, of which is known as an ICMP quotation. The sender in turn receives this ICMP response containing the packet and its contents as it was seen by the device. This can be inspected to determine whether particular modifications have occurred in transit, and roughly where on the network that this occurs. This process is then repeated for increasing TTL values such that the packet traverses further into the network. We typically stop this procedure when either the end host responds, or a given TTL value is reached. The process is summarised in figure \ref{fig:icmp}.
+From a given end-host on the network, We begin sending packets into the network with a Time to Live (TTL) of one. the TTL field of the IP header describes the lifetime of an IP packet. When an IP packet arrives at a router or other device on the network, it is to decrement the TTL of the packet by one. If the TTL reaches zero, the packet is to be discarded by the device, and an ICMP TTL exceeded response is to be sent in return. This response signifies that a packet was dropped on the network due to an expiring TTL.
+Additionally, as a payload of this ICMP response, the IP header contents and at least the first 8 bytes of the originating packets contents are returned. Which is known as an ICMP quotation. The sender in turn receives this ICMP response containing the packet and its contents as the device on the network percieved it. This ICMP quotation can be inspected to determine whether particular modifications have occurred in transit, and roughly where on the network that this occurs. This process is then repeated for increasing TTL values such that the packets traverse further into the network. We typically stop this procedure when either the end host responds, or a given TTL value is reached. This process is summarised in figure \ref{fig:icmp}.
 
 \begin{figure}[H]
 
@@ -206,29 +191,31 @@ There exists an extensive body of work on ECN measurement across the last two de
 \subsection{Measuring the state of ECN Readiness in clients and Servers}
 
 
-There exists an extensive body of work on ECN measurement across the last two decades concerning the deployment of ECN within TCP. \cite{bauer_measuring_2011} measured the top one million web servers as ranked by the alexa top sites list, a collection of college and university based hosts and a collection of hosts intended for use with mobile devices. Measuring what fraction of hosts would negotiate ECN, additionally investigating whether middleboxes or routers on the network path were clearing ECT codepoints using an approach based on ICMP probes of the network as described in section \ref{sec:icmp}. From a collection of vantage points hosted in datacentres or university networks. The authors found that 94.8\% of hosts preserved the ECT codepoint across the network path. Additionally the authors observed many remarking behaviours for the ECN field, in some cases which transitions between several ECT codepoints before being set to zero value. The authors utilised a robust approach to identify a given interface that may be responsible for remarking the ECN codepoint, additionally attributing this behaviour to a particular AS, we see a particular bias to earlier in the network path, however this should be expected, as given when ECN codepoints are remarked subsequent parts of the network path are unable to be evaluated. This paper primarily used the CE codepoint in its network measurements, hence does not investigate the possibility of differential treatment of the codepoints on the network. Additionally, this paper was produced before the advent of the Quic network protocol hence it was not evaluated.
+Much of the existing research over the last two decades concerns the deployment of ECN within TCP. \cite{bauer_measuring_2011} measured the top one million web servers as ranked by the alexa top sites list, a collection of college and university based hosts and a collection of hosts intended for use with mobile devices. The authors Measured what fraction of hosts would negotiate ECN, additionally investigating whether middleboxes or routers on the network path were clearing ECT codepoints using an approach based on ICMP probes of the network as described in section \ref{sec:icmp}. The research was conducted from a collection of vantage points hosted in datacentres or university networks. The authors found that 94.8\% of paths to hosts preserved the ECT codepoint across the network path. Additionally, the authors observed many remarking behaviours for the ECN field. In some cases, there were several transitions between ECT codepoints before being set to zero value. The authors utilised a robust approach to identify a given interface that may be responsible for remarking the ECN field, additionally attributing this behaviour to a particular AS. We see a particular bias to earlier in the network path, however this should be expected, as given when ECT codepoints are remarked subsequent portions of the network path are unable to be evaluated due to the ECN field typically being zeroed. This paper primarily used the CE codepoint in its network measurements, hence does not investigate the possibility of differential treatment of the codepoints on the network. Additionally, this paper was published before the advent of the Quic network protocol hence it was not evaluated.
 
 
 \subsection{Is ECN Usable With UDP}
 
-Additional studies have also concerned themselves with the deployment of UDP based protocols incorporating ECN. \cite{mcquistin_is_2015} investigated in the broader sense whether ECN was usable with UDP, through the evaluation of 2,500 NTP pool servers. Revealing that ECN had a minor impact on the reachability of NTP servers. The authors briefly examined, where on the path ECT(0) codepoints were removed from packets, through implementing traceroutes to given hosts. Sending TTL limited packets with increasing hop limits until a response from the intended hosts is received. The generated ICMP TTL exceeded responses being collected in the process. The authors identified that in the majority of cases ECT(0) codepoints do traverse the network. Furthermore, when ECT codepoints are stripped from packets, this occurs distantly from the host, with the responsible device being located on an AS boundary. The authors did not use a directly comparable approach for that of TCP connections against the same host, although the core focus of the study was in evaluating the usability of UDP.
+Additional studies have also concerned themselves with the deployment of UDP based protocols incorporating ECN. \cite{mcquistin_is_2015} investigated in the broader sense whether ECN was usable with UDP through the evaluation of 2,500 NTP pool servers. It was revealed that ECN had a minor impact on the reachability of NTP servers. The authors briefly examined where on the path ECT(0) codepoints were removed from packets through implementing traceroute style utilities targeting the collected pool of NTP servers. The authors sent TTL limited packets with increasing hop limits until a response from the intended hosts is received. With the generated ICMP TTL exceeded responses being collected in the process. The authors identified that in the majority of cases, ECT(0) codepoints do traverse the network. Furthermore, they revealed that when ECT codepoints are stripped from packets, this occurs distantly from the host, with the responsible device typically being located on an AS boundary. The authors did not use a directly comparable approach for that of TCP connections against the same host; hence it is not indicated whether there are differences in the treatment of ECT codepoints under differing transport protocols. However, the core focus of the study was in evaluating the usability of UDP.
 
 \subsection{Exploring DSCP Modification Pathologies in the Internet}
 
-\cite{custura_exploring_2017} examined the wider traffic class byte. With a particular focus on the DSCP codepoint however the author discovers many different modification pathologies that in some cases effect ECN codepoints as well. In particular demonstrating a correlation between DSCP codepoint remarking and ECN remarking in many cases, suggesting that some routers erronously clear the ECN field as a consequence of continuing to use ToS semantics. However, this is not universal suggesting that not all ECN remarking behaviour is due to this observation. Furthermore the author investigates whether the transport protocol in use influences the DSCP modifications pathologies discussed in the paper. This analysis is not extended to the 3 non zero ECN codepoints individually, for which the modification pathologies slightly differ as shown in the paper.
+\cite{custura_exploring_2017} examined the wider traffic class byte with a particular focus on the DSCP header. However, the author discovers many different modification pathologies that, in some cases, affect the ECN field as well. In particular, the author demonstrated a correlation between DSCP header remarking and remarking of the ECN field in the majority of cases, suggesting that some routers erroneously clear the ECN field as a consequence of continuing to use ToS semantics. However, this is not suggested to be the root cause for all remarking behaviour on the network in regards to the ECN field. Suggesting that additional behaviours on the network may be attributed to the clearing of the ECN field. Furthermore, the author investigates whether the transport protocol in use influences the DSCP modifications pathologies discussed in the paper. This analysis is not extended to the three non zero ECT codepoints individually. Hence it cannot be inferred that the ECT codepoint in use has no effect on the remarking behaviour exhibited by devices on the network path.
 
 \subsection{PathSpider}
 
-There also exists a collection of existing tools tailored for network measurement. PathSpider is one of these tools, it is intended active measurement to reveal impairments on the network path. PathSpider allows for connections to a given host to be carried out in the format of an A/B test to reveal a given characteristic of the host or network path. For instance revealing whether a given connection to a host fails when ECN is negotiated. However for the purposes of this paper the default configurations of PathSpider were deemed insufficient. PathSpider treats the network at large as a black box. That is, PathSpider is sufficient at signalling when a given condition occurs, for example, whether a given TCP segement marked with ECE results in a CWR in response. However this signalling is not extended to where on the network path that the impairment occurs is located. Additionally newer protocols that are of interest, such as Quic do not have existing plugins supporting their analysis.
+There also exists a collection of existing tools tailored for network measurement. PathSpider is one of these tools. It is intended to be used as an active measurement tool to reveal impairments on the network path. PathSpider allows for connections to a given host to be carried out in the format of an A/B test to reveal a given characteristic of the host or network path. For instance, revealing whether a given connection to a host fails when ECN is negotiated. However, for the purposes of this paper, the default configurations of PathSpider were deemed insufficient. PathSpider treats the network at large as a black box. That is, PathSpider is sufficient at signalling when a given condition occurs, for example, whether a given TCP segment marked with ECE results in a CWR in response. However, this signalling is not extended to where on the network path that the impairment occurs is located. Hence we could determine whether ECT codepoints traverse the network in some circumstances, but we would be unable to determine where ECT codepoints are removed on the network, which is insufficient. Additionally, newer protocols that are of interest, such as Quic do not have existing plugins supporting their analysis.
 
 \subsection{Tracebox}
 
-Tracebox is another network path transparency tool. Tracebox is viewed as a spiritual successor to the widely used traceroute tool allowing the user to identify the existence and behaviour of certain devices on the network such as NATs through evaluating ICMP responses as mentioned in section \ref{sec:icmp} against the source packet and identifying modifications. Whilst tracebox does feature a programmatic interface in Lua it was deemed at insufficient in implementing a plugin for evaluating Quic. 
+Tracebox is another network path transparency tool. Tracebox is viewed as a spiritual successor to the widely used traceroute tool allowing the user to identify the existence and behaviour of certain devices on the network such as NATs through evaluating ICMP responses against the source packet and identifying modifications through comparisons between the two. Whilst tracebox does feature a programmatic interface in Lua, it was deemed insufficient in implementing a plugin for evaluating Quic. However, we have key takeaways in regards to features that Tracebox implements. We find it desirable that the produced tool should also implement similar mechanisms to detect the location of modifications of packets on the network based on the ICMP responses obtained from the network. However, as we concern ourselves with solely the IP header containing the ECN field, and Tracebox seeks to detect modifications to higher layer protocols such as TCP. We should not require the entire packet to be returned from the network within returned ICMP quotations. Hence the default behaviour (returning at least the IP header and eight following bytes) should be sufficient.
 
-\subsection{Scamper}
+% maybe include these, but should probs just extend what we have 
+
+% \subsection{Scamper}
 
 
-\subsection{Scriptroute}
+% \subsection{Scriptroute}
 
 
 
@@ -237,21 +224,14 @@ Tracebox is another network path transparency tool. Tracebox is viewed as a spir
 \chapter{Analysis/Requirements}
 \label{chap:analysis}
 
-The following chapter details the analysis of the problem domain. Documenting how the scope of the project was narrowed, informing the design and subsequent implementation phases of the project.
+The following chapter details the analysis of the problem domain. We document how the project's scope was narrowed, informing the design and subsequent implementation phases of the research.
 
 \section{General Problem}
 
-\subsection{Detecting Modification of ECT codepoints}
 
-To determine whether ECT marked packets are traversing the network, we refer to the description presented in Section \ref{sec:icmp}. Describing a process of sending packets with increasing TTL values, and collecting returned ICMP responses. Notably, as at least the IP header and the first 8 bytes of associated data with a given packet are returned within the ICMP quotation. This allows for the contents of the ECN field in particular to be observed as the packet traverses the network hop by hop. This process generalizes well in the case of UDP based protocols such as Network Time Protocol (NTP), or Domain Name Service (DNS), given the request reply exchange that these protocols use. However, for TCP based connections, packets containing ECT codepoints are only sent with TCP segments that contain data.
+To determine whether ECT marked packets are traversing the network, we refer to the description presented in Section \ref{sec:icmp}, where we described the process of sending packets with increasing TTL values and collected returned ICMP responses. Notably, as at least the IP header and the first 8 bytes of associated data with a given packet are returned within the ICMP quotation. This allows the ECN field contents to be observed as the packet traverses the network hop by hop. This process generalizes well in UDP-based protocols such as Network Time Protocol (NTP), or Domain Name Service (DNS), given the request-reply exchange that these protocols use. However, for TCP based connections, packets containing ECT codepoints are only sent with TCP segments that contain data.
 
-% How do we figure out what is going on on the network -> ttl exceeded responses %
-
-% Visualisation of packets traversing the network %
-
-\subsection{Attributing Modifications to a location on the network}
-
-In attempting to attribute ECT modification a particular device on the network introduces a number of ambiguities. Suppose for a given traceroute style operation (as described in Section \ref{sec:icmp}) to a given host that in the ICMP response from the router 1 hop from the host the quoted packet contains the expected ECT marking. However, suppose that for the 2nd hop, the quotation shows the ECT codepoint to be cleared. We have several possibilities as to what device on the network is responsible. It could be the device from the first hop, where the router performs some post-processing on packets that may subsequently clear the ECN field. the responsible device may also be the router at the 2nd hop that pre-processes packets in a way that is destructuve to the ECN field. Additionally the responsible device could be some device in between that operates on packets that does not otherwise decrease the TTL of the packets that pass through it, such as a load balancer. Lastly, although a lesser discussed topic, there is also a small chance of false positives through ICMP misquotations as shown by \cite{malone_analysis_2007}.
+Attempting to attribute ECT modifications to a particular device on the network introduces several ambiguities. Suppose for a given traceroute style operation (as described in Section \ref{sec:icmp}), that for a given host, the ICMP response from the router present one hop from the vantage point the quoted packet contains the expected ECT marking. However, suppose that for the 2nd hop from the vantage point, the quotation shows the ECT codepoint to be cleared. We have several possibilities as to what device on the network is responsible. It could be the device from the first hop, where the router performs some post-processing on packets that may subsequently clear the ECN field. The responsible device may also be the router at the 2nd hop that pre-processes packets in a way that is destructive to the ECN field. Additionally, the responsible device could be some device in between. Given a device that operates on packets that does not otherwise decrement the TTL, such as a load balancer. Lastly, although a lesser discussed topic, there is also a slight chance of false positives through ICMP misquotations as shown by \cite{malone_analysis_2007}.
 
 \begin{figure}[H]
 \centering
@@ -260,30 +240,24 @@ In attempting to attribute ECT modification a particular device on the network i
 \label{fig:icmp}
 \end{figure}
 
-Additionally, if we have a network interface, that is reasonably known to have cleared the ECN codepoint, we may also wish to ascribe the actions of this network interface to a particular Autonomous System (AS). This presents additional difficulties as router interfaces that comprise AS boundaries may utilise addresses from either of the adjacent AS's or some private address, the latter resulting in the resolution attempts failing.
+Additionally, suppose we have a network interface that is reasonably known to have cleared the ECN codepoint. In that case, it may be desirable to ascribe this network interface's actions to a particular Autonomous System (AS). This presents additional difficulties as router interfaces that comprise AS boundaries may utilise addresses from either of the adjacent AS's or some private address, the latter resulting in the resolution attempts failing.
 
-
-\subsection{Generalizing to the wider network}
 \label{sec:general}
 
-As is generally seen as good scientific practice, we wish to obtain results that are on the whole generalizable. In the context of this paper, we seek to generalize the treatment of ECT codepoints within the wider network. For example, if we opted to obtain measurements from a singular host or vantage point on the network, we introduce a vulnerability to a particular device located close to the Host on the network that may erroneously clear ECT codepoints, potentially biasing the majority of the results obtained. Additionally, geographically close hosts, or hosts that share the same underlying Internet Service Provider (ISP). May share much of the same network level path to particular end hosts, hence are vulnerable to the same issues presented with collecting data from a singular vantage point on the network. 
+As is generally seen as a reasonable scientific practice, we wish to obtain results that are, on the whole generalizable. In this paper's context, we seek to generalize the treatment of ECT codepoints into the broader network. For example, suppose we opted to obtain measurements from a singular host or vantage point on the network. In that case, we introduce a vulnerability to a particular device located close to the Host on the network that may erroneously clear ECT codepoints, potentially biasing the majority of the results obtained. Selecting one vantage point to measure restricts the number of network-level paths that may be tested, restricting our ability to gain a representative view of ECT codepoints' treatment on the network. Additionally, geographically close hosts, or hosts sharing the same underlying Internet Service Provider (ISP). May share much of the same network level path to particular end hosts, hence are vulnerable to the same issues presented with collecting data from a singular vantage point on the network. 
 
-Additionally, when we measure the network itself. We wish to measure a broad number of network paths, as a means to gather representative data of usage of the network, achieving this from a singular host on a given network is difficult, as it is likely the first few hops from a given host will be similar for the majority of connections given default routing behaviours.
+With the following points being raised. We find it desirable to gather data from several vantage points on the network. Additionally, these hosts would preferably distant from each other concerning network-level paths. Although not a directly comparable measure, geographically distant hosts usually satisfy this requirement.
 
-With the following points being raised. We find it desirable to gather data from several vantage points on the network. Additionally these hosts would preferably distant to eachother with resepct the internet. Although not a directly comparable measure, geographically distant hosts usually satisfy this requirement.
-
-\subsection{Identified Areas for Exploration}
-
-In consulting the relevant literature for the topic of ECN modification on the network. We find that although a wealth of research exists in the area, the majority of research conducted, consults either ECT(0) for the majority of the measurements taken from the network in the case of <papers that use these>, or otherwise use the CE codepoint and do not subsequently elaborate on the specific remarking behaviour. As previously mentioned, RFC 1583 defines rightmost bit of the traffic class byte as to being set to zero, of which is now occupied by one of the two ECN bits. If this behaviour is still observed on the network, we would expect to see differential treatment of different codepoints on the network, hence this topic is to be pursued in the following chapters of this paper. Additionally, the recent development in regard to the implementation of ECN functionality within newer protocols such as Quic present potential deployment issues with devices that have not otherwise been exposed to ECT enabled UDP based traffic. We also present an additional area for elaboration. Does the transport protocol utilised influence the modification of ECT marked packets on the network? Hence we should seek to compare the incidence of whether TCP based or UDP based protocols are more prone to negative interactions with middle-boxes with resepct to ECN. Lastly, due to the nature of ECN measurement being inherently longitudinal in nature, we seek to provide an additional datapoint to the existing body of work that exists on the deployment of ECN. Hence we should also seek to discern the current adoption of ECN as well as instances of where ECN is otherwise inhibited on the network.
+In consulting the relevant literature for the topic of ECN modification on the network. We find that although a wealth of research exists in the area, the majority of research conducted consults either ECT(0) for the majority of the measurements taken from the network in the case of <papers that use these>, or otherwise use the CE codepoint and do not subsequently elaborate on the specific remarking behaviour. As previously mentioned, RFC 1583 defines the rightmost bit of the traffic class byte as being set to zero, which is now occupied by one of the two ECN bits. If this behaviour is still observed on the network, we would expect to see a differential in the treatment of different codepoints on the network. Hence this topic is to be pursued in the following chapters of this paper. Additionally, the recent developments regarding the implementation of ECN functionality within newer protocols such as Quic present potential deployment issues with devices that have not otherwise been exposed to ECT enabled UDP based traffic. We also present an additional area for elaboration. Does the transport protocol utilised influence the modification of ECT marked packets on the network? Hence, we should seek to compare whether TCP-based or UDP-based protocols are more prone to negative interactions with middle-boxes concerning ECN. Lastly, due to the nature of ECN measurement being inherently longitudinal in nature, we seek to provide an additional data point to the existing body of work that exists on the deployment of ECN. Hence we should seek to discern the current adoption of ECN and instances where ECN is otherwise inhibited on the network.
 
 
 \section{Requirements}
 
-With respect to the presented general problem, we highlight the existence of several requirements that were deduced during the course of the project and subsequently prioritised using the MoSCoW method to guide the development of project within the defined time constraints. Ensuring that the project met the initial criteria, answering the questions posed. MoSCoW prioritisation dictates that requirements be grouped into four distinct categories indicating their associated priority. They are as follows;
+Concerning the presented general problem, we highlight the existence of several requirements that were deduced during the course of the project. These requirements were subsequently prioritised using the MoSCoW method to guide project development within the defined time constraints. Ensuring that the project met the initial criteria, providing relevant data to answer the proposed aims. MoSCoW prioritisation dictates that requirements be grouped into four distinct categories indicating their associated priority. They are as follows.
 
 \begin{itemize}
     \item Must Have (\textbf{MH}), form the minimum usable subset of requirements, for the developed system to provide value
-    \item Should have (\textbf{SH}), form important requirements but are not fundmanetal to the systems core function
+    \item Should have (\textbf{SH}), form important requirements but are not fundamental to the systems core function
     \item Could have (\textbf{CH}), form requirements that are desirable, but deemed less important than the above classifications
     \item Would be nice to have (\textbf{WH}), form requirements that were decided not to be delivered as a means to clarify scope of implementation.
 \end{itemize}
@@ -306,7 +280,7 @@ With respect to the presented general problem, we highlight the existence of sev
 
 \section{Summary}
 
-In this chapter we have discussed the general problem domain around active network measurement with respect to ECN, we have discussed the rationale behind the general approach to measuring where on the network path ECN codepoints are stripped, and motivated the decision behind measuring individual ECT codepoints and transport protocols and their treatment on the network.
+In this chapter, we have discussed the general problem domain around active network measurement concerning ECN. We have discussed the rationale behind the general approach to measuring where on the network path ECN codepoints are stripped and motivated the decision to measure individual ECT codepoints and transport protocols and their treatment on the network.
 
 
 
@@ -315,12 +289,12 @@ In this chapter we have discussed the general problem domain around active netwo
 \chapter{Design}
 \label{chap:design}
 
-Given the nature of the topic, we identify two high level aspects of design, that of the network analysis tool required to gather suitable measurements from the network, and the experimental design itself, to ensure that the measurements we gather from the network are both robust and are capable of answering the questions proposed in Chapter \ref{chap:analysis}.
+Given the nature of the topic, we identify two high-level aspects of design. That of the network analysis tool required to gather suitable measurements from the network and the experimental methodology's design to ensure that the measurements we gather from the network are robust and capable of answering the questions proposed in Chapter \ref{chap:analysis}.
 
 \section{Network Analysis Tool}
 \label{sec:tooldesign}
 
-In order to gather the collection of measurements from the network, we require the design and subsequent implementation of a new network analysis tool. As described in section \ref{sec:requirements} the tool should support a multitude of protocols against the types of hosts identified in \ref{sec:method} of which is summarised in table \ref{table:proto}. Additionally we require that the tool be able to generate traffic using all of the available ECT codepoints. An overview of the operation of the tool in given in figure \ref{fig:tooldesign} where we highlight three high level components of design, isolating specific aspects of the requirements. We discuss several aspects of the tools proposed operation below, highlighting the distinct components that comprise the system.
+To gather the collection of measurements from the network, we require the design and subsequent implementation of a new network analysis tool. As described in section \ref{sec:requirements} the tool should support a multitude of protocols against the types of hosts identified in \ref{sec:method} of which is summarised in table \ref{table:proto}. Additionally, we require that the tool be capable of generating traffic using all of the available ECT codepoints. A diagrammatic overview of the tool's operation is given in figure \ref{fig:tooldesign}. We highlight three high-level components of design, isolating specific aspects of the requirements. We discuss several aspects of the tools proposed operation below, highlighting the distinct components that comprise the system.
 
 
 \begin{figure}[H]
@@ -343,36 +317,30 @@ Web server  & HTTP/1.1     & HTTP/3 (Quic) \\ \hline
 \label{table:proto}
 \end{table}
 
-\subsection{Overview}
+The proposed network analysis tool should receive its' input from a text file, describing the high-level characteristics of a given host, informing the connections that should be conducted against it. From table \ref{table:proto} we highlight the three distinct samples of hosts, each of which requires differing packets with differing contents to be sent such that the host responds so that the network path may be meaningfully measured. For each host we desire to connect against, we desire to conduct connections using each ECT codepoint in turn under each transport protocol. We realise this requirement by introducing an application context, informing the system of the current 'state of the world' describing how each system component must function to acquire the correct measurements from the network. Having highlighted the system's high-level functionality, we proceed by discussing the proposed operation of each of the high-level components of the design as shown in figure \ref{fig:tooldesign}.
 
-The proposed network analysis tool, should receive it's input from a text file. Ideally this text file should contain, Both an IP address, and an identifier describing what variant of host we are connecting against. Either DNS, NTP, or WEB. Given that the types of connection unto each of the hosts will be different. For each host to connect against, and each protocol used against that specific host, we seek to start connections using each ECT codepoint in turn. This can be achieved through the introduction of an 'application context' describing a state of the world for the system, informing the different components of the system how they are to operate. When starting a new connection. We push the application context unto each of the concerned components, describing the type of connection the system intends to carry out, informing the precise operation of the tool.
+As noted in \ref{sec:requirements}, we require the packets exchanged during a connection to a given host to be committed to backing storage. We identify this responsibility to be delegated to a given component that primarily concerns itself with only this function. We reference this component as a 'traffic capture' component. Upon receiving an application context describing the connection to be conducted, we desire that this component will begin observing the packets relevant to that connection and committing the observed packets to local storage. This should include the packets sent from the vantage point onto the network, packets sent from the host we measure against, and any intermediate devices' responses. The produced files should be semantically named, To simplify subsequent analysis. Ideally, this would allow for the contents of a produced file to be determined from the file name alone. Additionally, we would require this component to be informed to stop recording the contents of a given connection from another component. As it cannot be guaranteed that a response from a given host would be received that would otherwise signify the end of a traceroute operation.
 
-\subsection{Traffic Capture}
+Another primary function of the proposed network analysis tool would be the generation of network traffic. Again we identify this as the sole responsibility of an individual component of the system. We refer to this component as a 'Traffic Generator' component. This component should, upon receiving an application context describing the connection to be conducted. Conduct a traceroute style operation as described in section \ref{sec:icmp} imitating the desired protocol towards a given host, sending packets onto the network with an increasing TTL, such that the packets sent traverse further within the network. This component should also monitor responses from the network. However, the responses should be used to inform the component's operation. For instance, if after sending a TTL limited packet we receive an ICMP TTL exceeded in transit response, we may increment the TTL of the next packet to be sent. Alternatively, upon receiving a packet from the intended host. We may stop the traceroute operation. Subsequently, we inform the previously described traffic capture component that the traceroute operation has ended.
 
-The traffic capturer component is responsible for recording the associated traffic unto a particular host. subsequently producing a file containing the packets observed during a connection, for subsequent analysis. The desired granularity of the captured traffic should be on the particular host, the type of connection being conducted, as well as the ECT codepoint being utilised on that given connection. This granularity can be achieved by successive notifications of the application context. The files produced should be semantically named to ensure ease in analysis of the generated files.
-
-\subsection{Traffic Generator}
-
-The traffic generator component is responsible for conducting the actual exchange of packets in order to attain the goals of the research. That is, this component is responsible for the implementation of several 'traceroute' style connections to hosts, such as sending a series of TTL limited packets unto a DNS resolver as described in section \ref{sec:icmp} that reflect a typical DNS request. This is convenient as if the packet is received by the host it is likely to respond to the request, allowing for the system to promptly halt and continue with the next connection.
-
-\subsection{Traffic Modifier}
-
-The traffic modifier component is responsible for receiving traffic generated from the traffic generator component and subsequently applying connection specific modifications to a given packet. This typically involves applying the correct ECT codepoint as required by the current state of the system with the exchange that the tool is attempting to conduct.
+Lastly, as we intend to measure the network path under a variety of ECT codepoints under various transport layer protocols, all of which signal the use of ECN in different ways. We realise it is beneficial for the modification of packets to be conducted as part of an individual component. We refer to this component as a 'Traffic Modifier' component. Similarly to all of the other components that comprise the system, it receives an application context, subsequently informing its operation. This component should receive packets sent by the traffic generator component, and with respect to the application context, apply connection-specific modifications to the generated traffic. Such as applying a specific ECT codepoint to the packets as sent as part of a particular connection. Once the modifications in question have been performed, the packets are to be sent from the vantage point onto the network.
 
 \section{Experimental Design}
 
+In this section, we discuss several aspects of how given measurements will be taken from the network. We rationalise our selection of vantage points from which to attain measurements and concretely define what measurements will be taken from the network and how they will be attained.
+
 \subsection{Host Selection}
 
-To gain an understanding of the treatment of ECT codepoints on the wider network, we require a set of end-host samples to test against. These end hosts should be representative of usage of the internet, additionally it would be desirable if these hosts offered services over TCP as well as UDP, as we seek to uncover differences in treatment of ECT codepoints between transport protocols. We identify three distinct server populations to test against; DNS (Domain name service) resolvers, offering DNS services over both TCP as well as UDP. NTP (Network time protocol) servers, for which NTP operates over UDP, additionally the pool from which we select NTP servers from may optionally also deploy a web server operating over TCP. and Web servers, serving web content over TCP. Although web servers traditionally do not offer UDP based services, we see a growing adoption of Quic on the network, which we investigate in this paper.
+To understand the treatment of ECT codepoints in the broader network, we require a set of end-host samples to launch traceroute style operations. These end hosts should be representative of usage of the internet. Additionally, it would be desirable if these hosts offered services over TCP and UDP, as we seek to uncover differences in treatment of ECT codepoints between transport protocols. We identify three distinct server populations to test against; DNS (Domain name service) resolvers, offering DNS services over both TCP and UDP. NTP (Network time protocol) servers, for which NTP operates over UDP, additionally the pool from which we select NTP servers from may optionally also deploy a web server operating over TCP. Lastly, we select Web servers, serving web content over TCP. Although web servers traditionally do not offer UDP based services, we see growing adoption of Quic on the network, which we investigate in this paper.
 
-We make a selection of all three server populations to test against. We randomly select a set of 1000 public DNS resolvers from \href{https://public-dns.info}{public-dns.info} on 08/01/2021. \href{https://public-dns.info}{public-dns.info} is a publicly available list of active DNS resolvers, that are periodically probed to ensure they are active. We select a subset of these DNS resolvers using the Unix \lstinline{shuf} command. In total we obtain 980 DNS resolvers that operate over IPv4 and 20 DNS resolvers that operate over IPv6.
+We make a selection of all three server populations to launch traceroute style operations. We obtain a set of approximately 3000 public DNS resolvers from \href{https://public-dns.info}{public-dns.info} on 08/01/2021. \href{https://public-dns.info}{public-dns.info} is a publicly available list of active DNS resolvers that are periodically probed to ensure they are active. We select a subset of these DNS resolvers using the Unix \lstinline{shuf} command. In total we obtain 980 DNS resolvers that operate over IPv4 and 20 DNS resolvers that operate over IPv6.
 
-Additionally we select the worlds top sites as indicated by the Alexa top sites list as of 08/01/2021. We remove domains from the provided list that are associated with categories of material such as pornography or gambling using the University of Toulouse's open domain blacklist. This was conducted as a means to avoid implications with certain deployment locations such areas of the Middle East as well as avoiding interference from various ISPs with IP based content filters. The filtered list of domain names were subsequently resolved on the same day using google's public DNS resolver 8.8.8.8 with the \lstinline{dig} command to both IPv4 as well as IPv6 addresses if available until 1000 total IP addresses were obtained. This resulted in the generation of a dataset of 864 IPv4 addresses and 126 IPv6 addresses.
+Additionally, we select the worlds top sites as indicated by the Alexa top sites list as of 08/01/2021. We remove domains from the provided list that are associated with categories of material such as pornography or gambling using the University of Toulouse's open domain blacklist. This filtering was conducted to avoid implications with specific deployment locations such as the Middle East and avoid interference from various ISPs with IP-based content filters. The filtered list of domain names was subsequently resolved on the same day using google's public DNS resolver 8.8.8.8 with the \lstinline{dig} command to both IPv4 and IPv6 addresses if available until 1000 total IP addresses were obtained. This resulted in the generation of a dataset of 864 IPv4 addresses and 126 IPv6 addresses.
 
-To obtain a set of public NTP servers we utilise the \href{https://www.pool.ntp.org}{NTP pool}, a virtual cluster of NTP servers providing precision timekeeping. Attempting to resolve \lstinline{pool.ntp.org} through a DNS resolver returns the IP address of a given NTP server from the pool. The returned IP address changes every few minutes through the implementation of a round robin DNS. The pool supports the discovery of geographically bound hosts through attempting to resolve pool.ntp.org with an applicable region as a subdomain, for example. Attempting to resolve europe.pool.ntp.org will attempt to return an NTP server located in europe. We utilise this approach to obtain hosts that are geographically distributed. Additionally the ntp pool offers additional subdomains that offer IPv6 addresses of NTP servers to be obtained. It was discovered that 2.ntp.pool.org is one of these domains.
-Hence we implement a simple shell script to collect IP addresses from the resolution of \lstinline{pool.ntp.org} under all region codes across a period of 2 months beginning from 20/10/2020. We subsequently randomly select 1000 of the returned address using the \lstinline{shuf} command. In total 679 IPv4 addresses and 321 IPv6 addresses were collected.
+To obtain a set of public NTP servers, we utilise the \href{https://www.pool.ntp.org}{NTP pool}, a virtual cluster of NTP servers providing precision timekeeping. Attempting to resolve \lstinline{pool.ntp.org} through a DNS resolver returns the IP address of a given NTP server from the pool. The returned IP address changes every few minutes through the implementation of a round-robin DNS. The pool supports the discovery of geographically bound hosts through attempting to resolve pool.ntp.org with an applicable region as a subdomain, for example. Attempting to resolve europe.pool.ntp.org will attempt to return an NTP server located in Europe. We utilise this approach to obtain hosts that are geographically distributed. Additionally, the NTP pool offers additional subdomains that offer IPv6 addresses of NTP servers to be obtained. It was discovered that 2.ntp.pool.org is one of these domains.
+Hence we implement a simple shell script to collect IP addresses from the resolution of \lstinline{pool.ntp.org} under all region codes across a period of 2 months beginning from 20/10/2020. We subsequently randomly select 1000 of the returned address using the \lstinline{shuf} command. In total, 679 IPv4 addresses and 321 IPv6 addresses were collected.
 
-Lastly, in figure \ref{fig:locs} we present the approximate geographic distributions of the gathered hosts as indicated by Maxmind IP Geolocation. However these resolutions are subject to limitations of mapping IP addresses to specific locations as suggested by <paper>. We find that there is reasonable geographic coverage offered by the hosts, as discussed in chapter \ref{chap:analysis} which helps assure that a reasonable variety of pathways on the network are tested. However, the selection of web server hosts offered, appears clustered to a few isolated areas in the United States, Europe and East Asia.
+Lastly, in figure \ref{fig:locs} we present the approximate geographic distributions of the gathered hosts as indicated by Maxmind IP Geolocation. However, these resolutions are subject to limitations of mapping IP addresses to specific locations as suggested by <paper>. We find that there is good geographic coverage offered by the hosts, as discussed in chapter \ref{chap:analysis} this helps assure that an appropriate variety of network pathways are tested. However, the selection of web server hosts obtained appears clustered to a few isolated areas in the United States, Europe and East Asia.
 
 \begin{figure}[H]
     \centering
@@ -401,42 +369,29 @@ Lastly, in figure \ref{fig:locs} we present the approximate geographic distribut
   
 \end{figure}
 
-With respect to the discussion in section \ref{sec:general}, we recognise that it is desirable to gather data from multiple vantage points on the network. We select from two main bodies of possible vantage points from which to conduct measurements from. Firstly, we select a collection of hosts operated by AWS (Amazon Web Services). This is allows for us to utilise a variety of hosts located geographically distant from another. We also recruit student participants as part of an ethics approved study, as means to gather data from residential networks. Additionally as another vantage point, the author opted to deploy the tool within their own residential network to gather additional measurements.
+Concerning the discussion in section \ref{sec:general}, we recognise that it is desirable to gather data from multiple vantage points on the network. We select from two main bodies of possible vantage points from which to conduct measurements. Firstly, we select a collection of hosts operated by AWS (Amazon Web Services). AWS allows us to utilise a variety of hosts located geographically distant from each other. We also recruit student participants as part of an ethics approved study to gather data from residential networks. Additionally, as another vantage point, the author opted to deploy the tool within their residential network to gather additional measurements.
 
 \subsection{Measurements}
 
-Having selected a collection of sample hosts to test against, and a selection of hosts to run the network analysis tool from. We must also concretely define the type of connections that we seek to conduct to answer the questions posed in section \ref{sec:questions}. The underlying protocols to be used for a given type of server can be seen from \ref{table:proto}. For each server we intend to test against, we should. For each protocol, both UDP and TCP, we must conduct traceroute style connections unto the host as decribed in section \ref{sec:icmp}. with all 4 variants of ECT codepoints that are available. We may use the variant of a 00 codepoint as a means to determine whether the host is operational, and is listening on a given port. Additionally to provide resistance against transient network outages and other undesirable scenarios encountered during deployment, we may wish to run the collection of data from all of the hosts identified multiple times. It was empirically measured that the dataset of source hosts to test against requires slightly under 2 days to complete. Hence, it was determined a total runtime of 2 weeks should be sufficient to attain suitable measurements from the network. Using the this approach we should attain appropriate data to answer the questions proposed in section \ref{sec:question}.
+Having selected a collection of sample hosts to test against and a selection of hosts to obtain measurements. We must also concretely define the type of connections that we seek to conduct to answer the questions posed in section \ref{sec:questions}. The underlying protocols to be used for a given type of server can be seen from \ref{table:proto}. For each server we intend to test against, we should. For each protocol, both UDP and TCP, we must conduct traceroute style connections unto the host as described in section \ref{sec:icmp}. With all four variants of ECT codepoints that are available. We may use the variant of a 00 codepoint to determine whether the host is operational and is listening on a given port.
 
-
-{{Overview of specifics of traffic generated}}
-{{What types of connection for each host}}
-{{ECT markings on each connection}}
-
-
-% what we need to measure -> design of experiemnt
-% how we measure it -> design of tool
-% where deploy in many places -> choice of aws and participant locations
-
-% {{Create a graph with graphviz to visualise how tool components interact with eachother and the wider network ie. system architecture diagram}}
-
-% {{Small discussion of the high level components of the tool}}
-% {{Traffic generator}}
-% {{Traffic modification}}
-% {{Traffic capture}}
+Additionally, to provide resistance against transient network outages and other undesirable scenarios encountered during deployment, we wish to run the collection of data from the identified hosts multiple times. It was empirically measured that the dataset of hosts to test against required slightly under two days to complete. Hence, it was determined a total runtime of 2 weeks should be sufficient to attain suitable measurements from the network. Using this approach, we should attain appropriate data to answer the questions proposed in section \ref{sec:question}.
 
 
 %==================================================================================================================================
 \chapter{Implementation}
 
-This chapter discusses the implementation of the network analysis tool, discussing the underlying approaches used to gather the appropriate data from the network. We also discuss the tool's subsequent deployment as means to gather the measurements from the network to inform the Chapter \ref{chap:evaluation}.
+% Probably can remove some of the subsection headers from here %
+
+This chapter discusses the implementation of the network analysis tool. We discuss the underlying approaches used to gather the appropriate data from the network. We also discuss the tool's subsequent deployment to gather the measurements from the network to inform the Chapter \ref{chap:evaluation}.
 
 \section{Network Analysis Tool}
 
-The tool was naturally realised as a concurrent system. Each of the previously identified components identified in Chapter \ref{chap:design} were modelled as their own thread of execution with minimal interactions between them. The system was implemented in the C programming language given its relatively small footprint ensuring ease on deploying on resource limited Arm based computers, and the availability of underlying libraries to implement essential functionality required by the system.
+The tool realised as a concurrent system. Each of the previously identified components identified in Chapter \ref{chap:design} was modelled as their own thread of execution with minimal interactions between them. The system was implemented in the C programming language given its relatively small footprint ensuring ease in deploying on resource-limited ARM-based computers. Additionally, we capitalise on the availability of underlying libraries to implement essential functionality required by the system.
 
 \subsection{Traffic Capture}
 
-The traffic capture component was realised as a relatively simple application of libpcap. An open source library supported under most Unix(-like) operating systems, that allows for the live capture of network traffic. Additionally, this library supports traffic filtering rules, ensuring that the only traffic observed by the component during a connection relates to the connection that the system is currently conducting, this was employed to simplify subsequent analysis of the data produced. The component exports a relatively basic API, in order to support the operation realised in chapter \ref{chap:design} and is summarised in listing \ref{lst:pcapapi}. The component opens a semantically named file describing the connection upon receiving an application context through the \lstinline{pcap_push_context} function, and will commit packets to this file until the component is notified that the connection in question has ended through \lstinline{pcap_close_context}, subsequently closing the file.
+The traffic capture component was realised as a relatively simple application of libpcap. An open-source library supported under most Unix(-like) operating systems that allows for the live capture of network traffic. Additionally, this library supports traffic filtering rules, ensuring that the only traffic observed by the component during a connection relates to the connection that the system is currently conducting. This was employed to simplify the subsequent analysis of the data produced. The component exports a relatively basic API in order to support the operation realised in chapter \ref{chap:design} and is summarised in listing \ref{lst:pcapapi}. The component opens a semantically named file describing the connection upon receiving an application context through the \lstinline{pcap_push_context} function and will continue to commit packets to this file until the component is notified that the connection in question has ended through \lstinline{pcap_close_context}, subsequently closing the file. Additionally, the component cannot immediately begin capturing packets upon being notified of an application context. Hence, dependants on this component may additionally wait until the component signifies that it has begun capturing packets from the network utilising the \lstinline{pcap_wait_until_rdy} function, which blocks until the component has started buffering packets to commit to backing storage.
 
 \begin{lstlisting}[caption={The exported API of the traffic capture component to facilitate the live capture of traffic generated by the system.}]
 struct pcap_controller_t * pcap_init();
@@ -453,13 +408,17 @@ void pcap_free(struct pcap_controller_t *pc);
 \subsection{Traffic Generator}
 \label{sec:impltg}
 
-The traffic generator component utilises a variety of approaches to attain the goals of the research, we largely rely on the POSIX networking api to implement much of the functionality required by the research. We implement a variety of functions intended to receive a buffer and subsequently populate this buffer with a valid request targeting one of the specific host populations, such as DNS resolvers. The buffer is then passed to a generic traceroute method, which implements the process described in section \ref{sec:icmp}. Starting from a TTL of 1 through to 64, we send a maximum of three packets onto the network, after each packet is sent. We check whether an ICMP TTL exceeded response message has been returned, furthermore we match the ICMP response against the current connection, comparing the port number received from the ICMP quotation and the port number used to send the request. If such an ICMP response is received or if the maximum number of retries is reached, we increment the TTL. If we receive a response from the end host we are sending the traceroute to, we simply abort the rest of the traceroute operation and continue with the next connection.
+The traffic generator component utilises a variety of approaches to attain the goals of the research. We primarily rely on the POSIX networking API to implement much of the functionality required by the research. We implement various functions intended to receive a buffer and subsequently populate this buffer with a valid request targeting one specific host population. For example, we implement a function to populate a buffer with a DNS request for DNS resolvers that may be used for TCP or UDP based connections. The buffer is then passed to a generic traceroute method, which implements the process described in section \ref{sec:icmp}. Starting from a TTL of 1 through to 64, we send a maximum of three packets onto the network. After each packet is sent, we check whether an ICMP TTL exceeded response message has been returned. In addition, we match the ICMP response against the current connection, comparing the destination address from the IP header received from the ICMP quotation. If such an ICMP response is received or the maximum number of retries for a given TTL is reached, we increment the TTL. If we receive a response from the end host we are sending the traceroute to, we abort the rest of the traceroute operation and continue with the next connection.
 
 \subsection{Traffic Modifier}
 
-The traffic modifier component heavily utilises the libnetfilter\_queue library. A Linux library allowing for arbitrary userspace modifications of packets that have been queued by the underlying operating system kernel. This is convenient, as this allows us to both, circumvent limitations in place as a result of the operating system kernel and the POSIX networking API or otherwise avoid the pervasive use of raw sockets in most scenarios. For instance, the mechanism to enable ECN under TCP on Linux requires the use of the \lstinline{sysctl} utility or equivalent, and only allows the ECT(0) codepoint to be utilised during connections, which is undesirable with respect to the research aims. Alternatively we may opt to implement a minimal TCP networking API in userspace which was also deemed undesirable. libnetfilter\_queue simplifies this process by allowing us to leverage the functionality we require from other utilities such as the kernel's networking stack and extend it as packets are about to be sent on the network. For instance, listing \ref{lst:libnf} shows how arbitrary ECT codepoints may be used under a TCP connections using libnetfilter\_queue. where the \lstinline{ctx} variable defines the applications current context to inform its operation.
+% need a better explanation of this and how we use a pseudo user to direct specific traffic to the component %
 
-Other approaches, such as those used by \cite{bauer_measuring_2011} used iptables to apply modificataions to the traffic class byte to packets that satisfied a given set of rules. However as we require granular control over the ECT codepoint at runtime, as the codepoint will vary from connection to connection. This was deemed insufficient.
+The traffic modifier component heavily utilises the libnetfilter\_queue library. libnetfilter\_queue is a Linux library allowing for arbitrary user-space modifications of packets that the underlying operating system kernel has queued for transmission. This is convenient, as this allows us to both circumvent limitations in place due to the operating system kernel and the POSIX networking API or otherwise avoid the pervasive use of raw sockets in most scenarios. For instance, the mechanism to enable ECN under TCP on Linux requires using the \lstinline{sysctl} utility or equivalent and only allows the ECT(0) codepoint to be utilised during connections, which is undesirable when we consider the research aims. Alternatively, we may opt to implement a minimal TCP networking API in user-space, which was also deemed undesirable. libnetfilter\_queue simplifies this process by allowing us to leverage the functionality we require from other utilities such as the kernel's networking stack and extend it as packets are about to be sent on the network. For instance, listing \ref{lst:libnf} shows how arbitrary ECT codepoints may be used under a TCP connection using libnetfilter\_queue. Where the \lstinline{ctx} variable defines the applications current context to inform its operation.
+
+Other approaches, such as those used by \cite{bauer_measuring_2011} used \lstinline{iptables}. This is a user-space utility to modify the Linux kernel firewall rules. Allowing modifications to the traffic class byte to packets that satisfied a given set of rules. However, as we require granular control over the ECT codepoint at runtime, the codepoint will vary from connection to connection. This was deemed insufficient.
+
+In utilising libnetfilter\_queue, we must use \lstinline{iptables} to route packets matching a set of rules to a buffer that allows us to perform user-space modifications. To prevent the tool from applying modifications to network traffic that did not originate from the tool, we employ the \lstinline{iptables} UID-Owner module. This module allows us to apply firewall rules that consider the user that generated the network traffic. Hence we create a user on each vantage point that is intended only to run the network analysis tool, such that only the traffic that the tool generates is routed through libnetfilter\_queue before transmission
 
 \begin{lstlisting}[caption={A demonstration of userspace modification of the traffic class byte on packets queued by the operating system kernel for transmission on the network.}]
 struct iphdr *ip4 = nfq_ip_get_hdr(pkt);
@@ -482,7 +441,9 @@ struct iphdr *ip4 = nfq_ip_get_hdr(pkt);
 
 \subsection{ECT modifications with TCP}
 
-A noted aspect of functionality under the system should be the generation of traffic that would denote whether ECT codepoints are removed during a TCP connection. To attain this we utilise a mixture of functionality provided by each of the components that comprise the system. We begin by starting a standard TCP connection unto a given host. We rely on the traffic modifier component to observe the outgoing SYN segment of TCP connection establishment, and subsequently storing the sequence number associated with the segment. If the host responds, the traffic capturer component will subsequently receive a segment containing the TCP SYN ACK segment of TCP connection establishment. We subsequently store the associated acknowledgement number associated with the connection. The traffic generator component uses these provided values, and opens a raw network socket. Formatting a standard TCP data segement utilising the provided sequence and acknowledgement numbers, and begins a traceroute as described in section \ref{sec:impltg}. This processis breifly summarised in listing <n>. The rationale behind this approach allows us to suitably imitate a standard TCP connection as far as the scope of network is concerned. Additionally this allows us to avoid writing the majority of TCP networking stack, circumventing a variety of limitations such as lack of access to a TCP connections associated sequence and acknowledgement numbers, as well as hard coded in kernel re-transmission behaviours, which prevents us from utilising any simpler approaches.
+% keep subsection, maybe more elaborate explanation of what is going on in the code, or maybe more relastic about what wqas actually done %
+
+A noted aspect of functionality under the system should be the generation of traffic that would denote whether ECT codepoints are removed during a TCP connection. To attain this, we utilise a mixture of the functionality provided by each of the components that comprise the system. We begin by starting a standard TCP connection unto a given host. We rely on the traffic modifier component to observe the outgoing SYN segment of TCP connection establishment and subsequently storing the sequence number associated with the segment. If the host responds, the traffic capturer component will receive a segment containing the TCP SYN-ACK segment of the TCP connection establishment. We subsequently store the associated acknowledgement number associated with the connection. The traffic generator component uses these provided values and opens a raw network socket. Formatting a standard TCP data segment utilising the provided sequence and acknowledgement numbers, and begins a traceroute as described in section \ref{sec:impltg}. This process is briefly summarised in listing <n>. The rationale behind this approach allows us to suitably imitate a standard TCP connection as far as devices on the network are concerned. It was discovered early in development that some NATs would reject segments that did not proceed with an accompanying SYN segment. Additionally, this allows us to avoid writing most of a TCP networking stack attempting to circumvent various limitations. For example, lack of access to a TCP connections' associated sequence and acknowledgement numbers and hard-coded kernel re-transmission behaviours prevent us from utilising any more straightforward approaches.
 
 \begin{lstlisting}[caption={A demonstration of launching traceroutes during a TCP connection, implementation details such as the use of synchronisation primitives and error checking have been omitted for the sake of brevity}]
 
@@ -502,9 +463,11 @@ do_traceroute(&hostaddr, &buff);
 
 \subsection{Traceroutes under Quic}
 
-The chosen implementation of Quic used for the tool was lsquic by litespeedtechnologies, this was deemed appropriate as it features a library for the C language, as well as featuring native support for ECN. Such as implementing support for ECN ack frames as described in chapter \ref{chap:background}. As version negotiation under Quic is yet to be standardised, we empirically measured the best supported Quic version at the time that implements ECN functionality. It was measured that ietf-draft-29 was the best supported and was subsequently selected for the implementation of the network analysis tool. Due to time constraints, modifying lsquic to support a native implementation of traceroute was deemed out of scope. Hence, we proceed as follows in the implementation of a traceroute mimicking a Quic connection. 
+% ref lsquic and expand on how the traceroutes were conducted %
 
-We begin by creating a standrd UDP datagram network socket, and subsequently set the TTL of the socket to 1 using the \lstinline{setsockopt} function. We then start the lsquic library, passing in the previously constructed datagram socket, with a TTL of one. We attempt to establish a connection unto the desired host using this socket under lsquic. This subsequently results in lsquic generating connection establishment packets intended for the host. The traffic modifier component, which would normally apply connection specific modifications observes these generated packets the operating system is intending to send. Under this component we access the contents of the UDP datagram, copying teh contents to a buffer which is shared between the traffic modifier and generation components. When the connection subsequently fails, as the TTL of the socket utilised is 1. We now have a cached Quic packet observing the correct semantics for that host. We then utilise the same file descriptor and the acquired buffer containing a Quic connection establishment packet in a standard traceroute operation. listing <n> summarises this approach as implemented in the network analysis tool.
+The chosen implementation of Quic used for the tool was lsquic by LiteSpeed. This was deemed appropriate as it features a library with bindings to the C language and featuring native support for ECN. Such as implementing support for ECN ack frames as described in chapter \ref{chap:background}. As version negotiation under Quic is yet to be standardised, we empirically measured the best supported Quic version at the time that also implements ECN functionality. It was measured that ietf-draft-29 was the best supported and was subsequently selected to implement the network analysis tool. Due to time constraints, modifying lsquic to support a native traceroute implementation was deemed out of scope. Hence, we proceed as follows in the implementation of a traceroute mimicking a Quic connection.
+
+We begin by creating a standard UDP datagram network socket and subsequently set the socket TTL to one using the \lstinline{setsockopt} function. We then start the lsquic library, passing in the previously constructed datagram socket, with a TTL of one. We attempt to establish a connection unto the desired host using this socket under lsquic. This operation subsequently results in lsquic generating connection establishment packets intended for the host. The traffic modifier component, which would typically apply connection-specific modifications, observes these generated packets the operating system intends to send. Under this component, we access the UDP datagram contents, copying the contents to a shared buffer between the traffic modifier and generation components. When the connection subsequently fails, as the TTL of the socket utilised is one. We now have a cached Quic connection establishment packet observing the correct semantics for that host. We then utilise the same file descriptor and the acquired buffer containing a Quic connection establishment packet in a standard traceroute operation. Listing <n> summarises this approach as implemented in the network analysis tool.
 
 \begin{lstlisting}[caption={A demonstration of launching traceroutes under Quic, leveraging support from lsquic to generate a suitable connection establishment packet, which is then utilised under a standard traceroute operation. The use of synchronisation primitives and error checking have been removed for the sake of brevity.}]
 
@@ -534,36 +497,43 @@ int send_quic_http_probe(
 
 \section{Deployment}
 
+Following the development of the network analysis tool, we sought to attain a set of measurements from the network as described in chapter \ref{chap:design}. To do this, we conducted a medium-scale deployment of the developed tool for two weeks, utilising a variety of hosts from both datacentres and residential networks from a variety of geographic locations. The deployment was launched on 11/01/2021 and subsequently ended two weeks later on 29/01/2021. We begin by discussing what vantage points were used from locations in data centers and how this was facilitated by appropriate tooling. We then follow this discussion with additional vantage points from residential networks that were utilised for this research.
 
-\subsection{Overview}
+To facilitate the tool's deployment across a large number of data centre hosts, we utilise the suite of software provided by Hashicorp. The two specific tools that we utilise are Packer and Terraform. Packer and Terraform both support several cloud providers. However, we opted to use AWS as our chosen cloud provider as it proved the simplest to deploy infrastructure within multiple datacentre locations.
 
-Following the development of the network analysis tool, we seeked to attain a set of measurements from the network as described in chapter \ref{chap:design}. To do this we conducted a medium scale deployment of the developed tool for a period of two weeks utilising a variety of hosts from both datacentres and residential networks from a variety of geographic locations. The deployment was launched on the 11/01/2021, and subsequently ended two weeks later on the 29/01/2021.
+Packer was utilised to automate the creation of virtual machine images containing a compiled binary of the network analysis tool and associated configuration, automatically distributing them to a storage medium accessible via AWS for subsequent deployment. The virtual machine images utilised Ubuntu 20.4 as their substrate. The network analysis tool was subsequently installed within the virtual machine image through a shell script performing the tools required setup. Additionally, to correctly schedule the running of the tool. A cron job is scheduled within the virtual machine image to start the first iteration of the tool at midnight and fix the tool's execution to every second calendar day that the virtual machine instance is up. This timing roughly corresponds to the two days run time per iteration of the dataset, which was empirically measured before deployment.
 
+Once a suitable virtual machine image was produced, Terraform, an infrastructure as code tool allowing for multi-region deployments on the AWS platform, was utilised to bring up several AWS instances at once. The specific regions used are summarised in table <n>. We provision each virtual machine in use with a basic set of additional infrastructure. We provide each virtual machine image with both a public IPv4 and IPv6 address. Regarding firewalling, we allow traffic from any source on any port to and from the virtual machine. Although heavy-handed, this prevents any potential issues regarding packets being filtered by pre-configured firewalls that may have otherwise been used.
 
-\subsection{Datacentre hosts}
+To allow for multi-region terraform deployments within AWS, we implement our core infrastructure set as a Terraform module. This module is somewhat comparable to a template, generically defining what infrastructure components should be constructed when required. We then parameterise the deployment area, the machine types to use (as not all AWS machine types are available in every area), and the virtual machine image ID to use, as each deployment location utilises a virtual machine image with a different ID. However, the content of the image does not differ. This Terraform module is demonstrated in listing <n>
 
-To facilitate the deployment of the tool across a large number of AWS hosts we utilise the suite of software provided by Hashicorp. Two specific tools that we utilise are Packer and Terraform. We discuss each tool in turn.
+\begin{lstlisting}[caption={A demonstration of a parameterised Terraform module facilitating the multi-region deployment required to attain the goals of the research. details of IP address assignment and firewall rules have been omitted for the sake of brevity.}]
+provider "aws" {
+    alias = "singleregion"
+    region = var.region
+}
+resource "aws_instance" "ecnDetector" {
+  provider                    = aws.singleregion
+  ami                         = var.ami_image
+  key_name                    = var.aws_key_name
+  instance_type               = var.machine
+  vpc_security_group_ids      = [aws_security_group.default.id]
+  subnet_id                   = aws_subnet.default.id
+  associate_public_ip_address = true
+}
 
-Packer was utilised as a means of automating the creation of virtual machine images containing the network analysis tool, automatically distributing them to a storage medium accessible via AWS for subsequent deployment. The virtual machine images utilised Ubuntu 20.4 as their substrate with the network analysis tool subsequently being installed within the virtual machine image through a shell script, performing the tools required setup. Additionally to correctly schedule the running of the tool. A cron job is scheduled within the virtual machine image to start the first iteration of the tool at midnight and fix the running of the tool every second calendar day that the virtual machine instance is up. This roughly corresponds to the 2 day run time per iteration of the dataset which was empirically measured prior to deployment.
+\end{lstlisting}
 
-Once a suitable virtual machine image was produced, Terraform, an infrastructure as code tool allowing for multi-region deployments on the AWS platform was utilised to bring up several AWS instances at once. The precise regions used is summarised in table <n>. We provision each virtual machine in use with a basic set of additional infrastructure. We provide each virtual machine image with both a public IPv4 and IPv6 address. In regards to firewalling, we allow traffic from any source on any port towards the virtual machine, although heavy handed, this prevents any potential issues with returned ICMP responses being filtered by default configurations of AWS infrastructure. This deployment to many geographic locations was implemented through the use of a parameterised terraform module.
-
-As no thorough integrations between packer and Terraform exist outside of using environment variables, a Python script was produced, that would parse the output from Packer, identifying applicable virtual machine image IDs, subsequently producing a json file containing terraform variables. Listing <n> demonstrates this approach of integrating the output of packer with terraform to succinctly utilise produced virtual machine images within a parameterised terraform module.
+As no thorough integrations between Packer and Terraform exist outside of using environment variables, a Python script was produced. This Python script would parse the output from Packer, identifying applicable virtual machine image IDs, subsequently producing a JSON file containing Terraform variables. Listing <n> demonstrates this approach of integrating the output of Packer with Terraform. The produced file \lstinline{images.auto.tfvars.json} is named this way, as Terraform automatically loads the contents of files containing the characters 'tfvars'. These data values are used as input parameters to the previously described parameterised Terraform module, allowing for a suitable degree of continuity within the two tools minimising manual intervention.
 
 \begin{lstlisting}[caption={A demonstration of extracting produced virtual machine image IDs from packer, subsequently producing a data file amenable for use within Terraform.}]
 
-out_stream = subprocess.check_output([
-                            "packer",
-                            "build",
-                            "-machine-readable",
-                            file
-                            ])
+out_stream = subprocess.check_output(shlex.split(cmd))
 lines = out_stream.decode("utf-8").split('\n')
 out_json = None
 
 for line in lines:
-    tokens = line.split(',')
-    timestamp,target,category,*data = tokens
+    timestamp,target,category,*data = line.split(',')
     
     # Find line containing virtual machine IDs
     if target != "amazon-ebs" or category != "artifact":
@@ -599,7 +569,7 @@ with open("images.auto.tfvars.json", 'w') as f:
 \end{table}
 
 
-As previously mentioned, student participants volunteered to deploy the tool within their own networks as part of an ethics approved study. In total 4 participants were recruited in assisting with the goals of the research. All of the participants opted to use a variant of the Raspberry Pi to deploy the tool within their own networks. Particpants were assisted in installing the tool, and provided with a shell script which would compile and install the tool on their behalf. Similarily to the AWS hosts. This installation script would orchestrate itself through the use of cron to begin running at midnight from the moment that the tool was installed. Subsequently running every two calendar days for the duration of the research period. In table \ref{table:participants} we present an alias for each participant and the approximate geographic location for each participant in the study, we use these aliases consistently throughout the rest of the paper.
+As previously mentioned, student participants volunteered to deploy the tool within their own networks as part of an ethics approved study. In total, four participants were recruited in assisting with the goals of the research. All of the participants opted to use a variant of the Raspberry Pi to deploy the tool within their own networks. Participants were assisted in installing the tool, Being provided with a shell script.  This shell script would install the tool on their behalf. In a similar fashion to the AWS hosts, this installation script would orchestrate itself through the use of cron to begin running at midnight from the moment that the tool was installed. Subsequently, the tool would run every two calendar days for the duration of the research period. In table \ref{table:participants} we present an alias for each participant and the approximate geographic location for each participant in the study. We use these aliases consistently throughout the rest of the paper to refer to participants.
 
 
 \begin{table}[H]
@@ -608,9 +578,9 @@ As previously mentioned, student participants volunteered to deploy the tool wit
 \hline
 \textbf{Participant Alias} & \textbf{Geographic Location}    \\ \hline
 Participant-1     & Glasgow, Scotland      \\ \hline
-Participant-2     & , Japan                \\ \hline
-Participant-3     & , Estonia              \\ \hline
-Participant-4     & , United Arab Emirates \\ \hline
+Participant-2     & Osaka, Japan                \\ \hline
+Participant-3     & Tallinn, Estonia              \\ \hline
+Participant-4     & Sharjah, United Arab Emirates \\ \hline
 \end{tabular}
 \label{table:participants}
 \caption{Approximate geographic locations for each participant that took part in the study. We find a respectable geographic coverage, although lacking residential vantage points located in the Americas.}
@@ -619,13 +589,13 @@ Participant-4     & , United Arab Emirates \\ \hline
 %==================================================================================================================================
 \chapter{Results} 
 
-In this section we discuss the results from the measurements obtained in chapter \ref{chap:implementation}. Evaluating the current status of adoption of ECN on the network, and identifying where on the network devices remove ECT codepoints.
+This section discusses the results from the measurements obtained in chapter \ref{chap:implementation}. We evaluate the current status of the adoption of ECN on the network and identify where on the network devices remove ECT codepoints under various network substrates such as IP versions and transport layer protocols.
 
 \section{ECN under TCP}
 
 \subsection{ECN adoption}
 
-In addition to discovering where ECN markings are removed on the network, we seeked to uncover the current status of ECN adoption on the network. Across all vantage points, we select the probes unto hosts that launched TCP connections in an attempt to trace the traversal of ECT(0) codepoints across the network. In these operations, during connection establishment we attempt to negotatiate ECN as described in section \ref{sec:ecntcp}. We analyse the files inspecting where the returned SYN-ACK as part of connection establishment also sets the ECE bit of the TCP header indicating that the end host intends to use ECN. As we have several traces of the dataset perhost, we average across each trace within hosts, before subsequently averaging across all hosts. We present our findings in table \ref{table:ecnnego}.
+In addition to discovering where ECN markings are removed on the network, we sought to uncover the current status of ECN adoption on the network. Across all vantage points, we select the probes unto hosts that launched TCP connections in an attempt to trace the traversal of ECT(0) codepoints across the network. In these operations, during connection establishment, we attempted to negotiate ECN as described in section \ref{sec:ecntcp}. We analyse the files inspecting where the returned SYN-ACK as part of connection establishment also sets the ECE bit of the TCP header indicating that the end host intends to use ECN. As we have several traces of the dataset per host, we average across each trace within hosts before averaging across all hosts. We present our findings in table \ref{table:ecnnego}.
 
 \begin{table}[H]
 \centering
@@ -642,7 +612,7 @@ Web Servers                  & 79\%             & 86\%                 \\ \hline
 \label{table:ecnnego}
 \end{table}
 
-As other research has indicated we see a general increase over time in the willingness for hosts to negotiate ECN over previous time periods. Furthermore we notice an increase in willingness to negotiate ECN between hosts that operate over IPv6 when compared to IPv4.  We present our findings against other measurements that have been conducted over previous years. We see that our results are largely inline with the growth of the willingness to negotiate ECN in hosts. Of which is summarised in figure \ref{fig:ecngrowth}. We do however notice an apparent plateau in the growth of willingness to support ECN in hosts when we compare our additional datapoint to the next most recent measurement (\cite{mcquistin_is_2015}) which recorded willingness to negotiate ECN amongst measured hosts at 82\%, whilst our measurements average at a similar percentage of <percentage>. This may suggest an apparent levelling of the deployment of ECN, albeit the results we obtain for IPv4 based hosts are still considerably lower than that of IPv6 based hosts.
+As other research has indicated, we see a general increase over time in the willingness for hosts to negotiate ECN over previous time periods. Furthermore, we notice an increase in willingness to negotiate ECN between hosts that operate over IPv6 when compared to IPv4.  We present our findings against other measurements that have been conducted over previous years. We see that our results are largely inline with the expected growth of the willingness to negotiate ECN in hosts. This growth is summarised in figure \ref{fig:ecngrowth}. However, notice an apparent plateau in the growth of willingness to support ECN in hosts when comparing our additional data point to the subsequent most recent measurement (\cite{mcquistin_is_2015}). They recorded willingness to negotiate ECN amongst measured hosts at 82\%, whilst our measurements average at a similar percentage of <percentage>. This may suggest an apparent levelling of the deployment of ECN, albeit the results we obtain for IPv4 based hosts are still considerably lower than that of IPv6 based hosts.
 
 \begin{figure}[H]
     \centering
@@ -651,15 +621,10 @@ As other research has indicated we see a general increase over time in the willi
     \label{fig:ecngrowth}
 \end{figure}
 
-% Discuss more in specifics of the papers that we include in the graph %
-
-
-
-
 
 \subsection{Are ECT codepoints removed during TCP Connections}
 
-Using a new approach through the implementation of a new network analysis tool, we seeked to measure whether ECT codepoints were removed during a TCP connection. For each host sample we select traces unto a given host under ECT(0). We iterate over the ICMP responses present in the trace inspecting the associated quotation's included IP header checking whether the ECT codepoint has a value of zero. We present our findings in figure \ref{fig:ect_strip}.
+Using a new approach through implementing a new network analysis tool, we sought to measure whether ECT codepoints were removed during a TCP connection. For each host sample, we select traces unto a given host under ECT(0). We iterate over the ICMP responses present in the trace inspecting the associated quotations' included IP header checking whether the ECT codepoint has zero value. We present our findings in figure \ref{fig:ect_strip}.
 
 \begin{figure}[H]
     \centering
@@ -668,7 +633,7 @@ Using a new approach through the implementation of a new network analysis tool, 
     \label{fig:ect_strip}
 \end{figure}
 
-What is immediately clear from our findings, is that an individual participant experiences ECT removal on all outbound connections utilising TCP under at least port 80. Effectively prohibiting all ECN enabled traffic from functioning at all from this vantage point in the network. This was to be expected as localised individual devices have been identified in the past <cite paper planet lab node>. Outwith this individual host we find the occurrence of removal of ECT(0) during connections to be relatively rare, we identify this finding as an outlier and subsequently remove this vantage point from further data aggregations as a means to prevent biasing results. We identify that although varying between vantage points, with some experiencing ECT removal more often than others. On average, approxiamtely ~0.5\% of connections experience removal of the ECT(0) codepoint during connections. This is relatively consistent with the results found from <paper> who found that around <n> TCP connections towards web server hosts also experience this behaviour.
+What is clear from our findings is that Participant-1 experiences ECT removal on all outbound connections utilising TCP under at least port 80. Effectively prohibiting all ECN enabled traffic from functioning from this vantage point in the network. The one trace that does not experience this behaviour is believed to have been affected by a network outage during part of the iteration. This remarking behaviour was to be expected as localised individual devices have been identified in the past that clear ECT codepoints on all traffic (\cite{bauer_measuring_2011}). Outwith this individual vantage point, we find the occurrence of removal of ECT(0) during connections to be relatively rare. We identify this finding as an outlier and subsequently remove this vantage point from further data aggregations as a means to prevent biasing results. We identify that although varying between vantage points, with some experiencing ECT removal more often than others. On average, approximately ~0.5\% of connections experience the removal of the ECT(0) codepoint during connections. This percentage is relatively consistent with the results found from <paper>, who found that around <n> TCP connections towards web server hosts also experience this behaviour.
 
 
 
@@ -677,56 +642,348 @@ What is immediately clear from our findings, is that an individual participant e
 
 \subsection{Where are ECT codepoints removed on TCP connections}
 
-In addition to detecting when ECT codepoints were removed during TCP connections, we additionally seeked to ascertain where ECT codepoints were being removed on the network. The results from sample trace data unto a particular host has been presented visually in figure \ref{fig:traces}.
+In addition to detecting when ECT codepoints were removed during TCP connections, we additionally sought to ascertain where ECT codepoints were being removed on the network. The results from sample trace data unto a particular host have been presented visually in figure \ref{fig:traces}.
 
 \begin{figure}[H]
     \centering
     \includegraphics[scale=0.1]{dissertation/images/hops.pdf}
-    \caption{Visualization of network level hops showing interface hops where the ECT codepoint is not preserved being shown in red, vantage points on the network are shown in grey, and the intended host being shown in blue. In most instances the responsible device appears far from the vantage point, under this particular host.}
+    \caption{Visualization of network level hops showing interface hops where the ECT codepoint is not preserved being shown in red, vantage points on the network are shown in grey as outermost nodes, and the intended host being shown in purple in the center. In most instances the responsible device appears far from the vantage point, under the particular host being measured.}
     \label{fig:traces}
 \end{figure}
+
+In light of the data presented in figure \ref{fig:ect_strip}, we first seek to investigate the abnormal results of 'Participant-1'. Again we select traces from this participant utilising the TCP protocol and the ECT(0) codepoint. We then iterate through each trace's ICMP responses determining whether the ECT codepoint is present at each hop. However, we find that the first ICMP response does not contain an ECT codepoint within the ICMP quotation. This result suggests that this participants home router pre-processes packets in a way that is destructive to ECT codepoints. As a means to eliminate the potential of an apparent ICMP misquotation, we additionally select TCP traces utilising the CE codepoint, examining responses from the intended host. We find that none of the hosts from this vantage point returned an ECE in receipt of this packet, additionally suggesting that ECT codepoints from this host are not traversing the network and that the initial ICMP quotation from the host router is accurate.
+
+To understand where ECT codepoints are being removed on the network, we again select TCP traces utilising the ECT(0) codepoint, iterating over the ICMP responses received, noting the first instance where the ECT marking is missing from within the quotation. We present our results in figure \ref{fig:tcppreserve}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.75]{dissertation/images/preservetcp.pdf}
+    \caption{Graph selecting TCP connections that experience ECT removal on path, presenting where on the network path ECT removal is reported through ICMP quotations.}
+    \label{fig:tcppreserve}
+\end{figure}
+
+For connections that do experience ECT removal, we find that most connections (99\%) do not experience ECT removal until up to the 7th interface hop. Following the seventh hop, we see a continual increase in the number of connections that do. This result may likely be attributed to packets leaving the source AS from which they originate. However, we note an apparent bias in our results towards earlier devices on the network. When ECT codepoints are removed, we are prevented from testing subsequent devices on the network path. However, this graph presents that when ECT codepoints do not traverse the network, the device associated with clearing the ECT field is located far from the host. In almost all cases, the responsible device is at around at least seven hops from the vantage point, presenting that the source of mistreatment of ECT codepoints occurs towards the network core.
+
+Having shown approximately where on the network path ECT codepoints are removed, we wish to attribute this behaviour to a specific device on the network. We note the ambiguities in attributing ECT removal to a particular device on the network from chapter \ref{chap:analysis}. We subsequently employ a method to better classify the responsible device on the network path. We approach this issue in a similar manner to \cite{mcquistin_is_2015}, and \cite{bauer_measuring_2011}. We proceed as follows. We identify interfaces that we do not suspect as to clearing the ECT codepoint, where on any trace, the ICMP returned from the next network-level hop preserves the ECT codepoint. We find that in total, 31391 (\%) of network interfaces are not associated with the removal of ECT codepoints on the network. In addition, we find that 577 network interfaces are associated with clearing the ECN field. We notice several classes of behaviour around the interfaces that are associated with ECN removal. We discuss each in turn. We find that 523 of these interfaces are sometimes associated with clearing the ECN codepoint. On some traces, they cannot be implicated with clearing the ECN field, and other traces the same interface is present on the network path one hop before the interface before the ECT codepoint is reported as cleared. This suggests that some network interfaces may not always clear the ECT codepoint under a particular protocol or otherwise suggesting the presence of additional middleboxes that do not otherwise decrement the TTL or emit ICMP responses. We find that the last 191 interfaces identified are always associated with the ECN field's clearing on the network.
+
+Lastly, we wish to attribute the remarking behaviour to a specific AS. We define two distinct areas within an AS where ECN remarking may occur. ECN remarking may occur on an AS boundary or may occur from within an AS. In the existing literature such as works produced by \cite{mcquistin_is_2015} and \cite{bauer_measuring_2011}. Much of the existing remarking behaviour is attributed to remarking at AS boundaries.
+
+Additionally, we wish to discover how much of the existing remarking behaviour we may attribute to packets processing from within an AS. We approach this problem as follows. We utilise the previously attained data on devices that are associated with clearing the ECT codepoint, subsequently utilising the Python library 'ipwhois' to resolve the network interface to a particular AS. Subject to the imposed limitations of mapping network interfaces to autonomous systems <cite paper>. We find that across the gathered trace data, we traverse a total of 317 different ASs where we could determine the AS for a given interface. Concerning the modification of the ECN field, we found that 30 ASs definitely cleared the ECN codepoint. With 29 ASs maybe cleared the ECN field, with the rest of the represented ASs (258) not clearing the ECN field. Where we were able to identify the associated AS for a given interface, we found that 52\% of the remarking behaviour could be attributed to devices on AS boundaries. With the rest of the modifications (48\%) occurring within autonomous systems. This presents a similar result to what was found by \cite{mcquistin_is_2015}. However, we note a growing proportion of the modifications destructive to ECN originating within ASs, suggesting the deprecation of network devices that remark packets using ToS semantics on AS ingress and egress.
+
+We revisit the results presented, visualizing where ECT codepoints were remarked on a network-level hop granularity. We also present data on where devices remark ECT codepoints as they traverse the network on an AS level. Given an interface that cannot be associated with a particular AS. We assign the interface to the previous AS on the path. We note that this may bias results towards earlier on the network path. The results of this analysis have been presented in table \ref{tab:asdata}. We find that in the general case, the responsible devices that clears the ECN field are found throughout the network path.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|p{4cm}|p{4cm}|p{4cm}|}
+\hline
+Number of ASs on network path & Percentage of total \newline connections & Percent of traces that report  removal within the nth AS \\ \hline
+2                             & 30                              & 46 54                                                   \\ \hline
+3                             & 35                              & 33 25 42                                                \\ \hline
+4                             & 16                              & 22 17 57 4                                             \\ \hline
+5                             & 5                               & 8 5 14 17 56                                            \\ \hline
+6                             & 2                               & 29 13 29 0 29 0                                         \\ \hline
+7                             & 2                               & 0 0 0 9 0 18 72 0                                       \\ \hline
+\end{tabular}
+\caption{Table presenting data on where the ECT codepoint is reported as cleared on the granularity of an AS. We find that}
+\label{tab:asdata}
+\end{table}
+
+
 
 
 \section{ECN under UDP}
 
-In addition to observing modifications of ECT fields under TCP, we seeked to investigate modifications under UDP, this was to determine whether there were potential deployment issues with Quic. A new transport protocol that has introduced support for ECN. As well as to determine whether transport protocols are equivalent under ECN remarking behaviours. We present our findings in the following sections.
+In addition to observing modifications of the ECN field under TCP, we sought to investigate UDP modifications. This was to determine whether there were potential deployment issues with Quic. A new transport protocol that has introduced support for ECN and present updated results on specific host populations utilising UDP such as those shown by \cite{mcquistin_is_2015}. We present our findings in the following sections.
+
+We begin by revisiting research presented by \cite{mcquistin_is_2015}. In which the usability of ECN with UDP was investigated. The authors additionally investigated whether ECT codepoints were removed during connections.
+
+Firstly, we investigate the occurrences of ECN remarking under UDP. We do this by selecting traces from each vantage point to each NTP server collected as part of the dataset that utilised the ECT(0). We iterate over the ICMP responses present to determine whether the ECT codepoint is present within the quotations IP header for each identified trace. We average the occurrences between traces within a particular host. We present our findings in table \ref{tab:ntpect}.
+
+\begin{table}[H]
+\begin{tabular}{cc}
+\begin{minipage}{.5\linewidth}
+\begin{tabular}{|l|l|l|}
+\hline
+Host           & NTP    & Percent Effected \\ \hline
+af-south-1     & 36.20  & 3.62             \\ \hline
+ap-northeast-1 & 57.50  & 5.75             \\ \hline
+eu-west-2      & 36.57  & 3.65             \\ \hline
+me-south-1     & 19.50  & 1.95             \\ \hline
+sa-east-1      & 55.50  & 5.55             \\ \hline
+us-east-1      & 252.25 & 25.22            \\ \hline
+us-west-1      & 50.42  & 5.04             \\ \hline
+\end{tabular}
+\end{minipage}
+
+\begin{minipage}{.5\linewidth}
+\begin{tabular}{|l|l|l|}
+\hline
+Host          & NTP    & Percent Effected \\ \hline
+Author        & 146.85 & 21.62            \\ \hline
+Participant-1 & 109.75 & 16.16            \\ \hline
+Participant-2 & 19.22  & 3.63             \\ \hline
+Participant-3 & 126.29 & 2.83            \\ \hline
+Participant-4 & 35.80  & 5.27             \\ \hline
+\end{tabular}
+\end{minipage}
+\end{tabular}
+
+\caption{Table presenting the average occurences of ECT removal by network devices under traceroute operations to NTP hosts. We see a generally low occurence of ECT removal on the network, however there does exist vantage points on the network that experience this much more commonly.}
+\label{table:ntpect}
+
+\end{table}
+
+From the presented tables it is clear that some vantage points on the network experience much more modifications on the network than others. For instance, the vantage point 'us-east-1' experiences ECT removal on 25.22\% of traceroute operations conducted. We obtain similar results from the authors home network and the vantage point provided by 'Participant-1'. In the general case, the results are broadly comparable to the results obtained for TCP. However, within vantage points that experience ECT removal on a high percentage of connections, this does not appear to be as extreme. With only around 25\% of connections experiencing this behaviour, suggesting that either the device is farther from the host or the remarking behaviour is not performed consistently between traces.
+
+We continue our analysis to discover where approximately on the network path that ECT codepoints are cleared on the network. We break down our results as follows. We investigate the participants who experience high percentages of connections experiencing ECT removal individually to determine the negative behaviour's root cause. We additionally analyse the remarking behaviour in the general case.
+
+
 
 \section{A cursory look at Quic}
 
-As noted in section \ref{sec:aims} we seeked to investigate the state of the operation of ECN under Quic. Hence, a traceroute operation was implemented that mimicked connection establishment under Quic. We present findings relating to the current status of the deployment of Quic, additionally presenting the current status of the deployment of ECN within Quic. Similarly to TCP we additionally discover if and where devices on the network clear the ECN field as Quic connection establishment packets traverse the network.
+As noted in section \ref{sec:aims} we seeked to investigate the state of the operation of ECN under Quic. Hence, a traceroute operation was implemented that mimicked connection establishment under Quic. We present findings relating to the current status of the deployment of Quic, additionally presenting the current status of the deployment of ECN within Quic. Similarly to TCP, we additionally discover if and where devices on the network clear the ECN field as Quic connection establishment packets traverse the network.
 
-In gauging the adoption of Quic under the web server hosts that we selected as part of the dataset. We select Quic traces that utilise the codepoint "00" unto each web server host. We define a host as supporting ECN as one that at least responds with a UDP Quic packet in response. We find that across 1000 web server hosts, a total of <n> hosts supported ECN, with a total of <n> IPv4 hosts and <n> IPv6 hosts respectively. Overall, we have a proportion of 0.034\% of hosts having adopted Quic. This suggests relatively minimal deployment of Quic. However as Quic is a relatively new protocol, we would expect the proportion to be relatively low.
+In gauging the adoption of Quic under the webserver hosts that we selected as part of the dataset, we select Quic traces that utilise non-ECT marked probes. We define a host as supporting Quic as one that responds with a UDP Quic packet in response. We find that across 1000 web server hosts, 205 hosts supported Quic, with a total of 133 IPv4 hosts and 72 IPv6 hosts, respectively. Overall, we have a proportion of 13.3\% of hosts having adopted Quic. This percentage suggests relatively minimal deployment of Quic. However, as Quic is a relatively new protocol, we would expect the proportion to be relatively low.
 
-In determining the deployment of ECN under Quic, we select traces utilising, the ECT(0) codepoint under each webserver host. We define a host as supporting both Quic and ECN if the the host both responds, and in one of the response packets sends at least some variant of the ECN ack frame, as defined by Quic, or otherwise mark returned packets with a non zero ECT codepoint. In total we find that none of the hosts measured supported ECN under Quic, again. This is likely to be expected due to the relative immaturity of the deployment of Quic.
+In determining the deployment of ECN under Quic, we select traces utilising the ECT(0) codepoint under each webserver host. We define a host as supporting both Quic and ECN if the host both responds, and in one of the response packets sends at least some variant of the ECN ack frame, as defined by <cite draft>, or otherwise mark returned packets with a non zero ECT codepoint. In total, we find that none of the hosts measured supported ECN under Quic, again. This should be expected due to the relative immaturity of the deployment of Quic.
 
+Lastly, similarly to TCP, we sought to measure if and where devices on the network modified ECT codepoints' expression on Quic packets. To determine this, we employ a similar method to what was employed within section \ref{sec:tcpstrip} where TCP was investigated. Selecting traces containing traceroutes employed the ECT(0) codepoint, we inspect the ICMP responses returned for each packet, asserting whether the ECT codepoint was present within the quotation. We present our results in table <n>.
+
+\begin{table}[H]
+
+
+
+\begin{tabular}{cc}
+\centering
+    \begin{minipage}{.5\linewidth}
+        \begin{tabular}{|l|p{1.5cm}|p{1.5cm}|}
+\hline
+Host           & Instances \newline of \newline removal & Percent \newline effected \\ \hline
+af-south-1     & 15.80                    & 7.70\%                          \\ \hline
+ap-northeast-1 & 15.00                    & 7.31\%                          \\ \hline
+eu-west-2      & 11.00                    & 5.36\%                          \\ \hline
+me-south-1     & 7.83                     & 3.81\%                            \\ \hline
+sa-east-1      & 14.83                    & 7.23\%                          \\ \hline
+us-east-1      & 17.375                   & 8.47\%                          \\ \hline
+us-west-1      & 13.50                    & 6.58\%                            \\ \hline
+\end{tabular}
+    \end{minipage} &
+
+    \begin{minipage}{.5\linewidth}
+        \begin{tabular}{|l|p{1.25cm}|p{1.25cm}|}
+\hline
+Host         & Instances \newline of \newline removal & Percent \newline effected \\ \hline
+Author       & 10.83                    & 8.14\%                          \\ \hline
+Particpant-1 & 11.00                    & 8.27\%                          \\ \hline
+Particpant-2 & 5.44                     & 4.09\%                          \\ \hline
+Particpant-3 & 16.42                    & 12.34\%                         \\ \hline
+Particpant-4 & 12.00                    & 9.02\%                          \\ \hline
+\end{tabular}
+    \end{minipage}
+    
+\end{tabular}
+
+\caption{Instances of ECT removal under Quic averaged between traces. We find that the percentage of connections that experience ECT removal on the network largely comparable to that of the previously shown TCP connections, although on average is slightly higher.}
+
+\end{table}
+
+From the above figure, it is clear that under the hosts that support Quic, there is a significant rate of removing ECT codepoints on the network. We find that, on average <n> connections experience ECT removal on the network. As a proportion, this represents n\% of connections experiencing this behaviour. Although not a perfect comparison, our measurements indicate TCP experiences a much lower proportion of connections experiencing this behaviour. To better understand this behaviour, we continue our analysis to discover where this remarking behaviour occurs on the network. We approach this using the same approach as was used within our measurements considering TCP.
 
 \section{Are Transport Protocols equivalent under ECN?}
 
+In addition to observing the modification pathologies for ECT markings under a given transport protocol, we additionally sought to determine whether the given transport protocol in use influences whether devices on the network may clear the ECT codepoint. To deduce this, we seek to aggregate traces under each transport protocol targetting a specific host sample. Additionally, it is desirable if we avoid varying any other characteristics that may influence results. Hence the clear choice for comparing transport protocols is the collected measurements on public DNS resolvers. As both DNS over TCP and UDP operate over port 53, we may keep this variable constant. Hence, we proceed as follows. We select hosts that replied to DNS requests over both TCP and UDP. For these hosts, we select traces under each protocol utilising the ECT(0) codepoint. From the ICMP responses present, we determine whether the ECT codepoint is cleared on the network. We subsequently average across each iteration, accepting the loss of variance over time for a more straightforward subsequent analysis.
+
+\begin{table}[H]
+\begin{tabular}{cc}
+\centering
+    \begin{minipage}{.5\linewidth}
+        \begin{tabular}{|l|l|l|}
+            \hline
+            Host           & UDP   & TCP   \\ \hline
+            af-south-1     & 75.4  & 74.6  \\ \hline
+            ap-northeast-1 & 43.0  & 42.0  \\ \hline
+            eu-west-2      & 62.7  & 64.4  \\ \hline
+            me-south-1     & 30.0  & 27.8  \\ \hline
+            sa-east-1      & 46.75 & 45.25 \\ \hline
+            us-east-1      & 167.6 & 167.6 \\ \hline
+            us-west-2      & 38.1  & 36.2  \\ \hline
+        \end{tabular}
+    \end{minipage} &
+
+    \begin{minipage}{.5\linewidth}
+        \begin{tabular}{|l|l|l|}
+            \hline
+            Host          & UDP   & TCP   \\ \hline
+            Author        & 144.0 & 142.1 \\ \hline
+            Participant-1 & 686.1 & 183.6 \\ \hline
+            Participant-2 & 17.8  & 14.8  \\ \hline
+            Participant-3 & 128.0 & 122.1 \\ \hline
+            Participant-4 & 36.2  & 34.2  \\ \hline
+        \end{tabular}
+    \end{minipage}
+    
+\end{tabular}
+\caption{Number of instances of ECT removal by protocol averaged within traces.}
+\label{table:protoect}
+\end{table}
+
+Table \ref{table:protoect} shows that the number of instances of ECT removal on the network is essentially the same in the general case. Hence, if we opted to employ a statistical test, it would likely not be statistically significant. We attribute the differences in counts within hosts to measurement error. However, if we consider Participant-1 in the dataset, we see evidence of differentiated behaviour between TCP and UDP. UDP datagrams with port number 53 appear to have their ECT codepoint removed within the first hop. This is similar to TCP over port 80 for the same vantage point. However, this is not the case for DNS over TCP, again operating over port 53. However, it may be suggested that this result represents an exception to the rule. Alternatively, we explore the relationship between instances of removal of the ECT codepoint between instances. Hence we present traces unto a particular host that experience ECT removal by a network device. We subsequently check whether the TCP connection also experiences ECT removal. We present our findings in the following figure.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.75]{dissertation/images/tcpudp.pdf}
+    \caption{Graph selecting TCP connections that experience ECT removal on path, presenting where on the network path ECT removal is reported through ICMP quotations. Note that data from Participant-1 has been removed}
+    \label{fig:tcppreserve}
+\end{figure}
+
+We subsequently run a Pearsons correlation test on the results. We find a strong linear relationship ($ R=0.96 $) between removing an ECT codepoint under UDP and the subsequent removal of an ECT codepoint under TCP. This suggests that network paths that clear the ECT codepoint when the transport protocol used is UDP will also clear the ECT codepoint when the ECT codepoint used is TCP. However, this result alone does not suggest that the device that clears the ECT codepoint is the same.
+
+We continue our analysis to discover whether, in the general case, the same underlying device is responsible for clearing the ECT under each transport protocol. We begin by selecting traces under both UDP and TCP to each host. For each, we iterate through the available ICMP responses from network devices. We employ a simplistic matching to determine whether the same device is performing the remarking on the network through comparing the interfaces that first report the ECT codepoint as missing. This does not guarantee the same device is clearing the ECT codepoint as the responsible devices may exist within a network-level hop before the device that reports the ECT codepoint as cleared. However, this suggests that the behaviour originates in the same part of the network in both cases. We present our results in table \ref{tab:udptcp}.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|p{1cm}|l|p{1cm}|}
+\hline
+Host          & \multicolumn{2}{l|}{Device} & \multicolumn{2}{l|}{AS} \\ \hline
+              & Match    & No \newline Match    & Match  & No \newline Match  \\ \hline
+Author        & 97.57     & 62.00            & 157.71      & 1.85        \\ \hline
+Participant-1 & 0.00     & 192.125            & 0.00      & 192.125        \\ \hline
+Participant-2 & 7.89      & 5.78            & 11.89      & 1.78         \\ \hline
+Participant-3 & 68.71     & 20.82            & 84.57      & 4.43        \\ \hline
+Participant-4 & 18.2      & 8.8            & 23.2      & 2.4         \\ \hline
+af-south-1        & 40.8     & 25.8            & 64.8      & 1.8        \\ \hline
+ap-northeast-1 & 19.83     & 13.0            & 31.66      & 1.16        \\ \hline
+eu-west-2 & 28.28      & 16.85            & 42.57      & 2.57         \\ \hline
+me-south-1 & 13.16     & 7.83            & 18.5      & 2.5        \\ \hline
+sa-east-1 & 26.5      & 13.75            & 39.5      & 0.75         \\ \hline
+us-east-1 & 110.42      &  79.14  & 177.71      & 11.86         \\ \hline
+us-west-1 & 18.71      & 8.14         & 26.0      & 0.85         \\ \hline
+\end{tabular}
+
+\caption{stuff stuff stuff}
+\label{tab:udptcp}
+
+\end{table}
+
+
+We find that most remarking behaviour originates from the same network level hop within all vantage points measured except for Participant-1, which was previously revealed to clear ECT codepoints on all outbound traffic on port 53 under UDP. Additionally, when the responsible device that clears the ECT codepoint for UDP traffic differs from the device that reports a cleared ECT codepoint under TCP. We find that in most cases, both of these devices exist within the same AS. This suggests that different paths through a particular AS were travelled between traces, with the adverse behaviour remaining essentially constant.
+
+\section{Are ECT codepoints equivalent under network devices?}
+
+% Todo move this to after transport protocols %
+
+We seek to discover whether the different ECT codepoints used on the network are treated equivalently by network devices. For example, we seek to determine whether ECT(0) is more prone to negative interactions on the network than the CE codepoint. We additionally seek to determine the exact remarking behaviour of devices on the network. When packets ECN fields are remarked on the network, what new value does the ECN field take? Additionally, we investigate whether the remarking behaviours differ between the different ECT codepoints. That is, do network devices respond differently within the presence of different ECT codepoints? We opted to select TCP traces to web servers as a means to determine the described behaviour. Having discovered in the general case that the transport protocol in use does not influence the treatment of packets by network devices. Additionally, web servers perhaps present the most representative body of hosts on the network.
+
+We begin our analysis by focusing solely on the removal of the respective codepoints on the network. To do this, we select TCP traces from each vantage point. We then iterate over the ICMP responses present in each trace per host being measured, asserting whether the ECT codepoint is present within each ICMP quotation returned.
+
+\begin{table}[H]
+\begin{tabular}{|l|l|l|l|l|l|l|}
+\hline
+Host           & \multicolumn{2}{l|}{ECT-0} & \multicolumn{2}{l|}{ECT-1} & \multicolumn{2}{l|}{CE} \\ \hline
+               & Count      & Percentage    & Count      & Percentage    & Count    & Percentage   \\ \hline
+Author         & 60.83      & 7.87\%        & 60.66      & 7.85\%        & 60.53    & 7.83\%       \\ \hline
+Participant-1  & 785.00     & 100\%         & 785.00     & 100\%         & 785.00   & 100\%        \\ \hline
+Participant-2  & 19.00      & 2.43\%        & 18.00      & 2.30\%        & 18.00    & 2.30\%       \\ \hline
+Participant-3  & 164.28     & 21.30\%        & 163.24     & 21.27\%  & 162.28   &   21.04\%          \\ \hline
+Participant-4  & 33.0       & 4.24\%    & 29.4       &  3.78\%     & 32.3     &    4.15\%          \\ \hline
+af-south-1     & 37.8       & 4.21\%              & 36.6       &  4.08             & 34.5     & 3.84\%             \\ \hline
+ap-northeast-1 & 37.3       & 4.12\%              & 33.6       &   3.71\%            & 35.2     &  3.88\%            \\ \hline
+sa-east-1      & 37.37      &  5.87\%             & 37.625     &  5.91\%             & 35.75    & 5.61\%             \\ \hline
+us-east-1      & 111.57     & 12.39\%              & 111.0      &  12.33\%             & 110.5    &  12.27\%            \\ \hline
+us-west-1      & 59.71      &  6.59\%             & 64.71      &    7.14\%           & 62.56    & 6.90\%             \\ \hline
+eu-west-2      & 38.71      &  4.26\%             & 39.14      &   4.31\%            & 39.05    &   4.30\%           \\ \hline
+me-south-1     & 23.16      &  2.55\%             & 24.33      &    2.68\%           & 24.33    & 2.68\%              \\ \hline
+\end{tabular}
+\end{table}
+
+From the table, we see that although the number of modifications that a given vantage point experiences vary. Within a particular vantage point, the modifications under each ECT codepoint remains broadly consistent. We may attribute the differences between the ECT codepoints within a particular vantage point to measurement error. Hence if we opted to use a statistical test to assert whether there was a difference between each ECT codepoint in use, it would likely not be statistically significant. Additionally, reflecting on the results obtained from Participant-1, we find that no other ECT codepoint in use seems to traverse the network from this vantage point. Additional consultation of the relevant traces for this vantage point confirmed that the ECT codepoint is reported as missing from the ICMP quotation within the first ICMP response returned. Indicating that the home router is likely clearing the ECN field in a way that is agnostic of the codepoint in use.
+
+
+Having discovered that the frequencies that the differing codepoints are remarked do not differ. We may additionally quantify and classify the modifications that occur to the ECN field within the network. We focus on the contents of the wider Traffic Class byte to better understand this behaviour. We proceed as follows, we again select TCP traces to web server hosts. We then examine the ICMP responses present under each trace under each codepoint. We examine the respective DSCP header and the ECN field, comparing them to the ECT codepoint that should be present within that trace. If a modification has occurred to either the DSCP header or the ECN field, we store the changed value to classify.
+
+We classify <n> different remarking behaviours under our collection technique, the first behaviour and most commonly exemplified on the network is simple 'zeroing' behaviour. We find that for each ECT codepoint in use, just under half of the remarking behaviour can be attributed to devices zeroing out at least the ECN field. Under many additional circumstances, the DSCP header is set to a non-zero value on a previous hop, only to be cleared along with the ECN field on a subsequent hop. This behaviour is consistent with the behaviour previously identified by \cite{custura_exploring_2018}
+
+As previously alluded to, we additionally classify another expected remarking behaviour on the network. That is, devices altering the DSCP header. However, these modifications preserve the value of the ECN field. This behaviour represents devices that conform with the behaviour recommended by <cite paper>.
+
+Lastly, we identify that under both ECT-0 and ECT-1 we have some evidence of devices on the network utilising ECN. That is, across all host samples, we have several instances of devices solely altering the ECN field, setting the value to the CE codepoint, signalling incipient congestion on the network. Although not a core aim of our research, this result is promising as it demonstrates that devices on the network are opting to utilise ECN as a means of signalling congestion.
+
+
 \section{Are IP versions equivalent under ECN remarking?}
+
+Additionally, we sought to determine whether ECT remarking was equivalent under differing IP versions. We would seek to identify dual-stack hosts, which are hosts that operate over both IPv4 and IPv6. We perform basic disambiguation in order to achieve this. Selecting hosts that traces have the same number of hops between the vantage point between the resolved IPv4 and IPv6 address. We accept this approach as minimally robust, and other methods such as those shown by <cite paper on fingerprinting> should be used alternatively. Hence we proceed as follows, selecting web server hosts that resolved to both IPv4 and IPv6 addresses. We select traces utilising the TCP protocol and the ECT(0) codepoint, where the number of hops to a given host is the same between the IPv4 and IPv6. In total, we find that 126 hosts are likely exporting interfaces over IPv4 and IPv6 using our primitive disambiguation technique. We report our findings in the following figure. On average, we found that <n> of the IPv4 paths experienced ECT removal on the path to a given host. Alternatively, we found that <n> IPv6 hosts also experienced this. We continue our analysis by averaging the number of hosts that experience ECT removal under IPv6 and IPv4 within a given host, accepting the loss of variability over time. We present these averages in table <n>. With these averages, we conduct a test of normality of our observations using the Shapiro Wilks Test of Normality. We find that the data is normally distributed and subsequently conduct a paired t-test. We find that $ p=0.04172 $. Hence we reject the null hypothesis that the two IP versions are equivalent under ECN remarking, concluding that there exists a statistically significant difference between the prevalence of ECN remarking under each IP version. This result is to be expected, partially because much of the existing behaviour that is known to be destructive towards ECN is introduced through devices on the network continuing to use ToS semantics (\cite{custura_exploring_2018}). IPv6 having been introduced after the type of service field had been re-purposed. Nonetheless, we still experience some modifications to the ECN field under IPv6, albeit lower in prevalence than that of IPv4.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|l|l|}
+\hline
+Host           & IPv4  & IPv6 & Difference \\ \hline
+af-south-1     & 7.75  & 3.75 & 4.00      \\ \hline
+ap-northeast-1 & 7.14  & 4.90 & 2.24       \\ \hline
+eu-west-2      & 6.34  & 4.20 & 2.14       \\ \hline
+me-south-1     & 8.80  & 2.00 & 6.80        \\ \hline
+sa-east-1      & 7.16  & 3.33 & 3.83       \\ \hline
+us-east-1      & 18.25 & 11.5 & 6.75       \\ \hline
+us-west-1      & 14.00 & 8.85 & 5.15       \\ \hline
+Participant-3   & 7.37  & 4.25 & 3.12       \\ \hline
+Participant-4  & 8.70  & 3.25 & 5.45       \\ \hline
+\end{tabular}
+\caption{Observations of ECT removal on the network under TCP against dual stack hosts under each IP version, note that vantage points that do not export an IPv6 address have not been included.}
+\end{table}
+
+Given that IPv6 was introduced after the deprecation of the ToS field, we may additionally seek to better understand what modifications are occuring to the ECN field on the network to better diagnose the root cause of the behaviour that is exhibited.
+
+We find that the mean difference between the IPv4 to IPv6 measurements is 4.39, we additionally generate a confidence interval of this difference finding a lower limit of 3.04 and an upper limit of 5.74. Under our generated sample of dual stack hosts. We find that it is likely that the IPv4 paths unto these hosts are more adverse to ECN than the IPv6 path to the same host.
+
+When discussing modification pathologies for the different ECT codepoints in use, we primarily concerned our analysis with IPv4 based hosts, and the remarking behaviour observed on the network.
+
+We investigate the remarking behaviour for packets under ipv6. We proceed as follows ... We find that from our trace data all remarking behaviour destructive towards the ECN field originates from zeroing behaviour. This is the same as the zeroing behaviour exhibited under IPv4. However we do not see the same behaviour with the DSCP header being changed on a  given interface hop and the ECN field subsequently being set to zero, in a way that would indicate routers utilising ToS semantics.  we additionally se non destructive modifications to the wider DSCP header where on a given interface hop the DSCP header is reported to have changed while the ECN field remains constant. 
+
+
 
 
 \section{Other notable behaviours}
 
-Across the traces gathered from each host, it was noticed that in certain cases ICMP responses from the network as part of a traceroute operation were received that were marked with a given ECT codepoint. This is interesting as ICMP does not utilise ECN and it would be expected that devices sending ICMP responses would not subsequently utilise the field.
+Across the traces gathered from each host, it was noticed that in certain cases ICMP responses from the network as part of a traceroute operation were received that were marked with a given ECT codepoint. This is interesting as ICMP does not utilise ECN and it would be expected that devices sending ICMP responses would not subsequently utilise the field. Additionally we clarify that on these received responses, the corresponding DSCP header is not set, distinguishing this behaviour from remarking behaviour commonly seen on AS boundaries
 
-We investigate the specific behaviour of devices on the network in regarding to devices apparently sending ECT marked ICMP responses. We note that the majority of connections exhibit this behaviour from at least a singular device. Additionally the actual number of devices that observe this behaviour is likely slightly higher. As the reverse path from a host towards a given vantage point may also clear the ECT fields.
+We investigate the specific behaviour of devices on the network in regarding to devices apparently sending ECT marked ICMP responses. We note that the majority of connections exhibit this behaviour from at least a singular device (74\%). Additionally the actual number of devices that observe this behaviour is likely slightly higher. As the reverse path from a host towards a given vantage point may also clear the ECN field of returned ICMP packets.
 
-We consult the available literature to determine a root cause for this behaviour, and to the best of the authors knowledge this behaviour may originate from misconfigured devices derving behaviour from RFC ..., which suggests that devices sending ICMP response messages should set the Type of service field to the same value as the packet that resulted in the ICMP response being generated. Notably ICMP TTL exceeded are not considered ICMP response messages. Hence it is not clear why devices are behaving in this manner.
+We consult the available literature to determine a root cause for this behaviour, and to the best of the authors knowledge this behaviour may originate from misconfigured devices deriving behaviour from RFC 1349, which suggests that devices sending ICMP response messages should set the Type of service field to the same value as the packet that resulted in the ICMP response being generated. Notably ICMP TTL exceeded are not considered ICMP response messages (they are considered ICMP error messages). Hence it is not clear why devices are behaving in this manner.
 
-However, this behaviour has many interesting implications. This behaviour may be used to identify devices on the network that continue to use TOS semantics, as this marking behaviour is derived under this field. Additionally, our measurements are limited to path transparency on the forward path. If devices can be identified that mark packets with the ECT codepoint in generating ICMP TTL Exceeded responses. This may allow for some path transparency measurements to be additionally determined on the reverse path (from a host towards a given vantage point), notably without any cooperation from the host being measured. A common limitation in the available literature of network measurement.
+However, this behaviour has many interesting implications. This behaviour may be used to identify devices on the network that continue to use ToS semantics, as this marking behaviour is derived under this field. Additionally, our measurements are limited to path transparency on the forward path. If devices can be identified that mark packets with the ECT codepoint in generating ICMP TTL Exceeded responses. This may allow for some path transparency measurements to be additionally determined on the reverse path (from a host towards a given vantage point), notably without any cooperation from the host being measured. A common limitation in the available literature of network measurement.
+
+We present a possible approach for determining reverse transparency utilising the behaviour described visually in figure \ref{fig:reverse}. Given multiple vantage points on the network, having all run traceroute style operations towards a given host utilising a non zero ECT codepoint, it is likely that some of the received ICMP responses will be from the same intermediate devices, particularly if the hosts share the same underlying ISP. We may examine the ICMP responses received by each vantage point in turn. If the ICMP response sent to a given vantage point is marked with a non-zero ECN field we may suggest that this device observes the behaviour described previously in this section. If from another given vantage point an ICMP response is received from the same device and contains a zeroed ECN field, we may deduce that some device, closer to that vantage point on the reverse path is clearing the ECT codepoint. We may additionally approximate the location of the responsible device where either, more devices observe ECT markings on ICMP responses, or where more of the intermediate devices on the network are shared between vantage points. However, we would likely have to assume that some intermediate devices are shared between the forward and reverse paths are shared in order to accomplish this.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.5]{dissertation/images/reversepath.pdf}
+    \caption{A diagrammatic representation of how transparency of the reverse path can be determined utilising multiple vantage points. identifying common devices on the forward path from a traceroute operation may allow the identification of devices on reverse paths that clear the ECT field and their approximate location on the network. From this figure we indentify that the reverse path to vantage point A likely contains a device that clears the ECN field. Whilst vantage points B and C do not.}
+    \label{fig:reverse}
+\end{figure}
 
 \section{Discussion}
 
 %==================================================================================================================================
-\chapter{Conclusion}    
+\chapter{Conclusion}
+
+In this section we conclude with an overview of what was demonstrated across the scope of this paper. Additionally, we highlight areas for future elaboration in light of discoveries made within this research area.
+
 \section{Summary}
+
+
+In this paper we have discussed the motivation for a new network analysis tool to gather additional measurements from the network under otherwise untested protocols in regards to ECN. We additionally presented a new method for discerning whether ECT codepoints are removed during TCP connections. We subsequently proposed a suitable design for such a tool, as well as highlighting an experimental methodology to utilise the produced tool as part of a medium scale deployment. We then demonstrated details of the system in its implementation and subsequent deployment on numerous geographically distributed hosts. From the measurements taken from the network we presented the following; The adoption of ECN within IPv4 hosts appears to have reached a saturation point. We highlighted several aspects of the treatment of ECN under TCP on the network, such as the percentage of connections that experience ECT removal on the network, additionally highlighting the existence of misconfigured devices located close to a particular host, clearing ECN on all outbound traffic. We then showed approximately where on the network devices were clearing the ECT codepoint on the scale of interface hops on the path. As well as on the scale of an AS. We found that a slightly lower proportion of modifications could be attributed to AS boundaries when compared to results from previous works, suggesting the deprecation of historically destructive devices in regard to ECN. We then discussed the treatment of ECN under a new trasport protocol, Quic, we showed that.
+
+We then continued to show that there exists a statistically significant difference between the treatment of ECT codepoints under IPv4 and IPv6, finding that IPv4 was more prone to negative interactions on the network. We also investigated whether particular transport protocols were more prone to negative interactions on the network, we found that there does exist specific devices on the network that treat transport protocols in different ways, although we showed this as an exception as opposed to a rule.
+
+Additionally we investigated whether the ECT codepoint in use influenced the modification of packets on the network, we found that although there exists many differing modfications in use on the network.
 
 
 \section{Future Work}
 
-Whilst it is believed that the experiment was successful in testing a variety of network pathways from numerous vantage points, we accept that there were limitations presented as a result of sourcing participants from a limited geographic distribution.
+Whilst it is believed that the research was successful in testing a variety of network pathways from numerous vantage points, we accept that there were limitations presented as a result of sourcing participants from a limited geographic distribution, this is particularly apparent through the lack of data sourced from vantage points from within residential networks within the Americas.
 
-Furthermore, as the deployment of Quic progresses, gathering data from a wider collection of hosts would be desirable to attain a more general understanding of how ECN under Quic interacts with the wider network.
+Additionally, as the deployment of Quic progresses, gathering data from a wider collection of hosts would be desirable to attain a more general understanding of how ECN under Quic interacts with the wider network. As in this paper relatively few hosts within the dataset exposed services operating over Quic.
+
+In light of the discovery of on path devices that may mimick the ToS field on packets that generate ICMP responses summarised in section \ref{sec:other}. Additional works may utilise the proposed methodology as a means to determine reverse path transparency without the cooperation of the host. As previously mentioned, this is particularly interesting as this has been a recurring limitation with respect to network measurement in regard to ECN.
 
 
 %==================================================================================================================================
@@ -740,7 +997,22 @@ Furthermore, as the deployment of Quic progresses, gathering data from a wider c
 \chapter{Introduction and debrief scripts}
 
 \section{Introduction Script}
+
+The aim of this experiment is to measure the adoption of a feature contained within computer network traffic, known as Explicit Congestion Notification (ECN). Which allows for devices on the network to signal impending congestion. Furthermore we investigate if and where, devices within the network modify the expression of these features within transmitted traffic, that may impair the feature’s operation. In order to acquire a more general understanding of the treatment of ECN on the network we require several vantage points to ensure a suitable portion of pathways on the network are tested. I will assist you in installing the software to your local computing equipment. Once the software has been setup the tool will run automatically for a period of two weeks, during which. Routine check-ups at most once per day will be performed to ensure that the tool is operating correctly. Please ask questions if you need to. Please remember that is the wider network being tested and not yourself. 
+
+You are welcome to withdraw from the experiment at any time without prejudice. Please take a note of my email address and the email address of  the module co-ordinator, and please let us know if you have any further questions about this experiment [give contact details, and encourage further comments]. Do you agree to take part in this experiment? Do you have any questions before we begin?
+\clearpage
 \section{Debrief Script}
+
+The main aim of the experiment is to  measure the adoption of a feature contained within computer network traffic, known as Explicit Congestion Notification (ECN). Which allows for devices on the network to signal impending congestion. Furthermore we investigate if and where, devices within the network modify the expression of these features within transmitted traffic, that may impair the feature’s operation
+
+Do you have any comments or questions about the experiment? Please take a note of my email address and the email address of  the module co-ordinator, and please let us know if you have any further questions about this experiment [give contact details, and encourage further comments]. Thank you for your help.”
+
+\clearpage
+
+
+\includepdf[pages=1,pagecommand=\section{Ethics Approval}, scale=0.75]{images/requestEthicsApprovalSigned.pdf}
+\includepdf[pages=2-,pagecommand={}, scale=0.8]{images/requestEthicsApprovalSigned.pdf}
 
 \end{appendices}
 
