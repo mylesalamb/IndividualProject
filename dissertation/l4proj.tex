@@ -29,7 +29,7 @@
 %% ABSTRACT
 \begin{abstract}
     
- Explicit Congestion Notification (ECN) allows devices on the network to signal incipient congestion before a congestive loss occurs. However, devices on the network have presented deployment issues for features such as ECN through applying modifications to packets that are destructive to ECN signalling. This paper investigates where network devices alter ECN Capable Transport (ECT) codepoints. To achieve this, we implement a new network analysis tool. We subsequently conduct a medium-scale deployment of the tool to gather various measurements from the network to ascertain the current state of affairs of the treatment of ECN on the network. 
+ Explicit Congestion Notification (ECN) allows devices on the network to signal incipient congestion before a congestive loss occurs. However, devices on the network have presented deployment issues for features such as ECN through applying modifications to packets that are destructive to ECN signalling. This paper investigates where network devices alter ECN Capable Transport (ECT) codepoints. To achieve this, we implement a new network analysis tool. We subsequently conduct a medium-scale deployment of the tool to gather various measurements from the network to ascertain the current state of affairs of the treatment of ECN on the network. Key findings include that there does not appear to be any particular inhibitors to the deployment of ECN within Quic, or that the transport protocol in use generally does not influence the behaviour of devices on the network.
     
 \end{abstract}
 
@@ -117,12 +117,12 @@ Lastly, the CE codepoint is used by devices on the network to signal that conges
 
 \subsection{Historic use of ToS and its implications}
 
-As previously mentioned, the IP header's bits that constitute the ECN field did not always serve this purpose. Historically, these bits formed part of the Type of Service (ToS) field, which served many related purposes over the years of its use—initially presented by \citep{rfc791} and further updated numerous times in the following years. It was primarily used to identify traffic precedence and provide mechanisms to request specific treatment on the network, such as low latency or high reliability. This field was typically employed on Autonomous Systems (ASs) borders. ASs are typically large networks that conform to a singular routing policy. Packets entering an AS would typically be marked with a given ToS value describing the required treatment of traffic entering the AS. They may additionally remark the ToS field as traffic leaves a given AS, known as boundary remarking. Whilst efforts were made to ensure some level of compatibility between ToS and the later introduced DSCP (Differentiated Services Codepoint) in RFC 3168, such as maintaining the IP Precedence aspect of ToS\citep{rfc3168}. This could not be extended to ECN, a concept conceived after the deprecation of the ToS field. The bits that constitute ECN were either unused and set to zero as defined in RFC 791\citep{rfc791}. Alternatively, in RFC 1349, the rightmost bit was always zeroed, referenced as a "Must-be-zero" bit\citep{rfc1349}. Hence, as the bits that constitute the modern ECN field have been redefined several times over previous years, we can potentially have many different interpretations for the ECN field. Given the existence of older networking equipment that continues to use the ToS field as defined in \cite{rfc791} or later definitions. For instance, \cite{custura_exploring_2017} demonstrated several devices on the network that continue to use ToS based semantics. With many exhibiting destructive behaviours towards ECN.
+As previously mentioned, the IP header's bits that constitute the ECN field did not always serve this purpose. Historically, these bits formed part of the ToS byte, which served many related purposes over the years of its use—initially presented by \citep{rfc791} and further updated numerous times in the following years. It was primarily used to identify traffic precedence and provide mechanisms to request specific treatment on the network, such as low latency or high reliability. This field was typically employed on Autonomous Systems (ASs) borders. ASs are typically large networks that conform to a singular routing policy. Packets entering an AS would typically be marked with a given ToS value describing the required treatment of traffic entering the AS. They may additionally remark the ToS field as traffic leaves a given AS, known as boundary remarking. Whilst efforts were made to ensure some level of compatibility between ToS and the later introduced DSCP in RFC 3168, such as maintaining the IP Precedence aspect of ToS\citep{rfc3168}. This could not be extended to ECN, a concept conceived after the deprecation of the ToS field. The bits that constitute ECN were either unused and set to zero as defined in RFC 791\citep{rfc791}. Alternatively, in RFC 1349, the rightmost bit was always zeroed, referenced as a "Must-be-zero" bit\citep{rfc1349}. Hence, as the bits that constitute the modern ECN field have been redefined several times over previous years, we can potentially have many different interpretations for the ECN field. Given the existence of older networking equipment that continues to use the ToS field as defined in \cite{rfc791} or later definitions. For instance, \cite{custura_exploring_2017} demonstrated several devices on the network that continue to use ToS based semantics. With many exhibiting destructive behaviours towards ECN.
 
 \section{ECN Within TCP}
 \label{sec:ecntcp}
 
-Support for ECN under TCP was defined in RFC 3168\cite{rfc3168}. When ECN is utilised with TCP, hosts must first negotiate its use at the beginning of the TCP connection during the SYN-ACK exchange as part of TCP connection establishment. ECN under TCP utilises two previously reserved bits of the TCP header. Namely the ECE (ECN Echo) and the CWR (Congestion window reduced) bits. Hosts may negotiate ECN by setting the ECE and CWR bits of the TCP header on the initiating SYN of the TCP handshake. If the receiving host also desires to use ECN, a SYN-ACK with the ECE bit set will be returned. Subsequent data segments sent during the connection should be marked with either ECT(0) or ECT(1) on the IP header to indicate ECN capable transport. When congestion is experienced on a node on the network, the network device should mark a given packet with the ECE codepoint. End hosts receiving a packet with the CE codepoint set should respond by setting the ECE bit in the TCP header on the following segment sent during the connection. The sending host then indicates the receipt of a segment with ECE bit set, by setting the CWR bit in the TCP header of the following segment sent, as well as responding with respect to the congestion control algorithm in use as if packet loss had occurred, this process is summarised in figure \ref{fig:ecn_tcp}.
+Support for ECN under TCP was defined in RFC 3168\cite{rfc3168}. When ECN is utilised with TCP, hosts must first negotiate its use at the beginning of the TCP connection during the SYN-ACK exchange as part of TCP connection establishment. ECN under TCP utilises two previously reserved bits of the TCP header. Namely the ECE (ECN Echo) and the CWR (Congestion window reduced) bits. Hosts may negotiate ECN by setting the ECE (ECN-echo) and CWR bits of the TCP header on the initiating SYN of the TCP handshake. If the receiving host also desires to use ECN, a SYN-ACK with the ECE bit set will be returned. Subsequent data segments sent during the connection should be marked with either ECT(0) or ECT(1) on the IP header to indicate ECN capable transport. When congestion is experienced on a node on the network, the network device should mark a given packet with the ECE codepoint. End hosts receiving a packet with the CE codepoint set should respond by setting the ECE bit in the TCP header on the following segment sent during the connection. The sending host then indicates the receipt of a segment with ECE bit set, by setting the CWR bit in the TCP header of the following segment sent, as well as responding with respect to the congestion control algorithm in use as if packet loss had occurred, this process is summarised in figure \ref{fig:ecn_tcp}.
 
 
 
@@ -211,7 +211,7 @@ Additional studies have also concerned themselves with the deployment of UDP bas
 
 \subsection{Exploring DSCP Modification Pathologies in the Internet}
 
-\cite{custura_exploring_2017} examined the wider traffic class byte with a particular focus on the DSCP header. However, the author discovers many different modification pathologies that, in some cases, affect the ECN field as well. In particular, the author demonstrated a correlation between DSCP header remarking and remarking of the ECN field in the majority of cases, suggesting that some routers erroneously clear the ECN field as a consequence of continuing to use ToS semantics. However, this is not suggested to be the root cause for all remarking behaviour on the network in regards to the ECN field. Suggesting that additional behaviours on the network may be attributed to the clearing of the ECN field. Furthermore, the author investigates whether the transport protocol in use influences the DSCP modifications pathologies discussed in the paper. This analysis is not extended to the three non zero ECT codepoints individually. Hence it cannot be inferred that the ECT codepoint in use has no effect on the remarking behaviour exhibited by devices on the network path.
+Custura et al.\cite{custura_exploring_2017} examined the wider traffic class byte with a particular focus on the DSCP header. However, the author discovers many different modification pathologies that, in some cases, affect the ECN field as well. In particular, the author demonstrated a correlation between DSCP header remarking and remarking of the ECN field in the majority of cases, suggesting that some routers erroneously clear the ECN field as a consequence of continuing to use ToS semantics. However, this is not suggested to be the root cause for all remarking behaviour on the network in regards to the ECN field. Suggesting that additional behaviours on the network may be attributed to the clearing of the ECN field. Furthermore, the author investigates whether the transport protocol in use influences the DSCP modifications pathologies discussed in the paper. This analysis is not extended to the three non zero ECT codepoints individually. Hence it cannot be inferred that the ECT codepoint in use has no effect on the remarking behaviour exhibited by devices on the network path.
 
 \subsection{PATHSpider}
 
@@ -256,7 +256,7 @@ Attempting to attribute ECT modifications to a particular device on the network 
 \label{fig:icmpambig}
 \end{figure}
 
-Additionally, suppose we have a network interface that is reasonably known to have cleared the ECN codepoint. In that case, it may be desirable to ascribe this network interface's actions to a particular Autonomous System (AS). This presents additional difficulties as router interfaces that comprise AS boundaries may utilise addresses from either of the adjacent AS's or some private address, the latter resulting in the resolution attempts failing (\cite{mcquistin_is_2015}).
+Additionally, suppose we have a network interface that is reasonably known to have cleared the ECN codepoint. In that case, it may be desirable to ascribe this network interface's actions to a particular Autonomous System (AS). This presents additional difficulties as router interfaces that comprise AS boundaries may utilise addresses from either of the adjacent AS's or some private address, the latter resulting in the resolution attempts failing \cite{mcquistin_is_2015}.
 
 As is generally seen as a reasonable scientific practice, we wish to obtain results that are, on the whole generalizable. In this paper's context, we seek to generalize the treatment of ECT codepoints into the broader network. For example, suppose we opted to obtain measurements from a singular host or vantage point on the network. In that case, we introduce a vulnerability to a particular device located close to the Host on the network that may erroneously clear ECT codepoints, potentially biasing the majority of the results obtained. Selecting one vantage point to measure from also restricts the number of network-level paths that may be tested, restricting our ability to gain a representative view of ECT codepoints' treatment on the network. Additionally, geographically close hosts, or hosts sharing the same underlying internet service provider (ISP). May share much of the same network level path to particular end hosts, hence are vulnerable to the same issues presented with collecting data from a singular vantage point on the network. 
 
@@ -265,7 +265,7 @@ With the following points being raised. We find it desirable to gather data from
 \subsection{Aims}
 \label{sec:aims}
 
-In consulting the relevant literature for ECN modification on the network, We find that although a wealth of research exists in the area. The majority of research conducted consults either ECT(0) for most of the measurements taken as is the case with \cite{mcquistin_is_2015}. Otherwise, papers typically use the CE codepoint and do not subsequently elaborate on the specific remarking behaviour, as in the case of \cite{bauer_measuring_2011}. As previously mentioned, RFC 1583 defines the rightmost bit of the traffic class byte as being set to zero, which is now occupied by one of the two ECN bits. If this behaviour is still observed on the network, we would expect to see a differential in the treatment of different codepoints on the network. Hence this topic is to be pursued in the following chapters of this paper. 
+In consulting the relevant literature for ECN modification on the network, We find that although a wealth of research exists in the area. The majority of research conducted consults either ECT(0) for most of the measurements taken as is the case with \cite{mcquistin_is_2015}. Otherwise, papers typically use the CE codepoint and do not subsequently elaborate on the specific remarking behaviour, as in the case of \cite{bauer_measuring_2011}. As previously mentioned, RFC 1583 defines the rightmost bit of the traffic class byte as being set to zero, which is now occupied by one of the two ECN bits\cite{rfc1583}. If this behaviour is still observed on the network, we would expect to see a differential in the treatment of different codepoints on the network. Hence this topic is to be pursued in the following chapters of this paper. 
 
 Additionally, the recent developments regarding the implementation of ECN functionality within newer protocols such as Quic present potential deployment issues with devices that have likely not otherwise been exposed to ECT enabled UDP based traffic. 
 
@@ -369,7 +369,7 @@ Additionally, we select the worlds most popular sites as indicated by the Alexa 
 To obtain a set of public NTP servers, we utilise the \href{https://www.pool.ntp.org}{NTP pool}, a virtual cluster of NTP servers providing precision timekeeping. Attempting to resolve \lstinline{pool.ntp.org} through a DNS resolver returns the IP address of a given NTP server from the pool. The returned IP address changes every few minutes through the implementation of a round-robin DNS. The pool supports the discovery of geographically bound hosts through attempting to resolve pool.ntp.org with an applicable region as a subdomain, for example. Attempting to resolve europe.pool.ntp.org will attempt to return an NTP server located in Europe. We utilise this approach to obtain hosts that are geographically distributed. Additionally, the NTP pool offers additional subdomains that offer IPv6 addresses of NTP servers to be obtained. It was discovered that 2.ntp.pool.org is one of these domains.
 Hence we implement a simple shell script to collect IP addresses from the resolution of \lstinline{pool.ntp.org} under all region codes across a period of 2 months beginning from 20/10/2020. We subsequently randomly select 1000 of the returned address using the \lstinline{shuf} command. In total, 679 IPv4 addresses and 321 IPv6 addresses were collected.
 
-Lastly, in figure \ref{fig:locs} we present the approximate geographic distributions of the gathered hosts as indicated by Maxmind IP Geolocation, allowing for resolution of IP addresses to their approximate location on the granularity of a city. However, these resolutions are subject to limitations of mapping IP addresses to specific locations\cite{shavitt_geolocation_2011}. We find that there is good geographic coverage offered by the hosts gathered. As discussed in chapter \ref{chap:analysis} this helps assure that an appropriate variety of network pathways are tested. However, the selection of web server hosts obtained appears clustered to a few isolated areas in the United States, Europe and East Asia.
+Lastly, in figure \ref{fig:locs} we present the approximate geographic distributions of the gathered hosts as indicated by ipstack IP Geolocation, allowing for resolution of IP addresses to their approximate location on the granularity of a city. However, these resolutions are subject to limitations of mapping IP addresses to specific locations\cite{shavitt_geolocation_2011}. We find that there is good geographic coverage offered by the hosts gathered. As discussed in chapter \ref{chap:analysis} this helps assure that an appropriate variety of network pathways are tested. However, the selection of web server hosts obtained appears clustered to a few isolated areas in the United States, Europe and East Asia.
 
 \begin{figure}[H]
     \centering
@@ -393,7 +393,7 @@ Lastly, in figure \ref{fig:locs} we present the approximate geographic distribut
   \caption{}
   \label{fig:sub2}
 \end{subfigure}
-\caption{Approximate locations of each server population, as indicated by MaxMind IP Geolocation as of 29/01/2021, (a) NTP Servers, (b) DNS resolvers, (c) Web servers}
+\caption{Approximate locations of each server population, as indicated by ipstack IP Geolocation as of 29/01/2021, (a) NTP Servers, (b) DNS resolvers, (c) Web servers}
 \label{fig:locs}
   
 \end{figure}
@@ -472,7 +472,7 @@ struct iphdr *ip4 = nfq_ip_get_hdr(pkt);
 \label{lst:libnf}
 
 
-\subsection{ECT modifications with TCP}
+\subsection{ECT Modifications Under TCP}
 \label{sec:tcponpath}
 
 % keep subsection, maybe more elaborate explanation of what is going on in the code, or maybe more relastic about what wqas actually done %
@@ -657,7 +657,7 @@ As other research has indicated, we see a general increase over time in the will
 \begin{figure}[H]
     \centering
     \includegraphics[scale=0.7]{dissertation/images/ecn_trends.pdf}
-    \caption{Graph showing relative proportions of IPv4/IPv6 web server hosts that would negotiate ECN over time. Noting an apparent plateau in the growth of hosts willing to negotiate ECN under IPv4.}
+    \caption{Graph showing relative proportions of IPv4/IPv6 web server hosts that would negotiate ECN over time. Noting an apparent plateau in the growth of hosts willing to negotiate ECN under IPv4. Utilising datapoints from \cite{bauer_measuring_2011}, \cite{medina_measuring_2004}, \cite{bauer_measuring_2011} and \cite{kuhlewind_state_2013}}
     \label{fig:ecngrowth}
 \end{figure}
 
@@ -816,7 +816,7 @@ Particpant-4 & 12.00                    & 9.02\%                          \\ \hl
 
 \end{table}
 
-From the above figure, it is clear that under the hosts that support Quic, there is a comparable rate of removal of ECT codepoints under Quic to that of TCP. We find that, on average 7.36\% connections experience ECT removal on the network. This is a promising result, as this suggests that there are no additional devices on the network that may present challenges in deploying ECN under Quic when compared to other protocols such as TCP. 
+From the above figure, it is clear that under the hosts that support Quic, there is a comparable rate of removal of ECT codepoints under Quic to that of TCP. We find that, on average 8.5\% connections experience ECT removal on the network. This is a promising result, as this suggests that there are no additional devices on the network that may present challenges in deploying ECN under Quic when compared to other protocols such as TCP. 
 
 \section{Are Transport Protocols Equivalent Under ECN?}
 
@@ -852,7 +852,7 @@ In addition to observing the modification pathologies for ECT markings under a g
     \end{minipage}
     
 \end{tabular}
-\caption{Number of instances of ECT removal by protocol averaged within traces.}
+\caption{Number of instances of ECT removal by protocol averaged within traces under DNS resolvers.}
 \label{table:protoect}
 \end{table}
 
@@ -861,7 +861,7 @@ Table \ref{table:protoect} shows that the number of instances of ECT removal on 
 \begin{figure}[H]
     \centering
     \includegraphics[scale=0.70]{dissertation/images/tcpudp.pdf}
-    \caption{Graph selecting TCP connections that experience ECT removal on path, presenting where on the network path ECT removal is reported through ICMP quotations. Note that data from Participant-1 has been removed}
+    \caption{Graph selecting TCP connections that experience ECT removal on path, presenting where on the network path ECT removal is reported through ICMP quotations. Note that data from Participant-1 has been removed.}
     \label{fig:tcpremove}
 \end{figure}
 
