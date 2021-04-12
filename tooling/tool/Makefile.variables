@@ -1,2 +1,0 @@
-LSQUIC_DIR=$(shell realpath lsquic)
-BSSL_DIR=$(shell realpath boringssl)

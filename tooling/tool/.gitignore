@@ -1,6 +1,0 @@
-ecnDetector
-*.o
-**/*.pcap
-vgcore.*
-.terraform
-.vscode
