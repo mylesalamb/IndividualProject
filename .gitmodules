@@ -4,3 +4,9 @@
 [submodule "tooling/prod/boringssl"]
 	path = tooling/prod/boringssl
 	url = http://boringssl.googlesource.com/boringssl
+[submodule "src/tool/lsquic"]
+	path = src/tool/lsquic
+	url = https://github.com/litespeedtech/lsquic
+[submodule "src/tool/boringssl"]
+	path = src/tool/boringssl
+	url = https://boringssl.googlesource.com/boringssl
