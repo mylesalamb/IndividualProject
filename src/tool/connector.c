@@ -52,7 +52,7 @@
 //netinet doesnt define this for some reason
 #define TH_ECE 0x40
 
-// Any lower seems to cause the pcap capture to freak it
+// Any lower seems to cause the pcap capture to break
 #define UDP_DLY \
   (struct timespec) { 0, 70000000 }
 
