@@ -534,13 +534,13 @@ static int set_user()
 
   if (setgid(pwd->pw_gid) != 0)
   {
-    LOG_ERR("setgid failed\n");
+    LOG_ERR("setgid failed, check capabilities\n");
     return -1;
   }
 
   if (setuid(pwd->pw_uid) != 0)
   {
-    LOG_ERR("setuid failed\n");
+    LOG_ERR("setuid failed, check capabilities\n");
     return -1;
   }
 

@@ -312,9 +312,9 @@ def compute_basic_ecn_negotation_stats(instances):
                         if not stat["is_host_reachable"]:
                             continue
                         if stat["is_ecn_negotiated_tcp"]:
-                            ecn_negotiated_ntp[host_ver][1] += 1
-                        else:
                             ecn_negotiated_ntp[host_ver][0] += 1
+                        else:
+                            ecn_negotiated_ntp[host_ver][1] += 1
 
 
 
@@ -954,14 +954,13 @@ def compute_interfaces(instances):
                             if interface in non_clearing:
                                 maybe_clearing.add(interface)
                                 non_clearing.remove(interface)
-                            else:
+                            elif interface not in maybe_clearing:
                                 clearing.add(interface)
                                 clearing_as.add(asn)
                             
                             if not (asn in [None, "private"] or asn_next in [None, "private"]):
                                 if interface_next:
                                     if asn != asn_next:
-                                        print("{} - {}".format(asn, asn_next))
                                         boundary += 1
                                     else:
                                         non_boundary += 1
@@ -969,13 +968,22 @@ def compute_interfaces(instances):
 
                         elif not interface in clearing:
                             non_clearing.add(interface)
-                            non_clearing_as.add(asn)
+                            
+                            
+                            if asn in clearing_as:
+                                clearing_as.remove(asn)    
+                                maybe_clearing_as.add(asn)
+
+                            if asn not in maybe_clearing_as:
+                                non_clearing_as.add(asn)
 
 
                         else:
                             clearing.remove(interface)
                             maybe_clearing.add(interface)
                             maybe_clearing_as.add(asn)
+                            if asn in non_clearing_as:
+                                non_clearing_as.remove(asn)
 
 
     print("clearing: {}".format(len(clearing)))
@@ -1002,12 +1010,6 @@ def compute_interfaces_ntp(instances):
     non_boundary = 0
     
     for instance in instances:
-        if instance["name"] == "ian":
-            continue
-        if instance["name"] == "pi":
-            continue
-        if instance["name"] == "us-east-1":
-            continue
         for trace in instance["data"]:
             for host, datum in trace.items():
                 # check the trace data for reachable hosts
@@ -1025,7 +1027,7 @@ def compute_interfaces_ntp(instances):
                         if not auto:
                             auto = lib.whois.WhoIs.instance().lookup(interface)
                             if not auto:
-                                print("still returning none :/")
+                                print("lookup is none")
                         asn = json.loads(auto)["asn"]
 
                         if interface_next:
@@ -1035,14 +1037,13 @@ def compute_interfaces_ntp(instances):
                             if interface in non_clearing:
                                 maybe_clearing.add(interface)
                                 non_clearing.remove(interface)
-                            else:
+                            elif interface not in maybe_clearing:
                                 clearing.add(interface)
                                 clearing_as.add(asn)
                             
                             if not (asn in [None, "private"] or asn_next in [None, "private"]):
                                 if interface_next:
                                     if asn != asn_next:
-                                        print("{} - {}".format(asn, asn_next))
                                         boundary += 1
                                     else:
                                         non_boundary += 1
@@ -1050,13 +1051,22 @@ def compute_interfaces_ntp(instances):
 
                         elif not interface in clearing:
                             non_clearing.add(interface)
-                            non_clearing_as.add(asn)
+                            
+                            
+                            if asn in clearing_as:
+                                clearing_as.remove(asn)    
+                                maybe_clearing_as.add(asn)
+
+                            if asn not in maybe_clearing_as:
+                                non_clearing_as.add(asn)
 
 
                         else:
                             clearing.remove(interface)
                             maybe_clearing.add(interface)
                             maybe_clearing_as.add(asn)
+                            if asn in non_clearing_as:
+                                non_clearing_as.remove(asn)
 
 
     print("clearing: {}".format(len(clearing)))
@@ -1281,8 +1291,6 @@ def compute_remarking_tcp(instances):
     results = [{}, {}, {}, {}]
     print(results)
     for instance in instances:
-        if instance["name"] == "ian":
-            continue
         print("do remarking for instance: \"{}\"".format(instance["name"]))
         for trace in instance["data"]:
             for host, datum in trace.items():
@@ -1364,62 +1372,55 @@ def conduct_analysis(instances, dataset_dir="../../datasets"):
     
     generate_ecn_trends_graph("ecn_trends.txt")
 
-    # print("attempt to map web hosts")
-    # compute_map_of_hosts("ntp.locs")
-    # compute_map_of_hosts("web.locs")
-    # compute_map_of_hosts("dns.locs")
+    print("attempt to map web hosts")
+    compute_map_of_hosts("ntp.locs")
+    compute_map_of_hosts("web.locs")
+    compute_map_of_hosts("dns.locs")
    
     stats = {}
 
-    for instance in instances:
-        if instance["name"] == "ian":
-            del instance["data"][2]
-        if instance["name"] == "pi":
-            del instance["data"][1]
-
-    # stats["reachability udp ntp"] = compute_reachability_stats_udp_ntp(instances)
+   
+    stats["reachability udp ntp"] = compute_reachability_stats_udp_ntp(instances)
     stats["ect_stripped_udp_ntp"] = compute_basic_strip_stats_udp_ntp(instances)
-    # stats["ect_stripped_tcp_web"] = compute_basic_strip_stats_tcp_web(instances)
-    # stats["ect_probe_tcp_web"] = compute_basic_strip_stats_tcp_web_probe(instances)
-    # stats["ecn_negotiated"] = compute_basic_ecn_negotation_stats(instances)
-    # stats["ecn_negotiated_quic"] = compute_ecn_negotiation_quic(instances)
-    # stats["ect_stripped_quic"] = compute_ect_stripped_quic(instances)
-    # stats["dns_both_tcp_udp"] = compute_dns_tcp_ect_reachability(instances)
-    # compute_cdf_tcp_ect(instances)
-    # compute_cdf_quic_ect(instances)
-    # compute_tcp_udp_strip_stats(instances)
-    # compute_tcp_udp_correlation(instances)
-    #  "69.171.250.35", "74.6.231.20" "216.58.210.206", 
-    # compute_graph_of_hops(instances, [
-    #     "78.36.18.184",
-    #     "3.114.30.212",
-    #     "92.243.6.5",
-    #     "178.33.203.115",
-    #     "208.88.126.235",
-    #     "45.33.31.34",
-    #     "212.186.223.161",
-    #     "94.172.186.238",
-    #     "66.79.136.235",
-
-    # ], "tcp_probe")
+    stats["ect_stripped_tcp_web"] = compute_basic_strip_stats_tcp_web(instances)
+    stats["ect_probe_tcp_web"] = compute_basic_strip_stats_tcp_web_probe(instances)
+    stats["ecn_negotiated"] = compute_basic_ecn_negotation_stats(instances)
+    stats["ecn_negotiated_quic"] = compute_ecn_negotiation_quic(instances)
+    stats["ect_stripped_quic"] = compute_ect_stripped_quic(instances)
+    stats["dns_both_tcp_udp"] = compute_dns_tcp_ect_reachability(instances)
+    compute_cdf_tcp_ect(instances)
+    compute_cdf_quic_ect(instances)
+    compute_tcp_udp_strip_stats(instances)
+    compute_tcp_udp_correlation(instances)
     
-    # compute_tcp_bar_charts(instances)
-    # compute_preserve_tcp_graph(instances)
-    # compute_preserve_quic_graph(instances)
+    compute_graph_of_hops(instances, [
+        "78.36.18.184",
+        "3.114.30.212",
+        "92.243.6.5",
+        "178.33.203.115",
+        "208.88.126.235",
+        "45.33.31.34",
+        "212.186.223.161",
+        "94.172.186.238",
+        "66.79.136.235",
+    ], "tcp_probe")
     
-    # compute_tcp_udp_bar_charts(instances)
-    # compute_tcp_udp_strip_stats(instances)
+    compute_tcp_bar_charts(instances)
+    compute_preserve_tcp_graph(instances)
+    compute_preserve_quic_graph(instances)
     
-    # compute_tcp_udp_correlation(instances)
-    # ect_marked_icmp_stats(instances)
-    # ipv4_ipv6_stuff(instances)
+    compute_tcp_udp_bar_charts(instances)
+    compute_tcp_udp_strip_stats(instances)
+    
+    compute_tcp_udp_correlation(instances)
+    ect_marked_icmp_stats(instances)
+    ipv4_ipv6_stuff(instances)
     pprint.pprint(stats)
-    # compute_interfaces(instances)
+    compute_interfaces(instances)
     compute_interfaces_ntp(instances)
-    # as_traversal_table_data(instances)
-    # dns_udp_tcp_pairing(instances)
-    # compute_strip_stats_ntp(instances)
+    as_traversal_table_data(instances)
+    dns_udp_tcp_pairing(instances)
+    compute_strip_stats_ntp(instances)
     compute_remarking_tcp(instances)
-    # compute_remarking_tcp_ip6(instances)
-    # compute_tcp_strip_stats(instances)
-    pass
+    compute_remarking_tcp_ip6(instances)
+    compute_tcp_strip_stats(instances)

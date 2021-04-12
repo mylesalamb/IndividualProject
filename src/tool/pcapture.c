@@ -230,7 +230,7 @@ static void pcap_log_conn(struct pcap_controller_t *pc)
 
         if (pd == NULL)
         {
-                LOG_ERR("dump open\n");
+                LOG_ERR("Packet dump failed to open, likely file/folder perm error\n");
         }
 
         pc->dump = pd;
