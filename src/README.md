@@ -14,6 +14,8 @@ This readme describes the contents of the software that was developed for the in
 
 ## Network Analysis Tool
 
+Please note that as submitted the tool will not work as external (open source) dependencies are required. I highly recommend installing the tool in a virtual machine (ubuntu 20.4)  utilising the steps below
+
 
 ### Installing through the provided installer
 
@@ -56,7 +58,7 @@ sudo apt-get update -y
 sudo apt-get install -y clang gcc git-lfs zlib1g-dev golang make cmake wget libmnl-dev libnfnetlink-dev libpcap-dev libev-dev libevent-dev
 ```
 
-To additionall pull the datasets used in the dissertation one needs to use git lfs as follows
+To additionally pull the datasets used in the dissertation one needs to use git lfs as follows
 
 ```
 cd individualProject
@@ -138,6 +140,8 @@ iptables -t mangle -A POSTROUTING -p udp -m owner --uid-owner ecnDetector_psuedo
 ip6tables -t mangle -A POSTROUTING -p tcp -m owner --uid-owner ecnDetector_psuedo -j NFQUEUE
 ip6tables -t mangle -A POSTROUTING -p udp -m owner --uid-owner ecnDetector_psuedo -j NFQUEUE
 ```
+These commands are also contained within the file `setup.sh` contained within the `tool` directory
+
 
 ### Running
 

@@ -6,7 +6,7 @@ NF_EXT=.tar.bz2
 NF_PATH=/usr/local/lib
 
 GREPO=https://github.com/mylesalamb/individualProject.git
-GREPO_PATH=individualProject/tooling/prod
+GREPO_PATH=individualProject/src/tool
 
 echo "Installer script for Ubuntu"
 
@@ -49,7 +49,8 @@ sudo ldconfig
 cd ..
 
 git clone $GREPO
-cd individualProject/tooling/prod
+cd individualProject/src/tool
+git lfs pull
 git submodule update --init --recursive
 
 

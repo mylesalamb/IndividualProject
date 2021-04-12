@@ -456,7 +456,7 @@
 
 * *2 hours* Continue data analysis statistics
 * *2 hours* Begin checkpointed data analysis implementation
-* *1 hour* High level overview of data
+* *1 hour* High level overview of data (check for interesting characteristics)
 * *1 hour* Investigate Participant-1 data
 * *1 hour* Call with participant one with followup questions
 
@@ -674,6 +674,11 @@
 
 * *1 hour* Small stylistic changes, making sure acronyms are first elaborated.
 * *5 hours* create slides, and implement video
+
+
+## 12 April 2021
+
+* *2 hours* Small last minute changes to directory structure for submission, last minute referencing
 
 
 

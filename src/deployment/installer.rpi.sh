@@ -51,6 +51,7 @@ cd ..
 
 git clone $GREPO
 cd individualProject/src/tooling
+git lfs pull
 git submodule update --init --recursive
 
 
